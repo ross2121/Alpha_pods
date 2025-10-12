@@ -11,6 +11,7 @@ pub struct Initializeadmin{
 pub struct   InitTrade{
   #[max_len(50)]
   pub approval:Vec<Approval>,
+
   pub bump:Pubkey
 }
 #[account]

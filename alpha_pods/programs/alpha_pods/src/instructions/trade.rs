@@ -11,10 +11,11 @@ pub struct InitializeTrade<'info> {
 
     pub system_program: Program<'info, System>,
 }
-impl <'info> Initialize <'info>{
-    pub fn initialize(&mut self,ctx:Context<Initialize>,admin:Pubkey,approval:Vec<Approval>){
-           self.account.set_inner(Initializeadmin{
-            admin:admin
+impl <'info> InitializeTrade <'info>{
+    pub fn initialize(&mut self,ctx:Context<InitializeTrade>,approval:Vec<Approval>){
+           self.account_approve_vec.set_inner(InitTrade{
+              approval:approval,
+              bump:self.account_approve_vec.bump
            });
 
     }
