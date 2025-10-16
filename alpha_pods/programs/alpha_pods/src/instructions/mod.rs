@@ -1,3 +1,3 @@
 pub mod init;
-pub mod trade;
+pub mod deposit;
 pub use trade::*;
