@@ -1,8 +1,8 @@
 use std::clone;
 
-use anchor_lang::{accounts::account, prelude::*};
+use anchor_lang::{ prelude::*};
 
-use crate::{state::Approval, InitializeAdmin, Member};
+use crate::{ InitializeAdmin, Member};
 #[derive(Accounts)]
 pub struct AddMember<'info> {
     #[account(mut)]
@@ -12,7 +12,11 @@ pub struct AddMember<'info> {
     pub system_program: Program<'info, System>,
 }
 impl <'info> AddMember <'info>{
-    pub fn addmember(&mut self,ctx:Context<AddMember>,member:Pubkey){
+    pub fn addmember(&mut self,ctx:Context<AddMember>,member:Pubkey)->Result<()>{
+        if ctx.accounts.admin.to_account_info().key() != ctx.accounts.escrow.admin {
+            return Err(ErrorCode::AccountNotEnoughKeys.into())
+        }
         ctx.accounts.escrow.members.push(Member { public_key: member, amount:0 });
+        Ok(())
     }
 }
