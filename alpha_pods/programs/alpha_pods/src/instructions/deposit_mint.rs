@@ -16,7 +16,7 @@ pub struct DepositMint<'info> {
     pub mint:Account<'info,Mint>,
     #[account(mut,associated_token::mint=mint,associated_token::authority=member)]
     pub member_ata:Account<'info,TokenAccount>,
-    #[account(mut,seeds=[b"escrow",admin.key().as_ref()],bump)]
+    #[account(mut,seeds=[b"escrow",admin.key().as_ref(),&escrow.seed.to_be_bytes()],bump)]
     pub escrow:Account<'info,InitializeAdmin>,
     #[account(mut,associated_token::mint=mint,associated_token::authority=escrow)]
     pub vault:Account<'info,TokenAccount>,
@@ -24,14 +24,15 @@ pub struct DepositMint<'info> {
 
 }
 impl <'info> DepositMint <'info>{
-    pub fn trade(&mut self,ctx:Context<DepositMint>,amount:u64){
+    pub fn trade(&mut self,amount:u64)->Result<()>{
        let account= TransferChecked{
-            from:ctx.accounts.member_ata.to_account_info(),
-            to:ctx.accounts.vault.to_account_info(),
-            mint:ctx.accounts.mint.to_account_info(),
-            authority:ctx.accounts.escrow.to_account_info() 
+            from:self.member_ata.to_account_info(),
+            to:self.vault.to_account_info(),
+            mint:self.mint.to_account_info(),
+            authority:self.escrow.to_account_info() 
         }; 
-       let cpi_ctx=CpiContext::new(ctx.accounts.system_program.to_account_info(),account);
-      transfer_checked(cpi_ctx, amount, self.mint.decimals);
+       let cpi_ctx=CpiContext::new(self.system_program.to_account_info(),account);
+      transfer_checked(cpi_ctx, amount, self.mint.decimals)?;
+      Ok(())
     }
 }

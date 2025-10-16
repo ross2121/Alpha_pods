@@ -7,16 +7,16 @@ use crate::{ InitializeAdmin, Member};
 pub struct AddMember<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
-    #[account(mut,seeds=[b"escrow",admin.key().as_ref()],bump=escrow.bump)]
+    #[account(mut,seeds=[b"escrow",admin.key().as_ref(),&escrow.seed.to_le_bytes()],bump=escrow.bump)]
     pub escrow:Account<'info,InitializeAdmin>,
     pub system_program: Program<'info, System>,
 }
 impl <'info> AddMember <'info>{
-    pub fn addmember(&mut self,ctx:Context<AddMember>,member:Pubkey)->Result<()>{
-        if ctx.accounts.admin.to_account_info().key() != ctx.accounts.escrow.admin {
+    pub fn addmember(&mut self,member:Pubkey)->Result<()>{
+        if self.admin.to_account_info().key() != self.escrow.admin {
             return Err(ErrorCode::AccountNotEnoughKeys.into())
         }
-        ctx.accounts.escrow.members.push(Member { public_key: member, amount:0 });
+        self.escrow.members.push(Member { public_key: member, amount:0 });
         Ok(())
     }
 }

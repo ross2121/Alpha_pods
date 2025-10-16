@@ -1,6 +1,5 @@
-use std::collections::HashMap;
 use anchor_lang::prelude::*;
-use anchor_lang::{account, Accounts};
+use anchor_lang::{account};
 #[account]
 #[derive(InitSpace)]
 pub struct   InitializeAdmin{
@@ -8,6 +7,7 @@ pub struct   InitializeAdmin{
   #[max_len(50)]
   pub members:Vec<Member>,
   pub admin:Pubkey,
+  pub seed:u64,
   pub bump:u8
 }
 #[derive(InitSpace, Clone, AnchorSerialize, AnchorDeserialize)]

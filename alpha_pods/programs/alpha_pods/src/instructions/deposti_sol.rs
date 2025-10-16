@@ -12,19 +12,20 @@ pub struct Deposit<'info> {
     pub admin: Signer<'info>,
     #[account(mut)]
     pub member:Signer<'info>,
-    #[account(mut,seeds=[b"escrow",admin.key().as_ref()],bump)]
+    #[account(mut,seeds=[b"escrow",admin.key().as_ref(),&escrow.seed.to_le_bytes()],bump)]
     pub escrow:Account<'info,InitializeAdmin>,
     pub system_program: Program<'info, System>,
 
 }
 impl <'info> Deposit <'info>{
-    pub fn trade(&mut self,ctx:Context<Deposit>,amount:u64){
+    pub fn deposit(&mut self,amount:u64)->Result<()>{
        let account=Transfer{
-        from:ctx.accounts.member.to_account_info(),
-        to:ctx.accounts.escrow.to_account_info(),
-        authority:ctx.accounts.system_program.to_account_info()
+        from:self.member.to_account_info(),
+        to:self.escrow.to_account_info(),
+        authority:self.system_program.to_account_info()
        };
-       let cpi_ctx=CpiContext::new(ctx.accounts.system_program.to_account_info(), account);
-       transfer(cpi_ctx, amount *LAMPORTS_PER_SOL);
+       let cpi_ctx=CpiContext::new(self.system_program.to_account_info(), account);
+       transfer(cpi_ctx, amount *LAMPORTS_PER_SOL)?;
+       Ok(())
     }
 }
