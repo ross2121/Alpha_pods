@@ -1,7 +1,5 @@
-use std::clone;
 
 use anchor_lang::{ prelude::*};
-
 use crate::{ InitializeAdmin, Member};
 #[derive(Accounts)]
 pub struct RemoveMember<'info> {

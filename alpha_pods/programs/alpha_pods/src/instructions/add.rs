@@ -1,6 +1,6 @@
-use std::clone;
 
-use anchor_lang::{ prelude::*};
+
+use anchor_lang::{prelude::*};
 
 use crate::{ InitializeAdmin, Member};
 #[derive(Accounts)]

@@ -1,8 +1,8 @@
-use std::clone;
 
-use anchor_lang::{accounts::account, prelude::*};
 
-use crate::{state::Approval, InitializeAdmin, Member};
+use anchor_lang::{ prelude::*};
+
+use crate::{ InitializeAdmin, Member};
 #[derive(Accounts)]
 pub struct Initialize<'info> {
     #[account(mut)]

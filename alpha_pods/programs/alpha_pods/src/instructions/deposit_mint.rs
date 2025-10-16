@@ -1,5 +1,5 @@
-use anchor_lang::{accounts::account, prelude::*, solana_program::native_token::LAMPORTS_PER_SOL};
-use anchor_spl::{associated_token::AssociatedToken, token::{mint_to, transfer, transfer_checked, Mint, MintTo, Token, TokenAccount, Transfer, TransferChecked}, token_2022::spl_token_2022::extension::cpi_guard::CpiGuard};
+use anchor_lang::{ prelude::*};
+use anchor_spl::{ token::{ transfer_checked, Mint, TokenAccount, TransferChecked}};
 use crate::{ InitializeAdmin};
 #[derive(Accounts)]
 //send sol to escrow where the depositer should allow 
@@ -11,9 +11,11 @@ pub struct DepositMint<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
     #[account(mut)]
-    pub member_ata:Signer<'info>,
+    pub member:Signer<'info>,
     #[account(mut)]
     pub mint:Account<'info,Mint>,
+    #[account(mut,associated_token::mint=mint,associated_token::authority=member)]
+    pub member_ata:Account<'info,TokenAccount>,
     #[account(mut,seeds=[b"escrow",admin.key().as_ref()],bump)]
     pub escrow:Account<'info,InitializeAdmin>,
     #[account(mut,associated_token::mint=mint,associated_token::authority=escrow)]

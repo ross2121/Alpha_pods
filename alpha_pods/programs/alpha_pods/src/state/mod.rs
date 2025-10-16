@@ -10,7 +10,7 @@ pub struct   InitializeAdmin{
   pub admin:Pubkey,
   pub bump:u8
 }
-#[derive(InitSpace,Clone)]
+#[derive(InitSpace, Clone, AnchorSerialize, AnchorDeserialize)]
 pub struct Member {
   pub public_key:Pubkey,
   pub amount:u64

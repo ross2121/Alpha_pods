@@ -1,5 +1,5 @@
-use anchor_lang::{accounts::account, prelude::*, solana_program::native_token::LAMPORTS_PER_SOL};
-use anchor_spl::{associated_token::AssociatedToken, token::{mint_to, transfer, transfer_checked, Mint, MintTo, Token, TokenAccount, Transfer}, token_2022::spl_token_2022::extension::cpi_guard::CpiGuard};
+use anchor_lang::{ prelude::*, solana_program::native_token::LAMPORTS_PER_SOL};
+use anchor_spl::{ token::{ transfer, Transfer}};
 use crate::{ InitializeAdmin};
 #[derive(Accounts)]
 //send sol to escrow where the depositer should allow 
@@ -19,7 +19,6 @@ pub struct Deposit<'info> {
 }
 impl <'info> Deposit <'info>{
     pub fn trade(&mut self,ctx:Context<Deposit>,amount:u64){
-       
        let account=Transfer{
         from:ctx.accounts.member.to_account_info(),
         to:ctx.accounts.escrow.to_account_info(),
