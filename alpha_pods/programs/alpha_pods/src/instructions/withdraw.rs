@@ -2,8 +2,7 @@ use anchor_lang::{prelude::*, solana_program::native_token::LAMPORTS_PER_SOL, sy
 
 use crate::{ InitializeAdmin};
 #[derive(Accounts)]
-pub struct Withdraw<'info> {
-    
+pub struct Withdraw<'info> { 
     #[account(mut)]
     pub member: Signer<'info>,
     #[account(mut,seeds=[b"escrow",escrow.admin.key().as_ref()],bump=escrow.bump)]
@@ -22,7 +21,13 @@ impl<'info> Withdraw<'info> {
             from:ctx.accounts.escrow.to_account_info(),
             to:ctx.accounts.member.to_account_info(),
         };
-        let cpi_ctx=CpiContext::new(ctx.accounts.system_program.to_account_info(), tranfer);
+        let seeds = &[
+            b"escrow".as_ref(),
+            &self.escrow.admin.as_ref(),
+            &[self.escrow.bump]
+        ];
+        let signer_seeds = &[&seeds[..]];
+        let cpi_ctx=CpiContext::new(ctx.accounts.system_program.to_account_info(), tranfer).with_signer(signer_seeds);
         transfer(cpi_ctx, amount*LAMPORTS_PER_SOL);
         Ok(())
     }
