@@ -3,16 +3,11 @@ use anchor_lang::prelude::*;
 use anchor_lang::{account, Accounts};
 #[account]
 #[derive(InitSpace)]
-pub struct Initializeadmin{
-    pub admin:Pubkey,
-}
-#[account]
-#[derive(InitSpace)]
-pub struct   InitTrade{
-  #[max_len(50)]
-  pub approval:Vec<Approval>,
-
-  pub bump:Pubkey
+pub struct   InitializeAdmin{
+  pub threshold:u64,
+  pub member:u64,
+  pub admin:Pubkey,
+  pub bump:u8
 }
 #[account]
 #[derive(InitSpace)]
