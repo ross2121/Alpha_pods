@@ -103,9 +103,8 @@ describe("alpha_pods", () => {
     const escrowAccount = await program.account.initializeAdmin.fetch(escrowPda);
     expect(escrowAccount.members.length).to.equal(3);
   });
-
   it("Deposit SOL", async () => {
-    const depositAmount = 0.5; // SOL
+    const depositAmount = 0.5; 
     const lamports = depositAmount * anchor.web3.LAMPORTS_PER_SOL;
 
     const tx = await program.methods

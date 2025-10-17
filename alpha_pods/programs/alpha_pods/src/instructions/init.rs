@@ -7,7 +7,6 @@ pub struct Initialize<'info> {
     pub admin: Signer<'info>,
     #[account(init,payer=admin,space=InitializeAdmin::INIT_SPACE,seeds=[b"escrow",admin.key().as_ref(),&seed.to_le_bytes()],bump)]
     pub escrow:Account<'info,InitializeAdmin>,
-
     pub system_program: Program<'info, System>,
 }
 impl <'info> Initialize <'info>{
