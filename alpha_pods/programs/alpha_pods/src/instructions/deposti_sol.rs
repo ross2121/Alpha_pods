@@ -1,5 +1,5 @@
-use anchor_lang::{ prelude::*, solana_program::native_token::LAMPORTS_PER_SOL};
-use anchor_spl::{ token::{ transfer, Transfer}};
+use anchor_lang::{ prelude::*, solana_program::native_token::LAMPORTS_PER_SOL, system_program::{transfer, Transfer}};
+
 use crate::{ InitializeAdmin};
 #[derive(Accounts)]
 //send sol to escrow where the depositer should allow 
@@ -22,7 +22,6 @@ impl <'info> Deposit <'info>{
        let account=Transfer{
         from:self.member.to_account_info(),
         to:self.escrow.to_account_info(),
-        authority:self.system_program.to_account_info()
        };
        let cpi_ctx=CpiContext::new(self.system_program.to_account_info(), account);
        transfer(cpi_ctx, amount *LAMPORTS_PER_SOL)?;

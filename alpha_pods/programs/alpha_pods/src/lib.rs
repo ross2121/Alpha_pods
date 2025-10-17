@@ -5,6 +5,8 @@ pub mod instructions;
 pub use instructions::*;
 pub mod state;
 pub use state::*;
+pub mod error;
+pub use error::*;
 declare_id!("FeozaXSwZZexg48Fup4xLZFN2c9nUsSvtHbWz3V3GQuq");
 
 #[program]

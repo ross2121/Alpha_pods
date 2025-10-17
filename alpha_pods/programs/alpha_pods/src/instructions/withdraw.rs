@@ -1,6 +1,6 @@
 use anchor_lang::{prelude::*, solana_program::native_token::LAMPORTS_PER_SOL, system_program::{transfer, Transfer}};
 
-use crate::{ InitializeAdmin};
+use crate::{ alpha_error, InitializeAdmin};
 #[derive(Accounts)]
 pub struct Withdraw<'info> { 
     #[account(mut)]
@@ -13,9 +13,10 @@ impl<'info> Withdraw<'info> {
     pub fn withdraw(&mut self, amount: u64) -> Result<()> {
         let member_account =self.escrow.members.iter().find(|account| 
             account.public_key == self.member.key()
-        ).expect("No member exist for this address first add the address");
+        ).ok_or(alpha_error::InvalidMemberAddress)?;
+        
         if member_account.amount < amount{
-            return Err(ErrorCode::AccountNotEnoughKeys.into())
+            return Err(alpha_error::InsufficientBalance.into())
         };
         let tranfer=Transfer{
             from:self.escrow.to_account_info(),
