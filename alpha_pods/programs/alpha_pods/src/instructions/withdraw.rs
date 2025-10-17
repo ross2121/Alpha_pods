@@ -5,7 +5,7 @@ use crate::{ InitializeAdmin};
 pub struct Withdraw<'info> { 
     #[account(mut)]
     pub member: Signer<'info>,
-    #[account(mut,seeds=[b"escrow",escrow.admin.key().as_ref(),&escrow.seed.to_le_bytes()],bump=escrow.bump)]
+    #[account(mut,seeds=[b"escrow",escrow.admin.key().as_ref(),&escrow.seed.to_le_bytes()],bump)]
     pub escrow:Account<'info,InitializeAdmin>,
     pub system_program: Program<'info, System>,
 }

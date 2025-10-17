@@ -5,7 +5,7 @@ use crate::{ InitializeAdmin, Member};
 pub struct RemoveMember<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
-    #[account(mut,seeds=[b"escrow",admin.key().as_ref(),&escrow.seed.to_le_bytes()],bump=escrow.bump)]
+    #[account(mut,seeds=[b"escrow",escrow.admin.key().as_ref(),&escrow.seed.to_le_bytes()],bump)]
     pub escrow:Account<'info,InitializeAdmin>,
     pub system_program: Program<'info, System>,
 }

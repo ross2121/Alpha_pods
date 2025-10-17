@@ -5,9 +5,7 @@ import { PublicKey, Keypair, SystemProgram } from "@solana/web3.js";
 import { expect } from "chai";
 
 describe("alpha_pods", () => {
-  // Configure the client to use the local cluster.
   anchor.setProvider(anchor.AnchorProvider.env());
-
   const program = anchor.workspace.alphaPods as Program<AlphaPods>;
   const provider = anchor.getProvider();
   let admin: Keypair;
@@ -19,34 +17,38 @@ describe("alpha_pods", () => {
   let seed: number;
 
   before(async () => {
-
-    admin = Keypair.generate();
+    const secretKeyArray = [
+      123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,
+      235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224
+    ];
+    const secretarray=new Uint8Array(secretKeyArray);
+    admin = Keypair.fromSecretKey(secretarray);
+    console.log(admin.publicKey.toBase58());
     member1 = Keypair.generate();
     member2 = Keypair.generate();
     member3 = Keypair.generate();
     seed = Math.floor(Math.random() * 1000000);
-
-    // Airdrop SOL to admin
-    await provider.connection.requestAirdrop(admin.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
-    await provider.connection.requestAirdrop(member1.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
-    await provider.connection.requestAirdrop(member2.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
-    await provider.connection.requestAirdrop(member3.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
-
-    // Find escrow PDA
+    
+    // await provider.connection.requestAirdrop(admin.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
+    // await provider.connection.requestAirdrop(member1.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
+    // await provider.connection.requestAirdrop(member2.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
+    // await provider.connection.requestAirdrop(member3.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
+    console.log(admin.secretKey.toString());
     [escrowPda, escrowBump] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("escrow"),
         admin.publicKey.toBuffer(),
-        Buffer.from(seed.toString()),
+        Buffer.from(new anchor.BN(seed).toArrayLike(Buffer, "le", 8)),
       ],
       program.programId
     );
+    console.log(escrowPda);
+ 
   });
 
   it("Initialize escrow", async () => {
     const members = [member1.publicKey, member2.publicKey, member3.publicKey];
     const threshold = 5;
-
     const tx = await program.methods
       .initialize(new anchor.BN(seed), members, new anchor.BN(threshold))
       .accountsStrict({
@@ -57,19 +59,15 @@ describe("alpha_pods", () => {
       .signers([admin])
       .rpc();
     console.log("Initialize transaction signature:", tx);
-
-  
     const escrowAccount = await program.account.initializeAdmin.fetch(escrowPda);
     expect(escrowAccount.admin.toString()).to.equal(admin.publicKey.toString());
-    expect(escrowAccount.threshold).to.equal(threshold);
+    expect(escrowAccount.threshold.toNumber()).to.equal(threshold);
     expect(escrowAccount.members.length).to.equal(3);
-    expect(escrowAccount.seed).to.equal(seed);
+    expect(escrowAccount.seed.toNumber()).to.equal(seed);
   });
 
   it("Add member", async () => {
     const newMember = Keypair.generate();
-    await provider.connection.requestAirdrop(newMember.publicKey, anchor.web3.LAMPORTS_PER_SOL);
-
     const tx = await program.methods
       .addMember(newMember.publicKey)
       .accountsStrict({
@@ -79,16 +77,18 @@ describe("alpha_pods", () => {
       })
       .signers([admin])
       .rpc();
-
+    
     console.log("Add member transaction signature:", tx);
-
-    // Verify member was added
     const escrowAccount = await program.account.initializeAdmin.fetch(escrowPda);
     expect(escrowAccount.members.length).to.equal(4);
     expect(escrowAccount.members[3].publicKey.toString()).to.equal(newMember.publicKey.toString());
   });
 
   it("Remove member", async () => {
+    // Get the current escrow account to get the seed
+    const currentEscrow = await program.account.initializeAdmin.fetch(escrowPda);
+    const currentSeed = currentEscrow.seed.toNumber();
+    
     const tx = await program.methods
       .removeMember(member3.publicKey)
       .accountsStrict({
@@ -100,8 +100,6 @@ describe("alpha_pods", () => {
       .rpc();
 
     console.log("Remove member transaction signature:", tx);
-
-    // Verify member was removed
     const escrowAccount = await program.account.initializeAdmin.fetch(escrowPda);
     expect(escrowAccount.members.length).to.equal(3);
   });
@@ -164,7 +162,7 @@ describe("alpha_pods", () => {
       await program.methods
         .addMember(newMember.publicKey)
         .accountsStrict({
-          admin: member1.publicKey, // Using member instead of admin
+          admin: member1.publicKey,
           escrow: escrowPda,
           systemProgram: SystemProgram.programId,
         })
@@ -200,7 +198,7 @@ describe("alpha_pods", () => {
 
   it("Fail to withdraw with non-member", async () => {
     const nonMember = Keypair.generate();
-    await provider.connection.requestAirdrop(nonMember.publicKey, anchor.web3.LAMPORTS_PER_SOL);
+    // await provider.connection.requestAirdrop(nonMember.publicKey, anchor.web3.LAMPORTS_PER_SOL);
 
     const withdrawAmount = 0.1; // SOL
     const lamports = withdrawAmount * anchor.web3.LAMPORTS_PER_SOL;

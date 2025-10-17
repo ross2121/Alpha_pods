@@ -16,7 +16,7 @@ pub struct DepositMint<'info> {
     pub mint:Account<'info,Mint>,
     #[account(mut,associated_token::mint=mint,associated_token::authority=member)]
     pub member_ata:Account<'info,TokenAccount>,
-    #[account(mut,seeds=[b"escrow",admin.key().as_ref(),&escrow.seed.to_be_bytes()],bump)]
+    #[account(mut,seeds=[b"escrow",escrow.admin.key().as_ref(),&escrow.seed.to_le_bytes()],bump)]
     pub escrow:Account<'info,InitializeAdmin>,
     #[account(mut,associated_token::mint=mint,associated_token::authority=escrow)]
     pub vault:Account<'info,TokenAccount>,
