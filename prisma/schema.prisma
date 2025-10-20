@@ -14,8 +14,9 @@ datasource db {
 }
 model User{
    id          String      @id @unique @default(uuid())
-  telegram_id String   @unique
+  telegram_id String       @unique
   public_key  String
+  role          Role
   encrypted_private_key String
   encryption_iv String
 }
@@ -24,4 +25,8 @@ model Escrow{
   public_key String
   encrypted_private_key String
   encryption_iv  String
+}
+enum Role{
+  admin
+  user
 }
