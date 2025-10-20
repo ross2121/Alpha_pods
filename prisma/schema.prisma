@@ -15,6 +15,7 @@ datasource db {
 model User{
    id          String      @id @unique @default(uuid())
   telegram_id String       @unique
+  name       String
   public_key  String
   role          Role
   encrypted_private_key String
