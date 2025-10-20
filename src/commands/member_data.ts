@@ -6,6 +6,14 @@ export const Member_Data=async(telegramId:string,name:string,role:Role)=>{
     const prisma=new PrismaClient();
     const keypair=new Keypair();
     const private_key=encryptPrivateKey(keypair.secretKey);
+    const user=await prisma.user.findFirst({
+      where:{
+        telegram_id:telegramId
+      }
+    });
+    if(user){
+      return
+;    }
   await prisma.user.create({
     data:{
         telegram_id:telegramId,
