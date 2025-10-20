@@ -2,7 +2,7 @@ import { getquote } from "./services/jupiter_swap"
 import express, { json } from "express";
 import { Telegraf,Markup } from "telegraf";
 import dotenv from "dotenv";
-import { Member_Data } from "./commands/member_data";
+import { add_member, delete_member } from "./commands/member_data";
 dotenv.config();
 const bot = new Telegraf(process.env.TELEGRAM_API || "");
 const mainKeyboard = Markup.inlineKeyboard([
@@ -69,11 +69,12 @@ Tracked Wallets:
 No active copy trading wallets`);
     }
   })
-
+bot.on("left_chat_member",(ctx)=>{
+  const member_delete=ctx.message.left_chat_member;
+   delete_member(member_delete.id.toString());
+})
   bot.on('new_chat_members', (ctx) => {
-    console.log("check1");
     const newMembers = ctx.message.new_chat_members;
-  console.log("check23");
     for (const member of newMembers) {
       if (!member.is_bot) {
         const userToSave = {
@@ -82,8 +83,8 @@ No active copy trading wallets`);
           lastName: member.last_name,
           username: member.username,
         };
-        
-        Member_Data(userToSave.id.toString(),userToSave.firstName,"user");
+          
+        add_member(userToSave.id.toString(),userToSave.firstName,"user");
       }
     }
   })
