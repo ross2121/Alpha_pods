@@ -1,13 +1,14 @@
 import { getquote } from "./services/jupiter_swap"
 import express, { json } from "express";
-import { Telegraf,Markup } from "telegraf";
+import { Telegraf,Markup, Scenes, session } from "telegraf";
 import dotenv from "dotenv";
 import { add_member, delete_member } from "./commands/member_data";
 import { admin_middleware } from "./middleware/admin";
+import { MyContext, proposals, proposeWizard } from "./commands/Proposal";
 dotenv.config();
 const proposevotes=new Map<string,{yes:number,no:number}>();
 
-const bot = new Telegraf(process.env.TELEGRAM_API || "");
+const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
 const mainKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback("Swap", "Swap")],
     [Markup.button.callback("Propose", "propose")],
@@ -18,9 +19,14 @@ const mainKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback("📈 Exit Position", "exit_position")]
 ]);
 const app=express();
+const stage = new Scenes.Stage<MyContext>([proposeWizard]);
 app.use(json);
-bot.command("propose",admin_middleware,async(ctx)=>{
-     ctx.reply("Enter the mint you want to swap");
+
+bot.use(session());
+bot.use(stage.middleware());
+
+bot.command("propose", admin_middleware, async (ctx) => {
+  await ctx.scene.enter('propose_wizard');
 });
 
 bot.command('membercount', async (ctx) => {
@@ -53,6 +59,41 @@ bot.command("Swap",async(Ctx)=>{
 
 });
 
+bot.action(/vote:(yes|no):(.+)/, async (ctx) => {
+  const action = ctx.match[1]; 
+  const mint = ctx.match[2];  
+  const userId = ctx.from.id;
+  const proposal = proposals.get(mint);
+  if (!proposal) {
+      return ctx.answerCbQuery('This proposal is no longer valid.');
+  }
+  if (action === 'yes') {
+      proposal.yes++;
+  } else {
+      proposal.no++;
+  }
+  const newKeyboard = Markup.inlineKeyboard([
+      Markup.button.callback(`👍 Yes (${proposal.yes})`, `vote:yes:${mint}`),
+      Markup.button.callback(`👎 No (${proposal.no})`, `vote:no:${mint}`)
+  ]);
+
+  try {
+      await ctx.editMessageText(
+          `New Proposal! 🗳️\n\n` +
+          `**Mint:** \`${proposal.mint}\`\n` +
+          `**Minimum Amount:** \`${proposal.amount} SOL\`\n\n` +
+          `Should we proceed with this swap?`,
+          {
+              ...newKeyboard,
+              parse_mode: 'Markdown'
+          }
+      );
+      await ctx.answerCbQuery('Vote counted!');
+  } catch (e) {
+      console.error("Failed to edit message:", e);
+      await ctx.answerCbQuery('Vote counted (message not updated).');
+  }
+});
   bot.command('myinfo', async (ctx) => {
     if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
       const userId = ctx.from.id;

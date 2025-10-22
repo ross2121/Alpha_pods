@@ -1,22 +1,19 @@
 import { Markup, Scenes, session, Telegraf } from "telegraf";
-import { WizardScene } from "telegraf/typings/scenes/wizard";
-import { WizardContext, WizardSessionData } from "telegraf/typings/scenes/wizard/context";
 import { admin_middleware } from "../middleware/admin";
-
-const proposals = new Map<string, {
+export const proposals = new Map<string, {
     mint: string;
     amount: number;
     yes: number;
     no: number;
 }>();
-interface MyWizardSession extends WizardSessionData {
+interface MyWizardSession extends Scenes.WizardSessionData {
     state: {
         mint: string;
         amount: number; 
     };
 }
-interface MyContext extends WizardContext<MyWizardSession> {}
-const proposeWizard = new WizardScene<MyContext>(
+export interface MyContext extends Scenes.WizardContext<MyWizardSession> {}
+export const proposeWizard = new Scenes.WizardScene<MyContext>(
     'propose_wizard',
     async (ctx) => {
         await ctx.reply('Please enter the mint you want to swap:');
