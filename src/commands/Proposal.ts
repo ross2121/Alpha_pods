@@ -16,46 +16,36 @@ interface MyWizardSession extends WizardSessionData {
         amount: number; 
     };
 }
-
 interface MyContext extends WizardContext<MyWizardSession> {}
-
-
 const proposeWizard = new WizardScene<MyContext>(
     'propose_wizard',
-    
     async (ctx) => {
         await ctx.reply('Please enter the mint you want to swap:');
         return ctx.wizard.next(); 
     },
     async (ctx) => {
-   
         if (!ctx.message || !('text' in ctx.message)) {
             await ctx.reply('Invalid input. Please send the mint address as text.');
             return; 
         }
-        
-        ctx.wizard.state.mint = ctx.message.text;
+        (ctx.wizard.state as MyWizardSession['state']).mint = ctx.message.text;
         await ctx.reply('Great. Now, enter the minimum swap amount in SOL:');
-        return ctx.wizard.next(); // This will now work
+        return ctx.wizard.next();
     },
     async (ctx) => {
         if (!ctx.message || !('text' in ctx.message)) {
             await ctx.reply('Invalid input. Please send the amount as text.');
-            return; // Stay on this step
+            return; 
         }
 
         const amount = parseFloat(ctx.message.text);
-        const mint = ctx.wizard.state.mint; // Get mint from state
+        const mint = (ctx.wizard.state as MyWizardSession['state']).mint; 
 
-        // Validation
         if (!mint || isNaN(amount) || amount <= 0) {
             await ctx.reply('That is not a valid amount. Please enter a positive number (e.g., 1.5).');
-            // Stay on this step to re-ask
             return;
         }
-        
-        // Save the amount to the state
-        ctx.wizard.state.amount = amount;
+        (ctx.wizard.state as MyWizardSession['state']).amount = amount;
         proposals.set(mint, {
             mint: mint,
             amount: amount,
@@ -69,7 +59,7 @@ const proposeWizard = new WizardScene<MyContext>(
             Markup.button.callback(`👎 No (0)`, `vote:no:${mint}`)
         ]);
 
-        // Post the final message
+     
         await ctx.reply(
             `New Proposal! 🗳️\n\n` +
             `**Mint:** \`${mint}\`\n` +
@@ -81,26 +71,22 @@ const proposeWizard = new WizardScene<MyContext>(
             }
         );
 
-        // End the scene
         return ctx.scene.leave();
     }
 );
 
-// 2. SETUP BOT AND STAGE
-// Use the new MyContext
+
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
 const stage = new Scenes.Stage<MyContext>([proposeWizard]);
 
 bot.use(session());
 bot.use(stage.middleware());
- // Fixed app.use(json)
 
-// 3. UPDATE THE /propose COMMAND
 bot.command("propose", admin_middleware, async (ctx) => {
      await ctx.scene.enter('propose_wizard');
 });
 
-// 4. ADD HANDLERS FOR THE VOTE BUTTONS
+
 bot.action(/vote:(yes|no):(.+)/, async (ctx) => {
     const action = ctx.match[1]; 
     const mint = ctx.match[2];  
