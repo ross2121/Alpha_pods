@@ -68,36 +68,33 @@ bot.action(/vote:(yes|no):(.+)/, async (ctx) => {
     if (!proposal) {
         return ctx.answerCbQuery('This proposal is no longer valid.');
     }
-    if (action === 'yes') {
-        console.log("yes check");
-        console.log(proposevotes);
-        const vote=proposevotes.get(userId);
-        if(vote && vote.vote === Vote.Yes){
-            
-            return ctx.answerCbQuery('You have already voted Yes!');
-        }
-        else if(vote && vote.vote==Vote.NO){
-            vote.vote=Vote.NO;
+    
+    const newvote = (action === 'yes') ? Vote.Yes : Vote.NO;
+    const existingVote = proposevotes.get(userId);
+    
+    // If user already voted the same way, do nothing
+    if (existingVote && existingVote.vote === newvote) {
+        return ctx.answerCbQuery(`You have already voted ${action === 'yes' ? 'Yes' : 'No'}!`);
+    }
+    
+    // If user had a previous vote, remove it from counts
+    if (existingVote) {
+        if (existingVote.vote === Vote.Yes) {
             proposal.yes--;
-            proposal.no++;
+        } else {
+            proposal.no--;
         }
-        proposevotes.set(userId,{vote:Vote.Yes});
+    }
+    
+    // Add the new vote to counts
+    if (newvote === Vote.Yes) {
         proposal.yes++;
     } else {
-        console.log("no check");
-        console.log(proposevotes);
-        const vote=proposevotes.get(userId);
-        if(vote && vote.vote==Vote.NO){
-            return ctx.answerCbQuery('You have already voted NO!');
-        }
-        else if(vote && vote.vote==Vote.Yes){
-            vote.vote=Vote.Yes;
-            proposal.no--;
-            proposal.yes++;
-        }
-        proposevotes.set(userId,{vote:Vote.NO});
         proposal.no++;
     }
+    
+    // Update user's vote
+    proposevotes.set(userId, {vote: newvote});
     const newKeyboard = Markup.inlineKeyboard([
         Markup.button.callback(`👍 Yes (${proposal.yes})`, `vote:yes:${mint}`),
         Markup.button.callback(`👎 No (${proposal.no})`, `vote:no:${mint}`)

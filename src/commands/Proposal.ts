@@ -73,67 +73,6 @@ bot.use(stage.middleware());
 bot.command("propose", admin_middleware, async (ctx) => {
      await ctx.scene.enter('propose_wizard');
 });
-const proposevotes=new Map<number,{vote:Vote}>();
-bot.action(/vote:(yes|no):(.+)/, async (ctx) => {    
-    const action = ctx.match[1]; 
-    const mint = ctx.match[2];  
-    const userId = ctx.from.id;
-    const proposal = proposals.get(mint);
-    if (!proposal) {
-        return ctx.answerCbQuery('This proposal is no longer valid.');
-    }
-    if (action === 'yes') {
-        console.log("yes check");
-        console.log(proposevotes);
-        const vote=proposevotes.get(userId);
-        if(vote && vote.vote === Vote.Yes){
-            
-            return ctx.answerCbQuery('You have already voted Yes!');
-        }
-        else if(vote && vote.vote==Vote.NO){
-            vote.vote=Vote.NO;
-            proposal.yes--;
-            proposal.no++;
-        }
-        proposevotes.set(userId,{vote:Vote.Yes});
-        proposal.yes++;
-    } else {
-        console.log("no check");
-        console.log(proposevotes);
-        const vote=proposevotes.get(userId);
-        if(vote && vote.vote==Vote.NO){
-            return ctx.answerCbQuery('You have already voted NO!');
-        }
-        else if(vote && vote.vote==Vote.Yes){
-            vote.vote=Vote.Yes;
-            proposal.no--;
-            proposal.yes++;
-        }
-        proposevotes.set(userId,{vote:Vote.NO});
-        proposal.no++;
-    }
-    const newKeyboard = Markup.inlineKeyboard([
-        Markup.button.callback(`👍 Yes (${proposal.yes})`, `vote:yes:${mint}`),
-        Markup.button.callback(`👎 No (${proposal.no})`, `vote:no:${mint}`)
-    ]);
-
-    try {
-        await ctx.editMessageText(
-            `New Proposal! 🗳️\n\n` +
-            `**Mint:** \`${proposal.mint}\`\n` +
-            `**Minimum Amount:** \`${proposal.amount} SOL\`\n\n` +
-            `Should we proceed with this swap?`,
-            {
-                ...newKeyboard,
-                parse_mode: 'Markdown'
-            }
-        );
-        await ctx.answerCbQuery('Vote counted!');
-    } catch (e) {
-        console.error("Failed to edit message:", e);
-        await ctx.answerCbQuery('Vote counted (message not updated).');
-    }
-});
 enum Vote{
     Yes,
     NO
