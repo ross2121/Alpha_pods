@@ -4,6 +4,7 @@ import { PrismaClient, Role } from "@prisma/client";
 
 export const add_member=async(telegramId:string,name:string,role:Role)=>{
     const prisma=new PrismaClient();
+    console.log("user check");
     const keypair=new Keypair();
     const private_key=encryptPrivateKey(keypair.secretKey);
     const user=await prisma.user.findFirst({

@@ -5,7 +5,8 @@ import dotenv from "dotenv";
 import { add_member, delete_member } from "./commands/member_data";
 import { admin_middleware } from "./middleware/admin";
 dotenv.config();
-const proposevotes=new Map<string,string>;
+const proposevotes=new Map<string,{yes:number,no:number}>();
+
 const bot = new Telegraf(process.env.TELEGRAM_API || "");
 const mainKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback("Swap", "Swap")],
@@ -35,11 +36,14 @@ bot.on("my_chat_member",async(ctx)=>{
   const member=ctx.myChatMember;
   console.log("admin");
   console.log("admin check");
-  if(member.old_chat_member.status=="administrator"||member.new_chat_member.status=="administrator"){
+  if(member.new_chat_member.status=="administrator"||member.new_chat_member.status=="creator"){
+    console.log("check 2");
     const admins=await ctx.getChatAdministrators();
+    console.log("admins",admins);
     for (const admin of admins){
        if(admin.user.is_bot){
-        return;
+        console.log("check4");
+        continue;
        }
        await add_member(admin.user.id.toString(),admin.user.first_name,"admin");
     } 
@@ -96,9 +100,7 @@ bot.on("left_chat_member",(ctx)=>{
   const member_delete=ctx.message.left_chat_member;
    delete_member(member_delete.id.toString());
 })
-bot.on("new_chat_members",(ctx)=>{
-  console.log("check2");
-})
+
   bot.on('new_chat_members', (ctx) => {
     const newMembers = ctx.message.new_chat_members;
     console.log(newMembers);

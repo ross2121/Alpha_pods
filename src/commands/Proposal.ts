@@ -9,7 +9,6 @@ const proposals = new Map<string, {
     yes: number;
     no: number;
 }>();
-
 interface MyWizardSession extends WizardSessionData {
     state: {
         mint: string;
@@ -37,10 +36,8 @@ const proposeWizard = new WizardScene<MyContext>(
             await ctx.reply('Invalid input. Please send the amount as text.');
             return; 
         }
-
         const amount = parseFloat(ctx.message.text);
         const mint = (ctx.wizard.state as MyWizardSession['state']).mint; 
-
         if (!mint || isNaN(amount) || amount <= 0) {
             await ctx.reply('That is not a valid amount. Please enter a positive number (e.g., 1.5).');
             return;
@@ -52,8 +49,6 @@ const proposeWizard = new WizardScene<MyContext>(
             yes: 0,
             no: 0
         });
-
-        // Create the keyboard
         const voteKeyboard = Markup.inlineKeyboard([
             Markup.button.callback(`👍 Yes (0)`, `vote:yes:${mint}`),
             Markup.button.callback(`👎 No (0)`, `vote:no:${mint}`)
@@ -74,8 +69,6 @@ const proposeWizard = new WizardScene<MyContext>(
         return ctx.scene.leave();
     }
 );
-
-
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
 const stage = new Scenes.Stage<MyContext>([proposeWizard]);
 
@@ -91,7 +84,6 @@ bot.action(/vote:(yes|no):(.+)/, async (ctx) => {
     const action = ctx.match[1]; 
     const mint = ctx.match[2];  
     const userId = ctx.from.id;
-
     const proposal = proposals.get(mint);
     if (!proposal) {
         return ctx.answerCbQuery('This proposal is no longer valid.');
