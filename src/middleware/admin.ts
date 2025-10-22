@@ -7,7 +7,6 @@ export const admin_middleware = async (ctx: Context, next: () => Promise<void>) 
         await ctx.reply("Unable to identify user");
         return;
     }
-
     const prisma = new PrismaClient();
     const admin = await prisma.user.findUnique({
         where: {

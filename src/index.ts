@@ -5,10 +5,11 @@ import dotenv from "dotenv";
 import { add_member, delete_member } from "./commands/member_data";
 import { admin_middleware } from "./middleware/admin";
 dotenv.config();
+const proposevotes=new Map<string,string>;
 const bot = new Telegraf(process.env.TELEGRAM_API || "");
 const mainKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback("Swap", "Swap")],
-    [Markup.button.callback("Add member", "add member")],
+    [Markup.button.callback("Propose", "propose")],
     [Markup.button.callback("🔄 Swap Tokens", "swap_tokens")],
     [Markup.button.callback("💼 Manage Wallet", "manage_wallet")],
     [Markup.button.callback("🚀 Start Strategy", "start_strategy")],
@@ -17,9 +18,10 @@ const mainKeyboard = Markup.inlineKeyboard([
 ]);
 const app=express();
 app.use(json);
-bot.command("Swap",admin_middleware,async(ctx)=>{
+bot.command("propose",admin_middleware,async(ctx)=>{
+     ctx.reply("Enter the mint you want to swap");
+});
 
-})
 bot.command('membercount', async (ctx) => {
     if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
       const count = await ctx.getChatMembersCount();
