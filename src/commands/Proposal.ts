@@ -74,7 +74,7 @@ bot.command("propose", admin_middleware, async (ctx) => {
      await ctx.scene.enter('propose_wizard');
 });
 const proposevotes=new Map<number,{vote:Vote}>();
-bot.action(/vote:(yes|no):(.+)/, async (ctx) => {
+bot.action(/vote:(yes|no):(.+)/, async (ctx) => {    
     const action = ctx.match[1]; 
     const mint = ctx.match[2];  
     const userId = ctx.from.id;
@@ -83,8 +83,11 @@ bot.action(/vote:(yes|no):(.+)/, async (ctx) => {
         return ctx.answerCbQuery('This proposal is no longer valid.');
     }
     if (action === 'yes') {
+        console.log("yes check");
+        console.log(proposevotes);
         const vote=proposevotes.get(userId);
         if(vote && vote.vote === Vote.Yes){
+            
             return ctx.answerCbQuery('You have already voted Yes!');
         }
         else if(vote && vote.vote==Vote.NO){
@@ -95,9 +98,11 @@ bot.action(/vote:(yes|no):(.+)/, async (ctx) => {
         proposevotes.set(userId,{vote:Vote.Yes});
         proposal.yes++;
     } else {
+        console.log("no check");
+        console.log(proposevotes);
         const vote=proposevotes.get(userId);
         if(vote && vote.vote==Vote.NO){
-            return;
+            return ctx.answerCbQuery('You have already voted NO!');
         }
         else if(vote && vote.vote==Vote.Yes){
             vote.vote=Vote.Yes;
