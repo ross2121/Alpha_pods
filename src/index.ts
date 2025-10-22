@@ -3,6 +3,7 @@ import express, { json } from "express";
 import { Telegraf,Markup } from "telegraf";
 import dotenv from "dotenv";
 import { add_member, delete_member } from "./commands/member_data";
+import { admin_middleware } from "./middleware/admin";
 dotenv.config();
 const bot = new Telegraf(process.env.TELEGRAM_API || "");
 const mainKeyboard = Markup.inlineKeyboard([
@@ -16,6 +17,9 @@ const mainKeyboard = Markup.inlineKeyboard([
 ]);
 const app=express();
 app.use(json);
+bot.command("Swap",admin_middleware,async(ctx)=>{
+
+})
 bot.command('membercount', async (ctx) => {
     if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
       const count = await ctx.getChatMembersCount();
@@ -25,6 +29,24 @@ bot.command('membercount', async (ctx) => {
       ctx.reply('This command can only be used in a group.');
     }
   });
+bot.on("my_chat_member",async(ctx)=>{
+  const member=ctx.myChatMember;
+  console.log("admin");
+  console.log("admin check");
+  if(member.old_chat_member.status=="administrator"||member.new_chat_member.status=="administrator"){
+    const admins=await ctx.getChatAdministrators();
+    for (const admin of admins){
+       if(admin.user.is_bot){
+        return;
+       }
+       await add_member(admin.user.id.toString(),admin.user.first_name,"admin");
+    } 
+  }
+})
+bot.command("Swap",async(Ctx)=>{
+
+});
+
   bot.command('myinfo', async (ctx) => {
     if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
       const userId = ctx.from.id;
@@ -51,7 +73,6 @@ bot.command('membercount', async (ctx) => {
   bot.command("market",async(ctx)=>{
     if (ctx.chat.type=="group"|| ctx.chat.type=="supergroup"){
       ctx.reply(`DLMM Auto Copy Trade Setup Beta⚠️ Recommend to use with small amounts of SOL at first. This feature only works with DLMM pools.
-
 📝 Instructions:
 1. Add the wallet address you want to track and auto copy trade
 2. Click on wallet names to enable/disable copy trading (✅ = enabled, 🔔 = disabled)
@@ -73,8 +94,13 @@ bot.on("left_chat_member",(ctx)=>{
   const member_delete=ctx.message.left_chat_member;
    delete_member(member_delete.id.toString());
 })
+bot.on("new_chat_members",(ctx)=>{
+  console.log("check2");
+})
   bot.on('new_chat_members', (ctx) => {
     const newMembers = ctx.message.new_chat_members;
+    console.log(newMembers);
+    console.log("test");
     for (const member of newMembers) {
       if (!member.is_bot) {
         const userToSave = {

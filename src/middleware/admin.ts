@@ -1,17 +1,24 @@
 import { PrismaClient } from "@prisma/client"
-export const admin_middleware=async(telegram_id:string)=>{
-    const  prisma=new PrismaClient();
-    const admin=await prisma.user.findUnique({
-        where:{
-            telegram_id:telegram_id
+import { Context } from "telegraf";
+
+export const admin_middleware = async (ctx: Context, next: () => Promise<void>) => {
+    const telegram_id = ctx.from?.id.toString();
+    if (!telegram_id) {
+        await ctx.reply("Unable to identify user");
+        return;
+    }
+
+    const prisma = new PrismaClient();
+    const admin = await prisma.user.findUnique({
+        where: {
+            telegram_id: telegram_id
         }
     });
-    if(!admin){
-        return false;
-    }
-    if(admin.role=="user"){
-        return false;
     
+    if (!admin || admin.role === "user") {
+        await ctx.reply("Access denied. Admin privileges required.");
+        return;
     }
-   return true;
+    
+    await next();
 }

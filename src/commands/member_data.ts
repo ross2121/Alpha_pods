@@ -12,6 +12,7 @@ export const add_member=async(telegramId:string,name:string,role:Role)=>{
       }
     });
     if(user){
+      console.log("false");
       return; 
        }
   await prisma.user.create({
