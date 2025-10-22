@@ -50,8 +50,6 @@ export const proposeWizard = new Scenes.WizardScene<MyContext>(
             Markup.button.callback(`👍 Yes (0)`, `vote:yes:${mint}`),
             Markup.button.callback(`👎 No (0)`, `vote:no:${mint}`)
         ]);
-
-     
         await ctx.reply(
             `New Proposal! 🗳️\n\n` +
             `**Mint:** \`${mint}\`\n` +
@@ -75,8 +73,7 @@ bot.use(stage.middleware());
 bot.command("propose", admin_middleware, async (ctx) => {
      await ctx.scene.enter('propose_wizard');
 });
-
-
+const proposevotes=new Map<number,{vote:Vote}>();
 bot.action(/vote:(yes|no):(.+)/, async (ctx) => {
     const action = ctx.match[1]; 
     const mint = ctx.match[2];  
@@ -86,8 +83,28 @@ bot.action(/vote:(yes|no):(.+)/, async (ctx) => {
         return ctx.answerCbQuery('This proposal is no longer valid.');
     }
     if (action === 'yes') {
+        const vote=proposevotes.get(userId);
+        if(vote && vote.vote === Vote.Yes){
+            return ctx.answerCbQuery('You have already voted Yes!');
+        }
+        else if(vote && vote.vote==Vote.NO){
+            vote.vote=Vote.NO;
+            proposal.yes--;
+            proposal.no++;
+        }
+        proposevotes.set(userId,{vote:Vote.Yes});
         proposal.yes++;
     } else {
+        const vote=proposevotes.get(userId);
+        if(vote && vote.vote==Vote.NO){
+            return;
+        }
+        else if(vote && vote.vote==Vote.Yes){
+            vote.vote=Vote.Yes;
+            proposal.no--;
+            proposal.yes++;
+        }
+        proposevotes.set(userId,{vote:Vote.NO});
         proposal.no++;
     }
     const newKeyboard = Markup.inlineKeyboard([
@@ -112,3 +129,7 @@ bot.action(/vote:(yes|no):(.+)/, async (ctx) => {
         await ctx.answerCbQuery('Vote counted (message not updated).');
     }
 });
+enum Vote{
+    Yes,
+    NO
+}
