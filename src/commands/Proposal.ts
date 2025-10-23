@@ -7,6 +7,9 @@ export const proposals = new Map<string, {
     amount: number;
     yes: number;
     no: number;
+    messagId:number,
+    chatId:number,
+    createdAt:number
 }>();
 dotenv
 const getTokenInfo = async (mintAddress:any) => {
@@ -83,18 +86,14 @@ export const proposeWizard = new Scenes.WizardScene<MyContext>(
             await ctx.reply('That is not a valid amount. Please enter a positive number (e.g., 1.5).');
             return;
         }
+      ;
         (ctx.wizard.state as MyWizardSession['state']).amount = amount;
-        proposals.set(mint, {
-            mint: mint,
-            amount: amount,
-            yes: 0,
-            no: 0
-        });
+      
         const voteKeyboard = Markup.inlineKeyboard([
             Markup.button.callback(`👍 Yes (0)`, `vote:yes:${mint}`),
             Markup.button.callback(`👎 No (0)`, `vote:no:${mint}`)
         ]);
-        await ctx.reply(
+      const proposalText=  await ctx.reply(
             `New Proposal! 🗳️\n\n` +
             `**Mint:** \`${mint}\`\n` +
             `**Minimum Amount:** \`${amount} SOL\`\n\n` +
@@ -104,6 +103,39 @@ export const proposeWizard = new Scenes.WizardScene<MyContext>(
                 parse_mode: 'Markdown'
             }
         );
+        proposals.set(mint, {
+            mint: mint,
+            amount: amount,
+            yes: 0,
+            no: 0,
+            chatId:proposalText.chat.id,
+            messagId:proposalText.message_id,
+            createdAt:Date.now()
+        });
+        const FIVE_MINUTES_MS = 1 * 60 * 1000;
+        setTimeout(()=>{
+           const expiredproposal=proposals.get(mint);
+           if(!expiredproposal){
+            return;
+           }
+           const expiredText =
+           `Proposal EXPIRED ⛔\n\n` +
+           `**Mint:** \`${expiredproposal.mint}\`\n` +
+           `**Minimum Amount:** \`${expiredproposal.amount} SOL\`\n\n` +
+           `**Final Result:** Yes (${expiredproposal.yes}) - No (${expiredproposal.no})`;
+          try{
+            bot.telegram.editMessageText(
+                expiredproposal.chatId,
+                expiredproposal.messagId,
+                undefined,
+                expiredText,
+                {parse_mode:"Markdown"}
+            )
+          }catch(e){
+            console.error("Failed to edit expired proposal message:", e);
+          }
+          proposals.delete(mint);
+        },FIVE_MINUTES_MS)
 
         return ctx.scene.leave();
     }
