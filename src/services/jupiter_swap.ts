@@ -1,20 +1,19 @@
 import axios from "axios";
-const URL="https://lite-api.jup.ag/ultra/v1";
-export const getquote = async (basemint: string, quotemint: string, amount: number) => {
-  //curl --request GET \
-  //   --url 'https://lite-api.jup.ag/ultra/v1/order?inputMint=So11111111111111111111111111111111111111112&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=1'
-  const url = `${URL}/order?inputMint=${basemint}&outputMint=${quotemint}&amount=${amount}`;  
+const ORDER_URL="https://lite-api.jup.ag/ultra/v1";
+
+export const getquote = async (inputMint: string, outputMint: string, amount: number) => {
+  const url = `${ORDER_URL}/order?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}`;  
   try {
     const response = await axios.get(url);
-    console.log("Response:", response.data);
-    return response.data.requestId;
+    console.log("Order Response:", response.data);
+    return response.data;
   } catch (error) {
-    console.error("Error fetching quote:", error);
+    console.error("Error fetching order:", error);
     throw error;
   }
 };
 export const swap=async(requestId:String,signature:String)=>{
-    const url=`${URL}/execute`
+    const url=`${ORDER_URL}/execute`
     try{
         const response=await axios.post(url,{
             signedTransaction:signature,
