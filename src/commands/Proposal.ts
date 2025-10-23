@@ -3,6 +3,7 @@ import { admin_middleware } from "../middleware/admin";
 import  dotenv from "dotenv";
 import { PublicKey } from "@solana/web3.js";
 import { PrismaClient } from "@prisma/client";
+import { getminimumfund } from "./fund";
 
 dotenv
 const getTokenInfo = async (mintAddress:any) => {
@@ -115,7 +116,7 @@ export const proposeWizard = new Scenes.WizardScene<MyContext>(
             Members: []
            }
         })
-        const FIVE_MINUTES_MS = 1 * 60 * 1000;
+        const FIVE_MINUTES_MS = .5 * 60 * 1000;
         setTimeout(async () => {
            try {
                const expiredproposal = await prisma.proposal.findUnique({
@@ -146,7 +147,17 @@ export const proposeWizard = new Scenes.WizardScene<MyContext>(
                    undefined,
                    expiredText,
                    {parse_mode:"Markdown"}
-               )
+               );
+
+              console.log("check first to close");
+               if (expiredproposal.yes > 0) {
+                   try {
+                       await getminimumfund(expiredproposal.id, bot);
+                       console.log(`Funding check completed for proposal ${expiredproposal.id}`);
+                   } catch (fundingError) {
+                       console.error("Failed to check funding requirements:", fundingError);
+                   }
+               }
            } catch (e) {
                console.error("Failed to handle expired proposal:", e);
            } finally {

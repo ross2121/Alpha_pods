@@ -13,6 +13,7 @@ import {
     handleMyChatMember 
 } from "./commands/group";
 import { handleSwap, main } from "./commands/swap";
+import { getminimumfund } from "./commands/fund";
 dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
 const mainKeyboard = Markup.inlineKeyboard([
