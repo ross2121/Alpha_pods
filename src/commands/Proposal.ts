@@ -4,6 +4,7 @@ import  dotenv from "dotenv";
 import { PublicKey } from "@solana/web3.js";
 import { PrismaClient } from "@prisma/client";
 import { getminimumfund } from "./fund";
+import { getQuote } from "./swap";
 
 dotenv
 const getTokenInfo = async (mintAddress:any) => {
@@ -154,6 +155,53 @@ export const proposeWizard = new Scenes.WizardScene<MyContext>(
                    try {
                        await getminimumfund(expiredproposal.id, bot);
                        console.log(`Funding check completed for proposal ${expiredproposal.id}`);
+                       setTimeout(async() => {
+                        try{
+                            console.log("checj212");
+                            const quoteResult:any= await getQuote(expiredproposal.id);
+                            console.log("quote result",quoteResult);
+                            if(quoteResult){
+                                const inputAmount = parseInt(quoteResult.inAmount) / 1e9; 
+                                const outputAmount = parseInt(quoteResult.outAmount) / 1e6;
+                                const priceImpact = parseFloat(quoteResult.priceImpactPct) * 100; 
+                                const feePercent = quoteResult.feeBps / 100; 
+                                const quoteMessage = `
+                                🎯 **Quote Ready for Approved Proposal!** 🎯
+                                
+                                **Proposal Details:**
+                                • Mint: \`${expiredproposal.mint}\`
+                                • Total Amount: ${inputAmount} SOL
+                                • Participants: ${expiredproposal.Members.length} members
+                                
+                                **Swap Quote:**
+                                • Input: ${inputAmount} SOL
+                                • Output: ~${outputAmount.toFixed(2)} tokens
+                                • Price Impact: ${priceImpact.toFixed(3)}%
+                                • Platform Fee: ${feePercent}%
+                                • Request ID: \`${quoteResult.requestId}\`
+                                
+                                **Quote Status:**
+                                ✅ Quote generated successfully
+                                ⏰ Quote valid until executed
+                                💰 Ready for execution
+                                
+                                **Next Steps:**
+                                The quote is now ready for execution. Each participating member should execute their portion of the swap.
+                                            `
+                                            await bot.telegram.sendMessage(
+                                                Number(expiredproposal.chatId),
+                                                quoteMessage,
+                                                { parse_mode: 'Markdown' }
+                                            );
+                            }
+                        }catch(error:any){
+                            await bot.telegram.sendMessage(
+                                Number(expiredproposal.chatId),
+                                "❌ **Quote Generation Failed**\n\nUnable to generate quote at this time. Please try again later.",
+                                { parse_mode: 'Markdown' }
+                            );
+                        }
+                       }, FIVE_MINUTES_MS);
                    } catch (fundingError) {
                        console.error("Failed to check funding requirements:", fundingError);
                    }

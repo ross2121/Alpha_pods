@@ -12,7 +12,7 @@ import {
     handleLeftChatMember, 
     handleMyChatMember 
 } from "./commands/group";
-import { handleSwap, main } from "./commands/swap";
+import { getQuote, handleSwap } from "./commands/swap";
 import { getminimumfund } from "./commands/fund";
 dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
@@ -45,8 +45,7 @@ bot.on("left_chat_member", handleLeftChatMember);
 bot.on('new_chat_members', handleNewChatMembers);
 bot.command("Swap", handleSwap);
 
-
+getQuote("5082ab0c-a328-4469-b1fd-85f190b85339");
 bot.action(/vote:(yes|no):(.+)/, user_middleware,handleVote);
 
 bot.launch();
-main();
