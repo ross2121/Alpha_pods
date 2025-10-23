@@ -12,10 +12,7 @@ dotenv
 const getTokenInfo = async (mintAddress:any) => {
     const url=process.env.HELIUS_RPC_URL;
     console.log("url",url);
-    if(!url){
-        console.log(false);
-        return;
-    }
+    console.log("mint",mintAddress);
     const response = await fetch(url||"", {
       method: 'POST',
       headers: {
@@ -30,10 +27,10 @@ const getTokenInfo = async (mintAddress:any) => {
         },
       }),
     });
-  
+    
     const { result } = await response.json();
-    console.log(result);
-    return result;
+    console.log(result.token_info);
+    return result.token_info;
   };
 interface MyWizardSession extends Scenes.WizardSessionData {
     state: {
@@ -63,12 +60,17 @@ export const proposeWizard = new Scenes.WizardScene<MyContext>(
          await ctx.reply('Invalid input. Please send the mint address as text.');
          return; 
      }
-     console.log(ctx.message);
-     const data=await getTokenInfo(ctx.message.text);
-     console.log("data",data);
-     (ctx.wizard.state as MyWizardSession['state']).mint = ctx.message.text;
-     await ctx.reply('Great. Now, enter the minimum swap amount in SOL:');
-     return ctx.wizard.next();
+      console.log(ctx.message);
+      const data=await getTokenInfo(ctx.message.text);
+      console.log("data",data);
+      (ctx.wizard.state as MyWizardSession['state']).mint = ctx.message.text;
+    
+      const pricePerToken = data.price_info?.price_per_token || 'N/A';
+      const currency = data.price_info?.currency || 'Unknown';
+      const symbol = data.symbol || 'Unknown';
+      
+      await ctx.reply(`Great! The token you have chosen is ${symbol} with a current price of ${pricePerToken} ${currency}. Now, enter the minimum swap amount in SOL:`);
+      return ctx.wizard.next();
     })),
     async (ctx) => {
         if (!ctx.message || !('text' in ctx.message)) {
