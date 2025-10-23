@@ -21,6 +21,24 @@ model User{
   encrypted_private_key String
   encryption_iv String
 }
+model Proposal{
+  id String @id @unique @default(uuid())
+   mint  String
+    amount Float
+    yes  Int
+    no  Int
+    messagId BigInt
+    chatId BigInt
+    createdAt  BigInt
+    Votestatus  Status
+    ProposalStatus Status
+    Members   String[]
+      @@unique([chatId, messagId])
+}
+enum Status{
+  Expired
+  Running
+}
 model Escrow{
   id    String @id @unique @default(uuid())
   public_key String

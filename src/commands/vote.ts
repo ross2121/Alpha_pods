@@ -1,6 +1,6 @@
-import { Markup } from "telegraf";
-import { proposals } from "./Proposal";
-
+import { PrismaClient } from "@prisma/client";
+import { Context, Markup } from "telegraf";
+import { Update } from "telegraf/typings/core/types/typegram";
 export enum Vote {
     Yes,
     NO
@@ -8,12 +8,23 @@ export enum Vote {
 
 export const proposevotes = new Map<number, {vote: Vote}>();
 
-export const handleVote = async (ctx: any) => {
+export const handleVote = async (ctx: Context<Update.CallbackQueryUpdate> & { match: RegExpExecArray })=> {
     const action = ctx.match[1]; 
     const mint = ctx.match[2];  
     const userId = ctx.from.id;
-    const proposal = proposals.get(mint);
-    
+    const prisma=new PrismaClient();
+   const member=[];
+   console.log("message id",ctx.callbackQuery.message?.chat.id!);
+   console.log("chat id",ctx.callbackQuery.message?.message_id!);
+    const proposal = await prisma.proposal.findUnique({
+        where: {
+            chatId_messagId: {
+                chatId: BigInt(ctx.callbackQuery.message?.chat.id!),
+                messagId: BigInt(ctx.callbackQuery.message?.message_id!)
+            }
+        }
+    })
+
     if (!proposal) {
         return ctx.answerCbQuery('This proposal is no longer valid.');
     }
@@ -34,12 +45,26 @@ export const handleVote = async (ctx: any) => {
     }
     
     if (newvote === Vote.Yes) {
+        member.push(userId.toString())
         proposal.yes++;
     } else {
         proposal.no++;
     }
     
     proposevotes.set(userId, {vote: newvote});
+    await prisma.proposal.update({
+        where: {
+            chatId_messagId: {
+                chatId: BigInt(ctx.callbackQuery.message?.chat.id!),
+                messagId: BigInt(ctx.callbackQuery.message?.message_id!)
+            }
+        },
+        data: {
+            yes: proposal.yes,
+            no: proposal.no,
+            Members: member
+        }
+    });
     
     const newKeyboard = Markup.inlineKeyboard([
         Markup.button.callback(`👍 Yes (${proposal.yes})`, `vote:yes:${mint}`),

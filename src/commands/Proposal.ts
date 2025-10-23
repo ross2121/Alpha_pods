@@ -2,15 +2,8 @@ import { Composer, Markup, Scenes, session, Telegraf } from "telegraf";
 import { admin_middleware } from "../middleware/admin";
 import  dotenv from "dotenv";
 import { PublicKey } from "@solana/web3.js";
-export const proposals = new Map<string, {
-    mint: string;
-    amount: number;
-    yes: number;
-    no: number;
-    messagId:number,
-    chatId:number,
-    createdAt:number
-}>();
+import { PrismaClient } from "@prisma/client";
+
 dotenv
 const getTokenInfo = async (mintAddress:any) => {
     const url=process.env.HELIUS_RPC_URL;
@@ -42,12 +35,14 @@ interface MyWizardSession extends Scenes.WizardSessionData {
     };
 }
 export interface MyContext extends Scenes.WizardContext<MyWizardSession> {}
+const prisma =new PrismaClient();
 export const proposeWizard = new Scenes.WizardScene<MyContext>(
     'propose_wizard',
     async (ctx) => {
         await ctx.reply('Please enter the mint you want to swap:');
         return ctx.wizard.next(); 
     },
+
     new Composer<MyContext>(Scenes.WizardScene.on('text',async(ctx)=>{
         console.log("message",ctx.message?.chat);
         console.log("message2",ctx.message?.sender_chat);
@@ -80,6 +75,8 @@ export const proposeWizard = new Scenes.WizardScene<MyContext>(
             await ctx.reply('Invalid input. Please send the amount as text.');
             return; 
         }
+    
+
         const amount = parseFloat(ctx.message.text);
         const mint = (ctx.wizard.state as MyWizardSession['state']).mint; 
         if (!mint || isNaN(amount) || amount <= 0) {
@@ -103,39 +100,59 @@ export const proposeWizard = new Scenes.WizardScene<MyContext>(
                 parse_mode: 'Markdown'
             }
         );
-        proposals.set(mint, {
-            mint: mint,
+        console.log("consolsd 12");
+        const proposal = await prisma.proposal.create({
+           data:{
+             mint: mint,
             amount: amount,
             yes: 0,
             no: 0,
-            chatId:proposalText.chat.id,
-            messagId:proposalText.message_id,
-            createdAt:Date.now()
-        });
-        const FIVE_MINUTES_MS = 1 * 60 * 1000;
-        setTimeout(()=>{
-           const expiredproposal=proposals.get(mint);
-           if(!expiredproposal){
-            return;
+            chatId:BigInt(proposalText.chat.id),
+            messagId:BigInt(proposalText.message_id),
+            createdAt:BigInt(Date.now()),
+            Votestatus: "Running",
+            ProposalStatus: "Running",
+            Members: []
            }
-           const expiredText =
-           `Proposal EXPIRED ⛔\n\n` +
-           `**Mint:** \`${expiredproposal.mint}\`\n` +
-           `**Minimum Amount:** \`${expiredproposal.amount} SOL\`\n\n` +
-           `**Final Result:** Yes (${expiredproposal.yes}) - No (${expiredproposal.no})`;
-          try{
-            bot.telegram.editMessageText(
-                expiredproposal.chatId,
-                expiredproposal.messagId,
-                undefined,
-                expiredText,
-                {parse_mode:"Markdown"}
-            )
-          }catch(e){
-            console.error("Failed to edit expired proposal message:", e);
-          }
-          proposals.delete(mint);
-        },FIVE_MINUTES_MS)
+        })
+        const FIVE_MINUTES_MS = 1 * 60 * 1000;
+        setTimeout(async () => {
+           try {
+               const expiredproposal = await prisma.proposal.findUnique({
+                   where: { id: proposal.id }
+               });
+               
+               if (!expiredproposal) {
+                   console.log("Proposal not found in database");
+                   return;
+               }
+               
+               const expiredText =
+               `Proposal EXPIRED ⛔\n\n` +
+               `**Mint:** \`${expiredproposal.mint}\`\n` +
+               `**Minimum Amount:** \`${expiredproposal.amount} SOL\`\n\n` +
+               `**Final Result:** Yes (${expiredproposal.yes}) - No (${expiredproposal.no})`;
+            
+               await prisma.proposal.update({
+                   where: { id: proposal.id },
+                   data: { 
+                       Votestatus: "Expired",
+                   }
+               });
+              
+               bot.telegram.editMessageText(
+                   Number(expiredproposal.chatId),
+                   Number(expiredproposal.messagId),
+                   undefined,
+                   expiredText,
+                   {parse_mode:"Markdown"}
+               )
+           } catch (e) {
+               console.error("Failed to handle expired proposal:", e);
+           } finally {
+              
+           }
+        }, FIVE_MINUTES_MS)
 
         return ctx.scene.leave();
     }
