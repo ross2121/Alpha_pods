@@ -9,11 +9,8 @@ pub struct   InitializeAdmin{
   pub seed:u64,
   pub bump:u8
 }
-#[derive(InitSpace, Clone, AnchorSerialize, AnchorDeserialize)]
-pub struct Member {
-  pub public_key:Pubkey,
-  pub amount:u64
-}
+
+
 #[account]
 #[derive(InitSpace)]
 pub struct  Approval{

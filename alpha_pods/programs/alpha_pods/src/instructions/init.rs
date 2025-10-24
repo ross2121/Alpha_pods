@@ -1,5 +1,5 @@
 use anchor_lang::{ prelude::*};
-use crate::{ InitializeAdmin, Member};
+use crate::{ InitializeAdmin};
 #[derive(Accounts)]
 #[instruction(seed:u64)]
 pub struct Initialize<'info> {
@@ -10,11 +10,9 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 impl <'info> Initialize <'info>{
-    pub fn initialize(&mut self,seed:u64,member:Vec<Pubkey>){
-         let mut member_vec:Vec<Member>=Vec::new();
-         for mem in member{
-             member_vec.push(Member { public_key: mem, amount: 0 });
-         }
+    pub fn initialize(&mut self,seed:u64){
+      
+       
            self.escrow.set_inner(InitializeAdmin{
             admin:self.admin.to_account_info().key(),
             bump:self.escrow.bump,

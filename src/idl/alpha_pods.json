@@ -8,65 +8,6 @@
   },
   "instructions": [
     {
-      "name": "add_member",
-      "discriminator": [
-        13,
-        116,
-        123,
-        130,
-        126,
-        198,
-        57,
-        34
-      ],
-      "accounts": [
-        {
-          "name": "admin",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "escrow",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  101,
-                  115,
-                  99,
-                  114,
-                  111,
-                  119
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "escrow.admin",
-                "account": "InitializeAdmin"
-              },
-              {
-                "kind": "account",
-                "path": "escrow.seed",
-                "account": "InitializeAdmin"
-              }
-            ]
-          }
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "member",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
       "name": "deposit_mint",
       "discriminator": [
         106,
@@ -422,75 +363,6 @@
         {
           "name": "seed",
           "type": "u64"
-        },
-        {
-          "name": "member",
-          "type": {
-            "vec": "pubkey"
-          }
-        },
-        {
-          "name": "threshold",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "remove_member",
-      "discriminator": [
-        171,
-        57,
-        231,
-        150,
-        167,
-        128,
-        18,
-        55
-      ],
-      "accounts": [
-        {
-          "name": "admin",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "escrow",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  101,
-                  115,
-                  99,
-                  114,
-                  111,
-                  119
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "escrow.admin",
-                "account": "InitializeAdmin"
-              },
-              {
-                "kind": "account",
-                "path": "escrow.seed",
-                "account": "InitializeAdmin"
-              }
-            ]
-          }
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "member",
-          "type": "pubkey"
         }
       ]
     },
@@ -930,20 +802,6 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "threshold",
-            "type": "u64"
-          },
-          {
-            "name": "members",
-            "type": {
-              "vec": {
-                "defined": {
-                  "name": "Member"
-                }
-              }
-            }
-          },
-          {
             "name": "admin",
             "type": "pubkey"
           },
@@ -954,22 +812,6 @@
           {
             "name": "bump",
             "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "Member",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "public_key",
-            "type": "pubkey"
-          },
-          {
-            "name": "amount",
-            "type": "u64"
           }
         ]
       }

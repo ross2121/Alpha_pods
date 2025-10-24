@@ -12,8 +12,8 @@ declare_id!("FeozaXSwZZexg48Fup4xLZFN2c9nUsSvtHbWz3V3GQuq");
 #[program]
 pub mod alpha_pods {
     use super::*;
-    pub fn initialize(ctx: Context<Initialize>, seed: u64, member: Vec<Pubkey>) -> Result<()> {
-        ctx.accounts.initialize(seed, member);
+    pub fn initialize(ctx: Context<Initialize>, seed: u64) -> Result<()> {
+        ctx.accounts.initialize(seed);
         Ok(())
     }
 

@@ -1,31 +1,27 @@
 
 import * as anchor from "@coral-xyz/anchor";
 import { Program, AnchorProvider } from "@coral-xyz/anchor";
-import { PublicKey, Keypair, SystemProgram, Connection } from "@solana/web3.js";
-import { AlphaPods } from "../idl/alpha_pods";
+import { PublicKey, Keypair, SystemProgram, Connection } from "@solana/web3.js"
 import dotenv from "dotenv";
 
+import * as idl from "../idl/alpha_pods.json";
+import { AlphaPods } from "../idl/alpha_pods";
 dotenv.config();
-
-// Initialize the program connection
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
-const provider = new AnchorProvider(connection, {} as any, {});
-anchor.setProvider(provider);
-
+const keypair=new Keypair();
+const wallet=new anchor.Wallet(keypair);
+const provider = new anchor.AnchorProvider(connection, wallet, {
+    commitment: "confirmed",
+})
 export const init = async (
     adminKeypair: Keypair,
     members: PublicKey[],
     threshold: number,
-    seed?: number
 ) => {
     try {
-        // Load the program
-        const program = new Program(AlphaPods as any, provider) as Program<AlphaPods>;
-        
-        // Generate seed if not provided
-        const escrowSeed = seed || Math.floor(Math.random() * 1000000);
-        
-        // Generate PDA for escrow account
+        const program = new Program<AlphaPods>(idl as AlphaPods, provider)
+        const escrowSeed =Math.floor(Math.random() * 1000000)
+    
         const [escrowPda, escrowBump] = PublicKey.findProgramAddressSync(
             [
                 Buffer.from("escrow"),
@@ -34,14 +30,11 @@ export const init = async (
             ],
             program.programId
         );
-        
         console.log("Escrow PDA:", escrowPda.toBase58());
         console.log("Escrow Bump:", escrowBump);
         console.log("Seed:", escrowSeed);
-        
-        // Initialize the escrow account
         const tx = await program.methods
-            .initialize(new anchor.BN(escrowSeed), members, new anchor.BN(threshold))
+            .initialize(new anchor.BN(escrowSeed))
             .accountsStrict({
                 admin: adminKeypair.publicKey,
                 escrow: escrowPda,
@@ -51,10 +44,7 @@ export const init = async (
             .rpc();
             
         console.log("Initialize transaction signature:", tx);
-        
-        // Fetch and verify the escrow account
         const escrowAccount = await program.account.initializeAdmin.fetch(escrowPda);
-        
         return {
             success: true,
             transactionSignature: tx,
@@ -63,8 +53,6 @@ export const init = async (
             seed: escrowSeed,
             account: {
                 admin: escrowAccount.admin.toBase58(),
-                threshold: escrowAccount.threshold.toNumber(),
-                membersCount: escrowAccount.members.length,
                 seed: escrowAccount.seed.toNumber(),
             }
         };
@@ -73,18 +61,15 @@ export const init = async (
         console.error("Error initializing escrow:", error);
         return {
             success: false,
-            error: error.message
+    
         };
     }
 };
-
-// Helper function to create admin keypair from secret key
 export const createAdminKeypair = (secretKey: number[]): Keypair => {
     const secretKeyArray = new Uint8Array(secretKey);
     return Keypair.fromSecretKey(secretKeyArray);
 };
 
-// Helper function to get escrow PDA
 export const getEscrowPda = (adminPublicKey: PublicKey, seed: number, programId: PublicKey): [PublicKey, number] => {
     return PublicKey.findProgramAddressSync(
         [
@@ -95,30 +80,23 @@ export const getEscrowPda = (adminPublicKey: PublicKey, seed: number, programId:
         programId
     );
 };
-
-// Helper function to fetch escrow account
 export const fetchEscrowAccount = async (escrowPda: PublicKey) => {
     try {
-        const program = new Program(AlphaPods as any, provider) as Program<AlphaPods>;
+        const program = new Program<AlphaPods>(idl as any, provider);
         const account = await program.account.initializeAdmin.fetch(escrowPda);
         return {
             success: true,
             account: {
                 admin: account.admin.toBase58(),
-                threshold: account.threshold.toNumber(),
-                membersCount: account.members.length,
                 seed: account.seed.toNumber(),
-                members: account.members.map(member => ({
-                    publicKey: member.publicKey.toBase58(),
-                    amount: member.amount.toNumber()
-                }))
+               
             }
         };
     } catch (error) {
         console.error("Error fetching escrow account:", error);
         return {
             success: false,
-            error: error.message
+        
         };
     }
 };

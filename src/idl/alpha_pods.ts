@@ -14,65 +14,6 @@ export type AlphaPods = {
   },
   "instructions": [
     {
-      "name": "addMember",
-      "discriminator": [
-        13,
-        116,
-        123,
-        130,
-        126,
-        198,
-        57,
-        34
-      ],
-      "accounts": [
-        {
-          "name": "admin",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "escrow",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  101,
-                  115,
-                  99,
-                  114,
-                  111,
-                  119
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "escrow.admin",
-                "account": "initializeAdmin"
-              },
-              {
-                "kind": "account",
-                "path": "escrow.seed",
-                "account": "initializeAdmin"
-              }
-            ]
-          }
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "member",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
       "name": "depositMint",
       "discriminator": [
         106,
@@ -428,75 +369,6 @@ export type AlphaPods = {
         {
           "name": "seed",
           "type": "u64"
-        },
-        {
-          "name": "member",
-          "type": {
-            "vec": "pubkey"
-          }
-        },
-        {
-          "name": "threshold",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "removeMember",
-      "discriminator": [
-        171,
-        57,
-        231,
-        150,
-        167,
-        128,
-        18,
-        55
-      ],
-      "accounts": [
-        {
-          "name": "admin",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "escrow",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  101,
-                  115,
-                  99,
-                  114,
-                  111,
-                  119
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "escrow.admin",
-                "account": "initializeAdmin"
-              },
-              {
-                "kind": "account",
-                "path": "escrow.seed",
-                "account": "initializeAdmin"
-              }
-            ]
-          }
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "member",
-          "type": "pubkey"
         }
       ]
     },
@@ -936,20 +808,6 @@ export type AlphaPods = {
         "kind": "struct",
         "fields": [
           {
-            "name": "threshold",
-            "type": "u64"
-          },
-          {
-            "name": "members",
-            "type": {
-              "vec": {
-                "defined": {
-                  "name": "member"
-                }
-              }
-            }
-          },
-          {
             "name": "admin",
             "type": "pubkey"
           },
@@ -960,22 +818,6 @@ export type AlphaPods = {
           {
             "name": "bump",
             "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "member",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "publicKey",
-            "type": "pubkey"
-          },
-          {
-            "name": "amount",
-            "type": "u64"
           }
         ]
       }
