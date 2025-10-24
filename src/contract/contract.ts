@@ -75,11 +75,11 @@ export const deposit=async(amount:number,member:Keypair,chatid:BigInt)=>{
         chatId:Number(chatid)
     }
   })
-  const tx=await program.methods.depositSol(amount).accountsStrict({
-       member:member.publicKey,
-       escrow:escrow?.escrow_pda || "",
-       systemProgram:SystemProgram.programId
-  }).signers([member]).rpc();
+   const tx=await program.methods.depositSol(amount).accountsStrict({
+        member:member.publicKey,
+        escrow: new PublicKey(escrow?.escrow_pda || ""),
+        systemProgram:SystemProgram.programId
+   }).signers([member]).rpc();
   console.log(tx);
 
 
