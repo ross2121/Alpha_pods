@@ -12,7 +12,7 @@ import {
     handleLeftChatMember, 
     handleMyChatMember 
 } from "./commands/group";
-import { getQuote, handleSwap } from "./commands/swap";
+import { getQuote, handleSwap, handleExecuteSwap } from "./commands/swap";
 import { getminimumfund } from "./commands/fund";
 dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
@@ -36,6 +36,10 @@ bot.use(stage.middleware());
 bot.command("propose", admin_middleware, async (ctx) => {
   await ctx.scene.enter('propose_wizard');
 });
+
+// Admin-only execute command
+bot.command("execute", admin_middleware, handleExecuteSwap);
+
 bot.command('membercount', handleMemberCount);
 bot.command('myinfo', handleMyInfo);
 bot.command("market", handleMarket);

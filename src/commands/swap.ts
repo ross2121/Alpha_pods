@@ -37,3 +37,63 @@ export const getQuote = async (proposal_id:string) => {
     
 };
 
+// Handle the execute command
+export const handleExecuteSwap = async (ctx: any) => {
+    const message = ctx.message?.text;
+    
+    if (!message || !message.startsWith('/execute')) {
+        await ctx.reply("❌ Invalid command format. Use: /execute <proposal_id>");
+        return;
+    }
+    
+    const parts = message.split(' ');
+    if (parts.length !== 2) {
+        await ctx.reply("❌ Invalid command format. Use: /execute <proposal_id>");
+        return;
+    }
+    
+    const proposal_id = parts[1];
+    
+    try {
+        await ctx.reply("🔄 Generating quote for the proposal...");
+        
+        // Get the quote
+        const quoteResult = await getQuote(proposal_id);
+        
+        if (quoteResult) {
+            // Format the quote data for Telegram message
+            const inputAmount = parseInt(quoteResult.inAmount) / 1e9; // Convert lamports to SOL
+            const outputAmount = parseInt(quoteResult.outAmount) / 1e6; // Convert to tokens (assuming 6 decimals)
+            const priceImpact = parseFloat(quoteResult.priceImpactPct) * 100; // Convert to percentage
+            const feePercent = quoteResult.feeBps / 100; // Convert basis points to percentage
+            
+            const quoteMessage = `
+🎯 **Quote Generated Successfully!** 🎯
+
+**Quote Details:**
+• Input: ${inputAmount} SOL
+• Output: ~${outputAmount.toFixed(2)} tokens
+• Price Impact: ${priceImpact.toFixed(3)}%
+• Platform Fee: ${feePercent}%
+• Request ID: \`${quoteResult.requestId}\`
+
+**Quote Status:**
+✅ Quote generated successfully
+⏰ Quote valid until executed
+💰 Ready for execution
+
+The quote is now ready for execution!
+            `;
+            
+            await ctx.reply(quoteMessage, { parse_mode: 'Markdown' });
+            
+        } else {
+            await ctx.reply("❌ Failed to generate quote. Please try again later.");
+        }
+        
+    } catch (error) {
+        console.error("Error executing swap:", error);
+        await ctx.reply("❌ Failed to execute swap. Please try again later.");
+    }
+};
+

@@ -79,3 +79,38 @@ You can get SOL from exchanges like:
         }
     }
 };
+export const checkfund=async(proposal_id:string)=>{
+   const prisma=new PrismaClient();
+   const url = process.env.RPC_URL;
+   const connection=new Connection(url||"");
+   const proposal=await prisma.proposal.findUnique({
+       where:{
+          id:proposal_id
+       }
+   });
+   if(!proposal){
+    return;
+   }
+   for  (const member of proposal.Members){
+      const user=await prisma.user.findUnique({
+        where:{
+            telegram_id:member
+        }
+      });
+      const publickey=new PublicKey(user?.public_key||"");
+      const balance=await connection.getBalance(publickey);
+       const amount=balance/LAMPORTS_PER_SOL;
+       if(proposal.amount>amount){
+          proposal.Members = proposal.Members.filter(memberId => memberId !== member);
+          await prisma.proposal.update({
+            where: {
+              id: proposal.id
+            },
+            data: {
+              Members: proposal.Members
+            }
+          });
+       }
+     
+   }
+}
