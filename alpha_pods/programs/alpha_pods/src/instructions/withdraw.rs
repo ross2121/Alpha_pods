@@ -11,13 +11,7 @@ pub struct Withdraw<'info> {
 }
 impl<'info> Withdraw<'info> {
     pub fn withdraw(&mut self, amount: u64) -> Result<()> {
-        let member_account =self.escrow.members.iter().find(|account| 
-            account.public_key == self.member.key()
-        ).ok_or(alpha_error::InvalidMemberAddress)?;
-        
-        if member_account.amount < amount{
-            return Err(alpha_error::InsufficientBalance.into())
-        };
+     
         let tranfer=Transfer{
             from:self.escrow.to_account_info(),
             to:self.member.to_account_info(),

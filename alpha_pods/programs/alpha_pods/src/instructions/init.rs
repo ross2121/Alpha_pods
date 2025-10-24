@@ -10,7 +10,7 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 impl <'info> Initialize <'info>{
-    pub fn initialize(&mut self,seed:u64,member:Vec<Pubkey>,threshold:u64){
+    pub fn initialize(&mut self,seed:u64,member:Vec<Pubkey>){
          let mut member_vec:Vec<Member>=Vec::new();
          for mem in member{
              member_vec.push(Member { public_key: mem, amount: 0 });
@@ -18,9 +18,7 @@ impl <'info> Initialize <'info>{
            self.escrow.set_inner(InitializeAdmin{
             admin:self.admin.to_account_info().key(),
             bump:self.escrow.bump,
-            members:member_vec,
             seed:seed,
-            threshold:threshold
            });
     }
 }

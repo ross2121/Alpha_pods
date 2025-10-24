@@ -110,12 +110,11 @@ describe("alpha_pods", () => {
     const tx = await program.methods
       .depositSol(new anchor.BN(lamports))
       .accountsStrict({
-        admin: admin.publicKey,
         member: member1.publicKey,
         escrow: escrowPda,
         systemProgram: SystemProgram.programId,
       })
-      .signers([admin, member1])
+      .signers([member1])
       .rpc();
 
     console.log("Deposit SOL transaction signature:", tx);

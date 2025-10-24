@@ -3,9 +3,8 @@ use anchor_lang::{account};
 #[account]
 #[derive(InitSpace)]
 pub struct   InitializeAdmin{
-  pub threshold:u64,
-  #[max_len(50)]
-  pub members:Vec<Member>,
+  
+ 
   pub admin:Pubkey,
   pub seed:u64,
   pub bump:u8

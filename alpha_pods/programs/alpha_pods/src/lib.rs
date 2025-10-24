@@ -12,20 +12,13 @@ declare_id!("FeozaXSwZZexg48Fup4xLZFN2c9nUsSvtHbWz3V3GQuq");
 #[program]
 pub mod alpha_pods {
     use super::*;
-    pub fn initialize(ctx: Context<Initialize>, seed: u64, member: Vec<Pubkey>, threshold: u64) -> Result<()> {
-        ctx.accounts.initialize(seed, member, threshold);
+    pub fn initialize(ctx: Context<Initialize>, seed: u64, member: Vec<Pubkey>) -> Result<()> {
+        ctx.accounts.initialize(seed, member);
         Ok(())
     }
 
-    pub fn add_member(ctx: Context<AddMember>, member: Pubkey) -> Result<()> {
-        ctx.accounts.addmember(member)?;
-        Ok(())
-    }
+  
 
-    pub fn remove_member(ctx: Context<RemoveMember>, member: Pubkey) -> Result<()> {
-        ctx.accounts.addmember(member)?;
-        Ok(())
-    }
 
     pub fn deposit_sol(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         ctx.accounts.deposit(amount)?;

@@ -8,8 +8,7 @@ use crate::{ InitializeAdmin};
 // It should hold the amount  you want to capture
 //
 pub struct DepositMint<'info> {
-    #[account(mut)]
-    pub admin: Signer<'info>,
+  
     #[account(mut)]
     pub member:Signer<'info>,
     #[account(mut)]
