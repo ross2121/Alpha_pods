@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: alphadpods-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-alphadpods}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./prisma/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Telegram Bot
+  bot:
+    build: .
+    container_name: alphadpods-bot
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-alphadpods}
+      
+      # Telegram
+      TELEGRAM_API: ${TELEGRAM_API}
+      
+      # Solana
+      RPC_URL: ${RPC_URL:-https://api.devnet.solana.com}
+      HELIUS_RPC_URL: ${HELIUS_RPC_URL}
+      
+      # Crypto
+      CRYPTO_SECRET: ${CRYPTO_SECRET}
+      
+      # Node environment
+      NODE_ENV: ${NODE_ENV:-production}
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - alphadpods-network
+
+volumes:
+  postgres_data:
+
+networks:
+  alphadpods-network:
+    driver: bridge

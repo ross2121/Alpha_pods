@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { add_member, delete_member } from "./member_data";
 import { Keypair } from "@solana/web3.js";
-import { init } from "../contract/init";
+import { init } from "../contract/contract";
 import { decryptPrivateKey } from "../services/auth";
 
 export const handleMemberCount = async (ctx: any) => {
@@ -104,7 +104,10 @@ export const handleMyChatMember = async (ctx: any) => {
             }
             const key=decryptPrivateKey(creator.encrypted_private_key, creator.encryption_iv);
             const keypair=Keypair.fromSecretKey(key);
-            await init(keypair);
+            const chatId = ctx.chat?.id || ctx.myChatMember?.chat?.id;
+            console.log("Chat ID:", chatId);
+            
+            await init(keypair, chatId);
 
         }
     }

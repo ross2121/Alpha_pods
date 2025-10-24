@@ -42,9 +42,10 @@ enum Status{
 }
 model Escrow{
   id    String @id @unique @default(uuid())
-  public_key String
-  encrypted_private_key String
-  encryption_iv  String
+escrow_pda  String   @unique
+chatId    BigInt   @unique
+seed      String
+creator_pubkey String
 }
 enum Role{
   admin

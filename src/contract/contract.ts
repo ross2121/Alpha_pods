@@ -10,23 +10,20 @@ import { PrismaClient } from "@prisma/client";
 import { AlphaPods } from "../idl/alpha_pods";
 dotenv.config();
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
-const keypair=new Keypair();
 
+const secretKeyArray=[123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
+const secretKey = new Uint8Array(secretKeyArray);
+const    superadmin = Keypair.fromSecretKey(secretKey);
+const wallet=new anchor.Wallet(superadmin);
+const provider = new anchor.AnchorProvider(connection, wallet, {
+commitment: "confirmed",
+})
+const program = new Program<AlphaPods>(idl as AlphaPods, provider)
 export const init = async (
     adminKeypair: Keypair,
+    chat_id:BigInt
 ) => {
     try {
-        const secretKeyArray = process.env.secretKeyArray;
-        if(!secretKeyArray){
-            return;
-        }
-          const secretarray=new Uint8Array(secretKeyArray);
-       const    superadmin = Keypair.fromSecretKey(secretarray);
-       const wallet=new anchor.Wallet(superadmin);
-const provider = new anchor.AnchorProvider(connection, wallet, {
-    commitment: "confirmed",
-})
-        const program = new Program<AlphaPods>(idl as AlphaPods, provider)
         const escrowSeed =Math.floor(Math.random() * 1000000)
     
         const [escrowPda, escrowBump] = PublicKey.findProgramAddressSync(
@@ -50,22 +47,18 @@ const provider = new anchor.AnchorProvider(connection, wallet, {
             })
             .signers([adminKeypair,superadmin])
             .rpc();
-       
+       const prisma=new PrismaClient();
+       await prisma.escrow.create({
+        data:{
+            escrow_pda:escrowPda.toString(),
+            seed:escrowSeed.toString(),
+            chatId: Number(chat_id),
+             creator_pubkey:adminKeypair.publicKey.toString()
+
+        }
+       })
         console.log("Initialize transaction signature:", tx);
         
-        
-        const escrowAccount = await program.account.initializeAdmin.fetch(escrowPda);
-        return {
-            success: true,
-            transactionSignature: tx,
-            escrowPda: escrowPda.toBase58(),
-            escrowBump,
-            seed: escrowSeed,
-            account: {
-                admin: escrowAccount.admin.toBase58(),
-                seed: escrowAccount.seed.toNumber(),
-            }
-        };
         
     } catch (error) {
         console.error("Error initializing escrow:", error);
@@ -75,18 +68,21 @@ const provider = new anchor.AnchorProvider(connection, wallet, {
         };
     }
 };
-export const createAdminKeypair = (secretKey: number[]): Keypair => {
-    const secretKeyArray = new Uint8Array(secretKey);
-    return Keypair.fromSecretKey(secretKeyArray);
-};
+export const deposit=async(amount:number,member:Keypair,chatid:BigInt)=>{
+  const prisma=new PrismaClient();
+  const escrow=await prisma.escrow.findUnique({
+    where:{
+        chatId:Number(chatid)
+    }
+  })
+  const tx=await program.methods.depositSol(amount).accountsStrict({
+       member:member.publicKey,
+       escrow:escrow?.escrow_pda || "",
+       systemProgram:SystemProgram.programId
+  }).signers([member]).rpc();
+  console.log(tx);
 
-export const getEscrowPda = (adminPublicKey: PublicKey, seed: number, programId: PublicKey): [PublicKey, number] => {
-    return PublicKey.findProgramAddressSync(
-        [
-            Buffer.from("escrow"),
-            adminPublicKey.toBuffer(),
-            Buffer.from(new anchor.BN(seed).toArrayLike(Buffer, "le", 8)),
-        ],
-        programId
-    );
-};
+
+}
+
+

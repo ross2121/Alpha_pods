@@ -30,10 +30,7 @@ describe("alpha_pods", () => {
     member3 = Keypair.generate();
     seed = Math.floor(Math.random() * 1000000);
      adminkeypair=new Keypair();
-    // await provider.connection.requestAirdrop(admin.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
-    // await provider.connection.requestAirdrop(member1.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
-    // await provider.connection.requestAirdrop(member2.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
-    // await provider.connection.requestAirdrop(member3.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
+   
     console.log(admin.secretKey.toString());
     [escrowPda, escrowBump] = PublicKey.findProgramAddressSync(
       [
@@ -61,6 +58,139 @@ describe("alpha_pods", () => {
     console.log("Initialize transaction signature:", tx);
     const escrowAccount = await program.account.initializeAdmin.fetch(escrowPda);
    
+  });
+
+  it("Deposit SOL to escrow", async () => {
+    const depositAmount = 0.5; // SOL
+    const lamports = depositAmount * anchor.web3.LAMPORTS_PER_SOL;
+
+    // Get initial balances
+    const initialMemberBalance = await provider.connection.getBalance(member1.publicKey);
+    const initialEscrowBalance = await provider.connection.getBalance(escrowPda);
+
+    console.log("Initial member balance:", initialMemberBalance / anchor.web3.LAMPORTS_PER_SOL, "SOL");
+    console.log("Initial escrow balance:", initialEscrowBalance / anchor.web3.LAMPORTS_PER_SOL, "SOL");
+
+    // Deposit SOL to escrow
+    const tx = await program.methods
+      .depositSol(new anchor.BN(depositAmount))
+      .accountsStrict({
+        member: member1.publicKey,
+        escrow: escrowPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([member1])
+      .rpc();
+
+    console.log("Deposit transaction signature:", tx);
+
+    // Get final balances
+    const finalMemberBalance = await provider.connection.getBalance(member1.publicKey);
+    const finalEscrowBalance = await provider.connection.getBalance(escrowPda);
+
+    console.log("Final member balance:", finalMemberBalance / anchor.web3.LAMPORTS_PER_SOL, "SOL");
+    console.log("Final escrow balance:", finalEscrowBalance / anchor.web3.LAMPORTS_PER_SOL, "SOL");
+
+    // Verify the deposit worked
+    expect(finalEscrowBalance).to.be.greaterThan(initialEscrowBalance);
+    expect(finalMemberBalance).to.be.lessThan(initialMemberBalance);
+    
+    // Verify the exact amount was transferred (accounting for transaction fees)
+    const expectedEscrowIncrease = lamports;
+    const actualEscrowIncrease = finalEscrowBalance - initialEscrowBalance;
+    expect(actualEscrowIncrease).to.equal(expectedEscrowIncrease);
+  });
+
+  it("Deposit SOL from multiple members", async () => {
+    const depositAmount1 = 0.3; // SOL from member2
+    const depositAmount2 = 0.2; // SOL from member3
+    const lamports1 = depositAmount1 * anchor.web3.LAMPORTS_PER_SOL;
+    const lamports2 = depositAmount2 * anchor.web3.LAMPORTS_PER_SOL;
+
+    // Get initial escrow balance
+    const initialEscrowBalance = await provider.connection.getBalance(escrowPda);
+    console.log("Initial escrow balance:", initialEscrowBalance / anchor.web3.LAMPORTS_PER_SOL, "SOL");
+
+    // First deposit from member2
+    const tx1 = await program.methods
+      .depositSol(new anchor.BN(depositAmount1))
+      .accountsStrict({
+        member: member2.publicKey,
+        escrow: escrowPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([member2])
+      .rpc();
+
+    console.log("First deposit transaction signature:", tx1);
+
+    // Second deposit from member3
+    const tx2 = await program.methods
+      .depositSol(new anchor.BN(depositAmount2))
+      .accountsStrict({
+        member: member3.publicKey,
+        escrow: escrowPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([member3])
+      .rpc();
+
+    console.log("Second deposit transaction signature:", tx2);
+
+    // Get final escrow balance
+    const finalEscrowBalance = await provider.connection.getBalance(escrowPda);
+    console.log("Final escrow balance:", finalEscrowBalance / anchor.web3.LAMPORTS_PER_SOL, "SOL");
+
+    // Verify both deposits worked
+    const totalDeposited = lamports1 + lamports2;
+    const actualIncrease = finalEscrowBalance - initialEscrowBalance;
+    expect(actualIncrease).to.equal(totalDeposited);
+    console.log("Total deposited:", totalDeposited / anchor.web3.LAMPORTS_PER_SOL, "SOL");
+  });
+
+  it("Fail to deposit with non-member", async () => {
+    const nonMember = Keypair.generate();
+    await provider.connection.requestAirdrop(nonMember.publicKey, anchor.web3.LAMPORTS_PER_SOL);
+
+    const depositAmount = 0.1; // SOL
+
+    try {
+      await program.methods
+        .depositSol(new anchor.BN(depositAmount))
+        .accountsStrict({
+          member: nonMember.publicKey,
+          escrow: escrowPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([nonMember])
+        .rpc();
+
+      expect.fail("Should have failed - non-member cannot deposit");
+    } catch (error) {
+      console.log("Expected error:", error.message);
+      expect(error.message).to.include("AccountNotEnoughKeys");
+    }
+  });
+
+  it("Fail to deposit more than balance", async () => {
+    const depositAmount = 10.0; // SOL - more than member has
+
+    try {
+      await program.methods
+        .depositSol(new anchor.BN(depositAmount))
+        .accountsStrict({
+          member: member1.publicKey,
+          escrow: escrowPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([member1])
+        .rpc();
+
+      expect.fail("Should have failed - insufficient balance");
+    } catch (error) {
+      console.log("Expected error:", error.message);
+      expect(error.message).to.include("insufficient funds");
+    }
   });
 
   
