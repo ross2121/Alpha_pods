@@ -15,8 +15,6 @@ const provider = new anchor.AnchorProvider(connection, wallet, {
 })
 export const init = async (
     adminKeypair: Keypair,
-    members: PublicKey[],
-    threshold: number,
 ) => {
     try {
         const program = new Program<AlphaPods>(idl as AlphaPods, provider)

@@ -1,4 +1,8 @@
+import { PrismaClient } from "@prisma/client";
 import { add_member, delete_member } from "./member_data";
+import { Keypair } from "@solana/web3.js";
+import { init } from "../contract/init";
+import { decryptPrivateKey } from "../services/auth";
 
 export const handleMemberCount = async (ctx: any) => {
     if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
@@ -89,6 +93,20 @@ export const handleMyChatMember = async (ctx: any) => {
                 continue;
             }
             await add_member(admin.user.id.toString(), admin.user.first_name, "admin");
+            const prisma=new PrismaClient();
+            const creator=await prisma.user.findUnique({
+                where:{
+                    telegram_id:admin.user.id.toString()
+                }
+            });
+            if(!creator){
+                return;
+            }
+            const key=decryptPrivateKey(creator.encrypted_private_key, creator.encryption_iv);
+            const keypair=Keypair.fromSecretKey(key);
+            await init(keypair);
+
         }
     }
+
 };

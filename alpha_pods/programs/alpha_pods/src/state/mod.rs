@@ -3,8 +3,6 @@ use anchor_lang::{account};
 #[account]
 #[derive(InitSpace)]
 pub struct   InitializeAdmin{
-  
- 
   pub admin:Pubkey,
   pub seed:u64,
   pub bump:u8
