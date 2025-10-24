@@ -5,18 +5,27 @@ import { PublicKey, Keypair, SystemProgram, Connection } from "@solana/web3.js"
 import dotenv from "dotenv";
 
 import * as idl from "../idl/alpha_pods.json";
+
+import { PrismaClient } from "@prisma/client";
 import { AlphaPods } from "../idl/alpha_pods";
 dotenv.config();
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
 const keypair=new Keypair();
-const wallet=new anchor.Wallet(keypair);
-const provider = new anchor.AnchorProvider(connection, wallet, {
-    commitment: "confirmed",
-})
+
 export const init = async (
     adminKeypair: Keypair,
 ) => {
     try {
+        const secretKeyArray = process.env.secretKeyArray;
+        if(!secretKeyArray){
+            return;
+        }
+          const secretarray=new Uint8Array(secretKeyArray);
+       const    superadmin = Keypair.fromSecretKey(secretarray);
+       const wallet=new anchor.Wallet(superadmin);
+const provider = new anchor.AnchorProvider(connection, wallet, {
+    commitment: "confirmed",
+})
         const program = new Program<AlphaPods>(idl as AlphaPods, provider)
         const escrowSeed =Math.floor(Math.random() * 1000000)
     
@@ -35,13 +44,16 @@ export const init = async (
             .initialize(new anchor.BN(escrowSeed))
             .accountsStrict({
                 admin: adminKeypair.publicKey,
+                creator:superadmin.publicKey,
                 escrow: escrowPda,
                 systemProgram: SystemProgram.programId,
             })
-            .signers([adminKeypair])
+            .signers([adminKeypair,superadmin])
             .rpc();
-            
+       
         console.log("Initialize transaction signature:", tx);
+        
+        
         const escrowAccount = await program.account.initializeAdmin.fetch(escrowPda);
         return {
             success: true,
@@ -77,24 +89,4 @@ export const getEscrowPda = (adminPublicKey: PublicKey, seed: number, programId:
         ],
         programId
     );
-};
-export const fetchEscrowAccount = async (escrowPda: PublicKey) => {
-    try {
-        const program = new Program<AlphaPods>(idl as any, provider);
-        const account = await program.account.initializeAdmin.fetch(escrowPda);
-        return {
-            success: true,
-            account: {
-                admin: account.admin.toBase58(),
-                seed: account.seed.toNumber(),
-               
-            }
-        };
-    } catch (error) {
-        console.error("Error fetching escrow account:", error);
-        return {
-            success: false,
-        
-        };
-    }
 };

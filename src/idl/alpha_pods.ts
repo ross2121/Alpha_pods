@@ -334,6 +334,11 @@ export type AlphaPods = {
           "signer": true
         },
         {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
           "name": "escrow",
           "writable": true,
           "pda": {

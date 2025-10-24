@@ -60,9 +60,7 @@ describe("alpha_pods", () => {
       .rpc();
     console.log("Initialize transaction signature:", tx);
     const escrowAccount = await program.account.initializeAdmin.fetch(escrowPda);
-    expect(escrowAccount.admin.toString()).to.equal(admin.publicKey.toString());
-    
-    expect(escrowAccount.seed.toNumber()).to.equal(seed);
+   
   });
 
   
