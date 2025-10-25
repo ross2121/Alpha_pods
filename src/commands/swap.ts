@@ -22,13 +22,18 @@ export const getQuote = async (proposal_id:string) => {
      }
     const quotemint = proposal.mintb || "So11111111111111111111111111111111111111112";
     const basemint = proposal.mint
-    const amount = proposal.Members.length * proposal.amount;
+    const amount = proposal.Members.length+1 * proposal.amount;
     const amountInLamports = Math.floor(amount * 1e9);
     const url = `${ORDER_URL}/order?inputMint=${quotemint}&outputMint=${basemint}&amount=${amountInLamports}`;  
   try {
     const response = await axios.get(url);
     console.log("Order Response:", response.data);
-    return response.data;
+    return {
+        ...response.data,
+        mint: basemint,
+        inputMint: quotemint,
+        outputMint: basemint
+    };
   } catch (error) {
     console.error("Error fetching order:", error);
     throw error;
@@ -59,10 +64,10 @@ export const handleExecuteSwap = async (ctx: any) => {
         
         if (quoteResult) {
   
-            const inputAmount = parseInt(quoteResult.inAmount) / 1e9; // Convert lamports to SOL
-            const outputAmount = parseInt(quoteResult.outAmount) / 1e6; // Convert to tokens (assuming 6 decimals)
-            const priceImpact = parseFloat(quoteResult.priceImpactPct) * 100; // Convert to percentage
-            const feePercent = quoteResult.feeBps / 100; // Convert basis points to percentage
+            const inputAmount = parseInt(quoteResult.inAmount) / 1e9;
+            const outputAmount = parseInt(quoteResult.outAmount) / 1e6;
+            const priceImpact = parseFloat(quoteResult.priceImpactPct) * 100;
+            const feePercent = quoteResult.feeBps / 100; 
             
             const quoteMessage = `
 🎯 **Quote Generated Successfully!** 🎯

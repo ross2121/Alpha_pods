@@ -2,7 +2,7 @@ import express, { json } from "express";
 import { Telegraf, Markup, Scenes, session } from "telegraf";
 import dotenv from "dotenv";
 import { admin_middleware, user_middleware } from "./middleware/admin";
-import { MyContext, proposeWizard } from "./commands/Proposal";
+import { MyContext, createProposeWizard, approveProposal } from "./commands/Proposal";
 import { handleVote, Vote } from "./commands/vote";
 import { 
     handleMemberCount, 
@@ -12,7 +12,7 @@ import {
     handleLeftChatMember, 
     handleMyChatMember 
 } from "./commands/group";
-import { getQuote, handleSwap, handleExecuteSwap } from "./commands/swap";
+import { getQuote, handleSwap } from "./commands/swap";
 import { getminimumfund } from "./commands/fund";
 dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
@@ -26,6 +26,7 @@ const mainKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback("📈 Exit Position", "exit_position")]
 ]);
 const app=express();
+const proposeWizard = createProposeWizard(bot);
 const stage = new Scenes.Stage<MyContext>([proposeWizard]);
 app.use(json);
 dotenv.config();
@@ -37,8 +38,7 @@ bot.command("propose", admin_middleware, async (ctx) => {
   await ctx.scene.enter('propose_wizard');
 });
 
-// Admin-only execute command
-bot.command("execute", admin_middleware, handleExecuteSwap);
+bot.command("approve", admin_middleware, approveProposal);
 
 bot.command('membercount', handleMemberCount);
 bot.command('myinfo', handleMyInfo);
@@ -49,8 +49,97 @@ bot.on("left_chat_member", handleLeftChatMember);
 bot.on('new_chat_members', handleNewChatMembers);
 bot.command("Swap", handleSwap);
 
-getQuote("5082ab0c-a328-4469-b1fd-85f190b85339");
 bot.action(/vote:(yes|no):(.+)/, user_middleware,handleVote);
+
+bot.action(/get_quote:(.+)/, async (ctx) => {
+    const proposalId = ctx.match[1];
+    await ctx.answerCbQuery("🔄 Generating quote...");
+    
+    try {
+        const quoteResult = await getQuote(proposalId);
+        
+        if (quoteResult) {
+            const inputAmount = parseInt(quoteResult.inAmount) / 1e9;
+            const outputAmount = parseInt(quoteResult.outAmount) / 1e6;
+            const priceImpact = parseFloat(quoteResult.priceImpactPct) * 100;
+            const feePercent = quoteResult.feeBps / 100;
+            
+            const approveButton = Markup.inlineKeyboard([
+                Markup.button.callback('✅ Approve Quote', `approve_quote:${proposalId}`)
+            ]);
+            
+            const quoteMessage = `
+🎯 **Quote Ready for Approved Proposal!** 🎯
+
+**Proposal Details:**
+• Mint: \`${quoteResult.mint || 'N/A'}\`
+• Input: ${inputAmount} SOL
+• Participants: Calculated based on members
+
+**Swap Quote:**
+• Input: ${inputAmount} SOL
+• Output: ~${outputAmount.toFixed(2)} tokens
+• Price Impact: ${priceImpact.toFixed(3)}%
+• Platform Fee: ${feePercent}%
+• Request ID: \`${quoteResult.requestId}\`
+
+**Quote Status:**
+✅ Quote generated successfully
+⏰ Quote valid until executed
+💰 Ready for execution
+
+**Next Steps:**
+Review the quote and approve to proceed with execution.
+            `;
+            
+            await ctx.reply(quoteMessage, { ...approveButton, parse_mode: 'Markdown' });
+        } else {
+            await ctx.reply("❌ **Quote Generation Failed**\n\nUnable to generate quote at this time. Please try again later.", { parse_mode: 'Markdown' });
+        }
+    } catch (error: any) {
+        console.error("Error generating quote:", error);
+        await ctx.reply("❌ **Quote Generation Failed**\n\nUnable to generate quote at this time. Please try again later.", { parse_mode: 'Markdown' });
+    }
+});
+
+bot.action(/approve_quote:(.+)/, admin_middleware, async (ctx) => {
+    const proposalId = ctx.match[1];
+    await ctx.answerCbQuery("✅ Approving quote...");
+    
+    try {
+        // Call the approve proposal handler with the proposal ID
+        const PrismaClient = (await import("@prisma/client")).PrismaClient;
+        const prisma = new PrismaClient();
+        
+        const proposal = await prisma.proposal.findUnique({
+            where: { id: proposalId }
+        });
+        
+        if (!proposal) {
+            await ctx.reply("❌ Proposal not found.");
+            return;
+        }
+        
+        const approvalMessage = `
+✅ **Quote Approved!**
+
+**Proposal ID:** \`${proposalId}\`
+**Mint:** \`${proposal.mint}\`
+**Amount:** ${proposal.amount} SOL
+**Members:** ${proposal.Members.length}
+
+**Status:** Approved and ready for swap execution
+
+The swap can now be executed.
+        `;
+        
+        await ctx.reply(approvalMessage, { parse_mode: 'Markdown' });
+        
+    } catch (error: any) {
+        console.error("Error approving quote:", error);
+        await ctx.reply("❌ Failed to approve quote. Please try again later.");
+    }
+});
 
 bot.launch();
 import { clusterApiUrl, Connection, Keypair, PublicKey } from "@solana/web3.js";

@@ -26,7 +26,7 @@ const getTokenInfo = async (mintAddress:any) => {
     });
     
     const { result } = await response.json();
-    console.log(result.token_info);
+    // console.log(result.token_info);
     return result.token_info;
   };
 interface MyWizardSession extends Scenes.WizardSessionData {
@@ -37,7 +37,67 @@ interface MyWizardSession extends Scenes.WizardSessionData {
 }
 export interface MyContext extends Scenes.WizardContext<MyWizardSession> {}
 const prisma =new PrismaClient();
-export const proposeWizard = new Scenes.WizardScene<MyContext>(
+
+export const approveProposal = async (ctx: any) => {
+    const message = ctx.message?.text;
+    
+    if (!message || !message.startsWith('/approve')) {
+        await ctx.reply("❌ Invalid command format. Use: /approve <proposal_id>");
+        return;
+    }
+    
+    const parts = message.split(' ');
+    if (parts.length !== 2) {
+        await ctx.reply("❌ Invalid command format. Use: /approve <proposal_id>");
+        return;
+    }
+    
+    const proposalId = parts[1];
+    
+    try {
+        // Find the proposal
+        const proposal = await prisma.proposal.findUnique({
+            where: { id: proposalId }
+        });
+        
+        if (!proposal) {
+            await ctx.reply("❌ Proposal not found.");
+            return;
+        }
+        
+        // Check if proposal is in the correct state (funding complete)
+        if (proposal.ProposalStatus !== 'Running') {
+            await ctx.reply("❌ This proposal cannot be approved at this stage.");
+            return;
+        }
+        
+        // Update proposal status - keep as Running since it's already running
+        // The approval is just a confirmation, status stays Running
+        // await prisma.proposal.update({
+        //     where: { id: proposalId },
+        //     data: { ProposalStatus: 'Running' }
+        // });
+        
+        const approvalMessage = `
+✅ **Proposal Approved!**
+
+**Proposal ID:** \`${proposalId}\`
+**Mint:** \`${proposal.mint}\`
+**Amount:** ${proposal.amount} SOL
+**Members:** ${proposal.Members.length}
+
+**Status:** Approved and ready for execution
+        `;
+        
+        await ctx.reply(approvalMessage, { parse_mode: 'Markdown' });
+        
+    } catch (error: any) {
+        console.error("Error approving proposal:", error);
+        await ctx.reply("❌ Failed to approve proposal. Please try again later.");
+    }
+};
+
+export const createProposeWizard = (bot: any) => new Scenes.WizardScene<MyContext>(
     'propose_wizard',
     async (ctx) => {
         await ctx.reply('Please enter the mint you want to swap:');
@@ -47,17 +107,20 @@ export const proposeWizard = new Scenes.WizardScene<MyContext>(
         console.log("message",ctx.message?.chat);
         console.log("message2",ctx.message?.sender_chat);
          console.log("main message",ctx.message);
-         const public_key=new PublicKey(ctx.message.text);
-         if(public_key){
-            console.log("true");
-         }else{
-            console.log("false");
-         }
-         if (!ctx.message || !('text' in ctx.message||!public_key)) {
-         console.log("check3");
-         await ctx.reply('Invalid input. Please send the mint address as text.');
-         return; 
-     }
+         
+         if (!ctx.message || !('text' in ctx.message)) {
+            console.log("check3");
+            await ctx.reply('Invalid input. Please send the mint address as text.');
+            return; 
+        }
+        try {
+            const public_key = new PublicKey(ctx.message.text);
+            console.log("Valid PublicKey:", public_key.toBase58());
+        } catch (error) {
+            await ctx.reply('❌ Invalid mint address. Please provide a valid Solana public key.');
+            return;
+        }
+
       console.log(ctx.message);
       const data=await getTokenInfo(ctx.message.text);
       console.log("data",data);
@@ -99,6 +162,7 @@ export const proposeWizard = new Scenes.WizardScene<MyContext>(
             }
         );
         console.log("consolsd 12");
+        const creatorTelegramId = ctx.from?.id?.toString() || "";
         const proposal = await prisma.proposal.create({
            data:{
              mint: mint,
@@ -110,10 +174,12 @@ export const proposeWizard = new Scenes.WizardScene<MyContext>(
             createdAt:BigInt(Date.now()),
             Votestatus: "Running",
             ProposalStatus: "Running",
-            Members: []
+            Members:[creatorTelegramId]
            }
         })
-        const FIVE_MINUTES_MS = .5 * 60 * 1000;
+        const VOTING_PERIOD_MS = 0.5 * 60 * 1000;
+        const FUNDING_PERIOD_MS = 0.5 * 60 * 1000; 
+
         setTimeout(async () => {
            try {
                const expiredproposal = await prisma.proposal.findUnique({
@@ -146,81 +212,52 @@ export const proposeWizard = new Scenes.WizardScene<MyContext>(
                    {parse_mode:"Markdown"}
                );
 
-              console.log("check first to close");
+               console.log("Voting period over.");
                if (expiredproposal.yes > 0) {
                    try {
                        await getminimumfund(expiredproposal.id, bot);
-                       console.log(`Funding check completed for proposal ${expiredproposal.id}`);
-                       setTimeout(async()=>{
-                        await checkfund(expiredproposal.id);
-                       },FIVE_MINUTES_MS);
-                     
-                       const memberlength=expiredproposal.Members.length;
-                    
-                    const confirmationMessage = `
-📊 **Proposal Status Update**
+                       console.log(`Initial funding check requested for proposal ${expiredproposal.id}`);
+                       await bot.telegram.sendMessage(
+                           Number(expiredproposal.chatId),
+                           `Voting complete. Members who voted "Yes" now have 5 minutes to ensure their wallets are funded.`
+                       );
 
-**Current Status:**
-• Total members who voted "Yes": ${memberlength}
-• Members with sufficient funds: ${expiredproposal.Members.length}
+                       console.log(`Waiting 5 minutes for funding...`);
+                       setTimeout(async() => {
+                           console.log(`Funding period over for proposal ${expiredproposal.id}. Checking funds...`);
+                           await checkfund(expiredproposal.id);
+                           const fundedProposal = await prisma.proposal.findUnique({
+                               where: { id: expiredproposal.id }
+                           });
+
+                           if (!fundedProposal) {
+                               console.log("Proposal not found after funding check");
+                               return;
+                           }
+                           const quoteButton = Markup.inlineKeyboard([
+                               Markup.button.callback('🚀 Get Quote from Jupiter', `get_quote:${fundedProposal.id}`)
+                           ]);
+
+                           const confirmationMessage = `
+📊 **Funding Period Complete!**
+
+**Status:**
+• Members with sufficient funds: ${fundedProposal.Members.length}
 
 **Next Step:**
-The proposal has enough participants. Do you want to proceed with getting the quote?
+You can now get the swap quote from Jupiter.
 
-Use /execute ${expiredproposal.id} to proceed with the quote generation.
-                    `;
+Click the button below to get the quote:
+                           `;
                     
-                    await bot.telegram.sendMessage(
-                        Number(expiredproposal.chatId),
-                        confirmationMessage,
-                        { parse_mode: 'Markdown' }
-                    );
-                    //    setTimeout(async() => {
-                    //     try{ 
-                    //         const quoteResult:any= await getQuote(expiredproposal.id);
-                    //         console.log("quote result",quoteResult);
-                    //         if(quoteResult){
-                    //             const inputAmount = parseInt(quoteResult.inAmount) / 1e9; 
-                    //             const outputAmount = parseInt(quoteResult.outAmount) / 1e6;
-                    //             const priceImpact = parseFloat(quoteResult.priceImpactPct) * 100; 
-                    //             const feePercent = quoteResult.feeBps / 100; 
-                    //             const quoteMessage = `
-                    //             🎯 **Quote Ready for Approved Proposal!** 🎯
-                                
-                    //             **Proposal Details:**
-                    //             • Mint: \`${expiredproposal.mint}\`
-                    //             • Total Amount: ${inputAmount} SOL
-                    //             • Participants: ${expiredproposal.Members.length} members
-                                
-                    //             **Swap Quote:**
-                    //             • Input: ${inputAmount} SOL
-                    //             • Output: ~${outputAmount.toFixed(2)} tokens
-                    //             • Price Impact: ${priceImpact.toFixed(3)}%
-                    //             • Platform Fee: ${feePercent}%
-                    //             • Request ID: \`${quoteResult.requestId}\`
-                                
-                    //             **Quote Status:**
-                    //             ✅ Quote generated successfully
-                    //             ⏰ Quote valid until executed
-                    //             💰 Ready for execution
-                                
-                    //             **Next Steps:**
-                    //             The quote is now ready for execution. Each participating member should execute their portion of the swap.
-                    //                         `
-                    //                         await bot.telegram.sendMessage(
-                    //                             Number(expiredproposal.chatId),
-                    //                             quoteMessage,
-                    //                             { parse_mode: 'Markdown' }
-                    //                         );
-                    //         }
-                    //     }catch(error:any){
-                    //         await bot.telegram.sendMessage(
-                    //             Number(expiredproposal.chatId),
-                    //             "❌ **Quote Generation Failed**\n\nUnable to generate quote at this time. Please try again later.",
-                    //             { parse_mode: 'Markdown' }
-                    //         );
-                    //     }
-                    //    }, FIVE_MINUTES_MS);
+                           await bot.telegram.sendMessage(
+                               Number(fundedProposal.chatId),
+                               confirmationMessage,
+                               { ...quoteButton, parse_mode: 'Markdown' }
+                           );
+
+                       }, FUNDING_PERIOD_MS);
+                     
                    } catch (fundingError) {
                        console.error("Failed to check funding requirements:", fundingError);
                    }
@@ -230,21 +267,8 @@ Use /execute ${expiredproposal.id} to proceed with the quote generation.
            } finally {
               
            }
-        }, FIVE_MINUTES_MS)
+        }, VOTING_PERIOD_MS)
 
         return ctx.scene.leave();
     }
 );
-const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
-const stage = new Scenes.Stage<MyContext>([proposeWizard]);
-
-bot.use(session());
-bot.use(stage.middleware());
-
-bot.command("propose", admin_middleware, async (ctx) => {
-     await ctx.scene.enter('propose_wizard');
-});
-enum Vote{
-    Yes,
-    NO
-}
