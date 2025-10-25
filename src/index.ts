@@ -169,6 +169,27 @@ import {
     dynamicFee: dynamicFeeParams,
   };
   const positionNft = Keypair.generate();
+  // Create a new position NFT keypair
+  const positionNftForPosition = Keypair.generate();
+  
+  const test = await cpAmm.createPosition({
+    owner: wallet.publicKey,
+    pool: new PublicKey("FX8AE4h26RNY5FvuxmZxwkQU1VyPDwtekFtVphgsv9Ci"),
+    positionNft: positionNftForPosition.publicKey,
+    payer: wallet.publicKey
+  });
+  
+  // Set blockhash and fee payer BEFORE signing
+  const { blockhash } = await connection.getLatestBlockhash();
+  test.recentBlockhash = blockhash;
+  test.feePayer = wallet.publicKey;
+  
+  // Sign with both wallet and position NFT keypair
+  test.partialSign(wallet, positionNftForPosition);
+  
+  // Send transaction
+  const signature3 = await connection.sendRawTransaction(test.serialize());
+  console.log("Transaction signature:", signature3);
 
   const {
     tx: initCustomizePoolTx,
@@ -196,20 +217,20 @@ import {
     isLockLiquidity: POOL_CONFIG.isLockLiquidity,
   });
 
-  initCustomizePoolTx.recentBlockhash = (
-    await connection.getLatestBlockhash()
-  ).blockhash;
-  initCustomizePoolTx.feePayer = wallet.publicKey;
-  initCustomizePoolTx.partialSign(wallet);
-  initCustomizePoolTx.partialSign(positionNft);
+  // initCustomizePoolTx.recentBlockhash = (
+  //   await connection.getLatestBlockhash()
+  // ).blockhash;
+  // initCustomizePoolTx.feePayer = wallet.publicKey;
+  // initCustomizePoolTx.partialSign(wallet);
+  // initCustomizePoolTx.partialSign(positionNft);
 
-  console.log(await connection.simulateTransaction(initCustomizePoolTx));
-    const signature = await connection.sendRawTransaction(
-      initCustomizePoolTx.serialize()
-    );
-    console.log({
-      signature,
-      pool: pool.toString(),
-      position: position.toString(),
-    });
+  // console.log(await connection.simulateTransaction(initCustomizePoolTx));
+  //   const signature = await connection.sendRawTransaction(
+  //     initCustomizePoolTx.serialize()
+  //   );
+  //   console.log({
+  //     signature,
+  //     pool: pool.toString(),
+  //     position: position.toString(),
+  //   });
 })();
