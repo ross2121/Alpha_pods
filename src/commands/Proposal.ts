@@ -38,64 +38,6 @@ interface MyWizardSession extends Scenes.WizardSessionData {
 export interface MyContext extends Scenes.WizardContext<MyWizardSession> {}
 const prisma =new PrismaClient();
 
-export const approveProposal = async (ctx: any) => {
-    const message = ctx.message?.text;
-    
-    if (!message || !message.startsWith('/approve')) {
-        await ctx.reply("❌ Invalid command format. Use: /approve <proposal_id>");
-        return;
-    }
-    
-    const parts = message.split(' ');
-    if (parts.length !== 2) {
-        await ctx.reply("❌ Invalid command format. Use: /approve <proposal_id>");
-        return;
-    }
-    
-    const proposalId = parts[1];
-    
-    try {
-        // Find the proposal
-        const proposal = await prisma.proposal.findUnique({
-            where: { id: proposalId }
-        });
-        
-        if (!proposal) {
-            await ctx.reply("❌ Proposal not found.");
-            return;
-        }
-        
-        // Check if proposal is in the correct state (funding complete)
-        if (proposal.ProposalStatus !== 'Running') {
-            await ctx.reply("❌ This proposal cannot be approved at this stage.");
-            return;
-        }
-        
-        // Update proposal status - keep as Running since it's already running
-        // The approval is just a confirmation, status stays Running
-        // await prisma.proposal.update({
-        //     where: { id: proposalId },
-        //     data: { ProposalStatus: 'Running' }
-        // });
-        
-        const approvalMessage = `
-✅ **Proposal Approved!**
-
-**Proposal ID:** \`${proposalId}\`
-**Mint:** \`${proposal.mint}\`
-**Amount:** ${proposal.amount} SOL
-**Members:** ${proposal.Members.length}
-
-**Status:** Approved and ready for execution
-        `;
-        
-        await ctx.reply(approvalMessage, { parse_mode: 'Markdown' });
-        
-    } catch (error: any) {
-        console.error("Error approving proposal:", error);
-        await ctx.reply("❌ Failed to approve proposal. Please try again later.");
-    }
-};
 
 export const createProposeWizard = (bot: any) => new Scenes.WizardScene<MyContext>(
     'propose_wizard',
@@ -161,7 +103,6 @@ export const createProposeWizard = (bot: any) => new Scenes.WizardScene<MyContex
                 parse_mode: 'Markdown'
             }
         );
-        console.log("consolsd 12");
         const creatorTelegramId = ctx.from?.id?.toString() || "";
         const proposal = await prisma.proposal.create({
            data:{
@@ -177,6 +118,7 @@ export const createProposeWizard = (bot: any) => new Scenes.WizardScene<MyContex
             Members:[creatorTelegramId]
            }
         })
+        console.log(proposal);
         const VOTING_PERIOD_MS = 0.5 * 60 * 1000;
         const FUNDING_PERIOD_MS = 0.5 * 60 * 1000; 
 

@@ -22,7 +22,7 @@ export const getQuote = async (proposal_id:string) => {
      }
     const quotemint = proposal.mintb || "So11111111111111111111111111111111111111112";
     const basemint = proposal.mint
-    const amount = proposal.Members.length+1 * proposal.amount;
+    const amount = proposal.Members.length * proposal.amount;
     const amountInLamports = Math.floor(amount * 1e9);
     const url = `${ORDER_URL}/order?inputMint=${quotemint}&outputMint=${basemint}&amount=${amountInLamports}`;  
   try {

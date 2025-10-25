@@ -2,7 +2,7 @@ import express, { json } from "express";
 import { Telegraf, Markup, Scenes, session } from "telegraf";
 import dotenv from "dotenv";
 import { admin_middleware, user_middleware } from "./middleware/admin";
-import { MyContext, createProposeWizard, approveProposal } from "./commands/Proposal";
+import { MyContext, createProposeWizard} from "./commands/Proposal";
 import { handleVote, Vote } from "./commands/vote";
 import { 
     handleMemberCount, 
@@ -38,7 +38,7 @@ bot.command("propose", admin_middleware, async (ctx) => {
   await ctx.scene.enter('propose_wizard');
 });
 
-bot.command("approve", admin_middleware, approveProposal);
+
 
 bot.command('membercount', handleMemberCount);
 bot.command('myinfo', handleMyInfo);
@@ -104,41 +104,10 @@ Review the quote and approve to proceed with execution.
 
 bot.action(/approve_quote:(.+)/, admin_middleware, async (ctx) => {
     const proposalId = ctx.match[1];
+    console.log(proposalId);
     await ctx.answerCbQuery("✅ Approving quote...");
-    
-    try {
-        // Call the approve proposal handler with the proposal ID
-        const PrismaClient = (await import("@prisma/client")).PrismaClient;
-        const prisma = new PrismaClient();
-        
-        const proposal = await prisma.proposal.findUnique({
-            where: { id: proposalId }
-        });
-        
-        if (!proposal) {
-            await ctx.reply("❌ Proposal not found.");
-            return;
-        }
-        
-        const approvalMessage = `
-✅ **Quote Approved!**
-
-**Proposal ID:** \`${proposalId}\`
-**Mint:** \`${proposal.mint}\`
-**Amount:** ${proposal.amount} SOL
-**Members:** ${proposal.Members.length}
-
-**Status:** Approved and ready for swap execution
-
-The swap can now be executed.
-        `;
-        
-        await ctx.reply(approvalMessage, { parse_mode: 'Markdown' });
-        
-    } catch (error: any) {
-        console.error("Error approving quote:", error);
-        await ctx.reply("❌ Failed to approve quote. Please try again later.");
-    }
+   await  transaction(proposalId);
+      
 });
 
 bot.launch();
@@ -161,6 +130,7 @@ import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
+import { transaction } from "./commands/txn";
 
 (async () => {
   const POOL_CONFIG = {
@@ -258,7 +228,6 @@ import {
     dynamicFee: dynamicFeeParams,
   };
   const positionNft = Keypair.generate();
-  // Create a new position NFT keypair
   const positionNftForPosition = Keypair.generate();
   
   const test = await cpAmm.createPosition({

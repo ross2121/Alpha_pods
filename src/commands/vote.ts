@@ -12,7 +12,7 @@ export const handleVote = async (ctx: Context<Update.CallbackQueryUpdate> & { ma
     const mint = ctx.match[2];  
     const userId = ctx.from.id;
     const prisma=new PrismaClient();
-   const member=[];
+   
    console.log("message id",ctx.callbackQuery.message?.chat.id!);
    console.log("chat id",ctx.callbackQuery.message?.message_id!);
     const proposal = await prisma.proposal.findUnique({
@@ -23,6 +23,10 @@ export const handleVote = async (ctx: Context<Update.CallbackQueryUpdate> & { ma
             }
         }
     })
+    const member=proposal?.Members;
+    if(!member){
+        return;
+    }
     if (!proposal) {
         return ctx.answerCbQuery('This proposal is no longer valid.');
     }

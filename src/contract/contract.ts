@@ -80,7 +80,7 @@ export const deposit=async(amount:anchor.BN,member:Keypair,chatid:BigInt)=>{
         escrow: new PublicKey(escrow?.escrow_pda || ""),
         systemProgram:SystemProgram.programId
    }).signers([member]).rpc();
-  console.log(tx);
+  console.log("transaction",tx);
 
 
 }
