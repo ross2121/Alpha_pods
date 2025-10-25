@@ -36,8 +36,6 @@ export const getQuote = async (proposal_id:string) => {
   
     
 };
-
-// Handle the execute command
 export const handleExecuteSwap = async (ctx: any) => {
     const message = ctx.message?.text;
     
@@ -56,12 +54,11 @@ export const handleExecuteSwap = async (ctx: any) => {
     
     try {
         await ctx.reply("🔄 Generating quote for the proposal...");
-        
-        // Get the quote
+      
         const quoteResult = await getQuote(proposal_id);
         
         if (quoteResult) {
-            // Format the quote data for Telegram message
+  
             const inputAmount = parseInt(quoteResult.inAmount) / 1e9; // Convert lamports to SOL
             const outputAmount = parseInt(quoteResult.outAmount) / 1e6; // Convert to tokens (assuming 6 decimals)
             const priceImpact = parseFloat(quoteResult.priceImpactPct) * 100; // Convert to percentage

@@ -4,7 +4,6 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    
     "build": "tsc",
     "start": "node dist/index.js"
   },
@@ -12,12 +11,14 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/node": "^20.0.0",
     "prisma": "6.17.1",
-    "typescript": "^5.0.0",
-    "@types/node": "^20.0.0"
+    "typescript": "^5.0.0"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
+    "@meteora-ag/cp-amm-sdk": "^1.2.3",
+    "@meteora-ag/dlmm": "^1.7.5",
     "@prisma/client": "6.17.1",
     "@solana/web3.js": "^1.98.4",
     "@telegraf/session": "^2.0.0-beta.7",

@@ -68,7 +68,7 @@ export const init = async (
         };
     }
 };
-export const deposit=async(amount:number,member:Keypair,chatid:BigInt)=>{
+export const deposit=async(amount:anchor.BN,member:Keypair,chatid:BigInt)=>{
   const prisma=new PrismaClient();
   const escrow=await prisma.escrow.findUnique({
     where:{

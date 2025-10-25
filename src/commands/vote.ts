@@ -5,7 +5,6 @@ export enum Vote {
     Yes,
     NO
 }
-
 export const proposevotes = new Map<number, {vote: Vote}>();
 
 export const handleVote = async (ctx: Context<Update.CallbackQueryUpdate> & { match: RegExpExecArray })=> {
@@ -24,14 +23,11 @@ export const handleVote = async (ctx: Context<Update.CallbackQueryUpdate> & { ma
             }
         }
     })
-
     if (!proposal) {
         return ctx.answerCbQuery('This proposal is no longer valid.');
     }
-    
     const newvote = (action === 'yes') ? Vote.Yes : Vote.NO;
     const existingVote = proposevotes.get(userId);
-    
     if (existingVote && existingVote.vote === newvote) {
         return ctx.answerCbQuery(`You have already voted ${action === 'yes' ? 'Yes' : 'No'}!`);
     }

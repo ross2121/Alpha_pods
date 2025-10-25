@@ -61,17 +61,15 @@ describe("alpha_pods", () => {
   });
 
   it("Deposit SOL to escrow", async () => {
-    const depositAmount = 0.5; // SOL
+    const depositAmount = 0.5;
     const lamports = depositAmount * anchor.web3.LAMPORTS_PER_SOL;
 
-    // Get initial balances
     const initialMemberBalance = await provider.connection.getBalance(member1.publicKey);
     const initialEscrowBalance = await provider.connection.getBalance(escrowPda);
 
     console.log("Initial member balance:", initialMemberBalance / anchor.web3.LAMPORTS_PER_SOL, "SOL");
     console.log("Initial escrow balance:", initialEscrowBalance / anchor.web3.LAMPORTS_PER_SOL, "SOL");
 
-    // Deposit SOL to escrow
     const tx = await program.methods
       .depositSol(new anchor.BN(depositAmount))
       .accountsStrict({
