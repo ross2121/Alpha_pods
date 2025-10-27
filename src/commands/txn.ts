@@ -29,3 +29,19 @@ if(!proposal){
   } 
   
 }
+export const swaptxn=async(proposal_id:string)=>{
+const prisma=new PrismaClient();
+const proposal=await prisma.proposal.findUnique({
+    where:{
+        id:proposal_id
+    }
+});
+const escrow=await prisma.escrow.findUnique({
+    where:{
+        chatId:proposal?.chatId
+    }
+});
+
+
+
+}

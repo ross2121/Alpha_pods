@@ -13,12 +13,9 @@ declare_id!("FeozaXSwZZexg48Fup4xLZFN2c9nUsSvtHbWz3V3GQuq");
 pub mod alpha_pods {
     use super::*;
     pub fn initialize(ctx: Context<Initialize>, seed: u64) -> Result<()> {
-        ctx.accounts.initialize(seed);
+        ctx.accounts.initialize(seed,ctx.bumps);
         Ok(())
     }
-
-  
-
 
     pub fn deposit_sol(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         ctx.accounts.deposit(amount)?;
@@ -37,6 +34,11 @@ pub mod alpha_pods {
 
     pub fn withdraw_mint(ctx: Context<WithdrawMint>, amount: u64) -> Result<()> {
         ctx.accounts.withdrawmint(amount)?;
+        Ok(())
+    }
+
+    pub fn execute_signed_tx(ctx: Context<Signedtxn>,instruction_data: Vec<u8>) -> Result<()> {
+        ctx.accounts.signedtxn(instruction_data)?;
         Ok(())
     }
 }

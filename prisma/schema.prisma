@@ -30,6 +30,8 @@ model Proposal{
     messagId BigInt
     chatId BigInt
     createdAt  BigInt
+    requestId  String?
+    Txn      String?
     mintb    String?
     Votestatus  Status
     ProposalStatus Status

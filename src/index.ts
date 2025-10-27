@@ -37,9 +37,6 @@ bot.use(stage.middleware());
 bot.command("propose", admin_middleware, async (ctx) => {
   await ctx.scene.enter('propose_wizard');
 });
-
-
-
 bot.command('membercount', handleMemberCount);
 bot.command('myinfo', handleMyInfo);
 bot.command("market", handleMarket);
@@ -47,7 +44,6 @@ bot.command("market", handleMarket);
 bot.on("my_chat_member", handleMyChatMember);
 bot.on("left_chat_member", handleLeftChatMember);
 bot.on('new_chat_members', handleNewChatMembers);
-bot.command("Swap", handleSwap);
 
 bot.action(/vote:(yes|no):(.+)/, user_middleware,handleVote);
 
@@ -57,7 +53,16 @@ bot.action(/get_quote:(.+)/, async (ctx) => {
     
     try {
         const quoteResult = await getQuote(proposalId);
-        
+        const prisma=new  PrismaClient();
+        await prisma.proposal.update({
+          where:{
+            id:proposalId
+          },data:{
+              requestId:quoteResult.requestId,
+              Txn:quoteResult.transaction
+          }
+        })
+      
         if (quoteResult) {
             const inputAmount = parseInt(quoteResult.inAmount) / 1e9;
             const outputAmount = parseInt(quoteResult.outAmount) / 1e6;
@@ -131,6 +136,7 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { transaction } from "./commands/txn";
+import { PrismaClient } from "@prisma/client";
 
 (async () => {
   const POOL_CONFIG = {

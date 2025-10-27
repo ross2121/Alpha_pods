@@ -3,9 +3,21 @@ import { getquote } from "../services/jupiter_swap";
 import axios from "axios";
 
 const ORDER_URL="https://lite-api.jup.ag/ultra/v1";
-export const handleSwap = async (ctx: any) => {
-   
-    ctx.reply("Swap functionality coming soon!");
+export const handleSwap = async (signed_txn:string,requestid:string) => {
+    const url = 'https://lite-api.jup.ag/ultra/v1/execute';
+    const options = {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: '{"signedTransaction":"<string>","requestId":"<string>"}'
+    };
+    try {
+      const response = await fetch(url, options);
+      const data = await response.json();
+      console.log(data);
+    } catch (error) {
+      console.error(error);
+    }
+
 };
 
 

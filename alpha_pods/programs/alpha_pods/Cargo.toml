@@ -20,7 +20,10 @@ custom-heap = []
 custom-panic = []
 
 [dependencies]
-anchor-lang = "0.31.1"
+anchor-lang = { version = "0.31.1", default-features = true, features = [
+  "init-if-needed",
+  "event-cpi",
+] }
 anchor-spl = "0.31.1"
 
 
