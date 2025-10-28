@@ -15,25 +15,25 @@ pub struct LPPOOl<'info> {
     pub escrow:Account<'info,InitializeAdmin>,
     #[account(mut)]
     /// CHECK: This is an external program account
-    pub lp_account:AccountInfo<'info>,
+    pub lp_account:UncheckedAccount<'info>,
     #[account(mut)]
     /// CHECK: 
     pub oracle: AccountInfo<'info>,
-    #[account(mut,associated_token::mint=minta,associated_token::authority=member,associated_token::token_program=token_program)]
+    #[account(init_if_needed, payer=member, associated_token::mint=minta, associated_token::authority=member, associated_token::token_program=token_program)]
     pub member_minta:Account<'info,TokenAccount>,
-    #[account(mut,associated_token::mint=mintb,associated_token::authority=member,associated_token::token_program=token_program)]
+    #[account(init_if_needed, payer=member, associated_token::mint=mintb, associated_token::authority=member, associated_token::token_program=token_program)]
     pub member_mintb:Account<'info,TokenAccount>,
     pub minta:Account<'info,Mint>,
     pub mintb:Account<'info,Mint>,
-    #[account(init,payer=member,associated_token::mint=minta,associated_token::authority=escrow,associated_token::token_program=token_program)]
+    #[account(init,payer=member,associated_token::mint=minta,associated_token::authority=lp_account,associated_token::token_program=token_program)]
     pub vaulta:Account<'info,TokenAccount>,
-    #[account(init,payer=member,associated_token::mint=mintb,associated_token::authority=escrow,associated_token::token_program=token_program)]
+    #[account(init,payer=member,associated_token::mint=mintb,associated_token::authority=lp_account,associated_token::token_program=token_program)]
     pub vaultb:Account<'info,TokenAccount>,
     pub system_program: Program<'info, System>,
     pub token_program:Program<'info,Token>,
     pub associated_token_program:Program<'info,AssociatedToken>,
     /// CHECK: The account holding preset parameters for the given bin_step. Needs correct address.
-    pub preset_parameter: AccountInfo<'info>,
+    pub preset_parameter: UncheckedAccount<'info>,
     pub rent: Sysvar<'info, Rent>, 
     #[account(mut)]
     /// CHECK: 

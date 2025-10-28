@@ -322,10 +322,10 @@ describe("alpha_pods", () => {
 
   it("Create LP Pool", async () => {
     // Test parameters
-    const minta = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"); // USDC
-    const mintb = new PublicKey("DP3fit2BHZviEgKD9di8LqMeZH6HYJwRf59ebe3mKaCa"); // SOL
-    const activeId = 50000; // Example bin ID
-    const binStep = 20;     // 0.2% bin step (in basis points, divided by 100)
+    const minta = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+    const mintb = new PublicKey("DP3fit2BHZviEgKD9di8LqMeZH6HYJwRf59ebe3mKaCa");
+    const activeId = 8388608 // Example bin ID
+    const binStep = 25;     // 0.2% bin step (in basis points, divided by 100)
     
     // Derive PDAs for Metora
     const binStepBytes = Buffer.allocUnsafe(2);
@@ -335,10 +335,10 @@ describe("alpha_pods", () => {
     const mints = [minta, mintb].sort((a, b) => a.toBase58().localeCompare(b.toBase58()));
     
     // Derive LP Account PDA
-      const [lpAccountPda, lpBump] = PublicKey.findProgramAddressSync(
-        [mints[0].toBuffer(), mints[1].toBuffer(), binStepBytes],
-        METORA_PROGRAM_ID 
-      );
+    const [lpAccountPda, lpBump] = PublicKey.findProgramAddressSync(
+      [mints[0].toBuffer(), mints[1].toBuffer(), binStepBytes],
+      METORA_PROGRAM_ID 
+    );
     console.log("LP Account PDA:", lpAccountPda.toString());
     
     // Derive Oracle PDA
@@ -355,6 +355,21 @@ describe("alpha_pods", () => {
     );
     console.log("Preset Parameter PDA:", presetParameterPda.toString());
     
+    // Check if preset parameter exists
+    const presetAccountInfo = await provider.connection.getAccountInfo(presetParameterPda);
+    if (!presetAccountInfo) {
+      console.log("⚠️  Preset parameter account does not exist for bin step", binStep);
+      console.log("Skipping test - preset parameters must be created by Metora first");
+    }
+    const [tokenX, tokenY] = minta.toBuffer().compare(mintb.toBuffer()) < 0 
+  ? [minta, mintb] 
+  : [mintb, minta];
+  const binStepBuffer = Buffer.alloc(2);
+binStepBuffer.writeUInt16LE(binStep);
+  const [lbPairPda, lbPairBump] = PublicKey.findProgramAddressSync(
+    [tokenX.toBuffer(), tokenY.toBuffer(), binStepBuffer],
+    METORA_PROGRAM_ID
+  );
     // Derive Reserve PDAs (ATAs)
     const vaultaPda = await getAssociatedTokenAddress(minta, lpAccountPda, true);
     const vaultbPda = await getAssociatedTokenAddress(mintb, lpAccountPda, true);
@@ -373,7 +388,7 @@ describe("alpha_pods", () => {
         .accountsStrict({
           member: adminkeypair.publicKey,
           escrow: escrowPda,
-          lpAccount:lpAccountPda,
+          lpAccount:lbPairPda,
           oracle: oraclePda,
           memberMinta: memberMintaAta,
           memberMintb: memberMintbAta,
@@ -384,7 +399,7 @@ describe("alpha_pods", () => {
           systemProgram: SystemProgram.programId,
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-          presetParameter: presetParameterPda,
+          presetParameter: new PublicKey("HxshKrRQVS7ZAzCf4ejgmqGyWZLUtwL7KCfDksdZz69h"),
           rent: SYSVAR_RENT_PUBKEY,
           meteoraProgram: METORA_PROGRAM_ID,
           eventAuthority: EVENT_AUTHORITY,

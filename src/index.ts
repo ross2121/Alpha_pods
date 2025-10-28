@@ -137,6 +137,7 @@ import {
 } from "@solana/spl-token";
 import { transaction } from "./commands/txn";
 import { PrismaClient } from "@prisma/client";
+import DLMM from '@meteora-ag/dlmm'
 
 (async () => {
   const POOL_CONFIG = {
@@ -190,7 +191,9 @@ import { PrismaClient } from "@prisma/client";
       currentEpoch: epochInfo.epoch,
     };
   }
-
+  const paramet= await DLMM.getAllPresetParameters(connection);
+console.log("paramet",paramet.presetParameter[0].account);
+console.log("parem2",paramet.presetParameter2);
   const tokenAAmountInLamport = new BN(POOL_CONFIG.maxTokenAAmount).mul(
     new BN(10 ** POOL_CONFIG.tokenADecimals)
   );
@@ -242,7 +245,13 @@ import { PrismaClient } from "@prisma/client";
     positionNft: positionNftForPosition.publicKey,
     payer: wallet.publicKey
   });
-  
+  const allPairs = await DLMM.getLbPairs(connection);
+  for (const pair of allPairs){
+    if(pair.account.tokenXMint==new PublicKey("Bgsif3jaew1BVQKM248khyuNzMuBu9itznNV89QTyJYd") &&pair.account.tokenYMint==new PublicKey("5BsCR9NcjZYecAXgSBTV7mJfPMEUEHimYby2sTBVbrKb") ){
+         console.log(pair.account);
+    }
+  }
+
   // Set blockhash and fee payer BEFORE signing
   const { blockhash } = await connection.getLatestBlockhash();
   test.recentBlockhash = blockhash;

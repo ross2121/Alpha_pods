@@ -7,6 +7,8 @@ pub mod deposit_mint;
 pub mod withdraw_mint;
 pub mod signedtxn;
 pub mod metora_liquidity;
+pub mod swap;
+pub use swap::*;
 pub use metora_liquidity::*;
 pub use signedtxn::*;
 
