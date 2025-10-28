@@ -1,14 +1,17 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { AlphaPods } from "../target/types/alpha_pods";
-import { PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { expect } from "chai";
+import { PublicKey, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 import axios from "axios";
+import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAccount } from "@solana/spl-token";
 
 describe("alpha_pods", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const program = anchor.workspace.alphaPods as Program<AlphaPods>;
   const provider = anchor.getProvider();
+  const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
+  const EVENT_AUTHORITY = new PublicKey("EVmaFZ1Q42PAcE4z64RkK4kHfkU1p6VYgzxesa64TfWn");
+  
   let admin: Keypair;
   let member1: Keypair;
   let member2: Keypair;
@@ -29,8 +32,9 @@ describe("alpha_pods", () => {
     member1 = Keypair.generate();
     member2 = Keypair.generate();
     member3 = Keypair.generate();
+    
     seed =58
-   const secretKeyArray2 = [174,70,95,178,70,166,25,216,124,162,189,78,48,118,32,164,207,194,42,216,57,126,67,186,232,204,104,173,172,247,41,136,26,0,127,191,26,115,1,50,172,196,82,192,124,190,83,122,116,127,96,102,198,66,197,81,67,94,196,203,151,16,230,130]; // Remove the trailing comma and the duplicate array
+   const secretKeyArray2 = [174,70,95,178,70,166,25,216,124,162,189,78,48,118,32,164,207,194,42,216,57,126,67,186,232,204,104,173,172,247,41,136,26,0,127,191,26,115,1,50,172,196,82,192,124,190,83,122,116,127,96,102,198,66,197,81,67,94,196,203,151,16,230,130]; 
     const secretarray2=new Uint8Array(secretKeyArray2);
     adminkeypair= Keypair.fromSecretKey(secretarray2);
     console.log("admin",adminkeypair.publicKey.toString());
@@ -316,8 +320,93 @@ describe("alpha_pods", () => {
  
   })
 
-
-
-
+  it("Create LP Pool", async () => {
+    // Test parameters
+    const minta = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"); // USDC
+    const mintb = new PublicKey("DP3fit2BHZviEgKD9di8LqMeZH6HYJwRf59ebe3mKaCa"); // SOL
+    const activeId = 50000; // Example bin ID
+    const binStep = 20;     // 0.2% bin step (in basis points, divided by 100)
+    
+    // Derive PDAs for Metora
+    const binStepBytes = Buffer.allocUnsafe(2);
+    binStepBytes.writeUInt16LE(binStep, 0);
+    
+    // Sort mints lexicographically
+    const mints = [minta, mintb].sort((a, b) => a.toBase58().localeCompare(b.toBase58()));
+    
+    // Derive LP Account PDA
+      const [lpAccountPda, lpBump] = PublicKey.findProgramAddressSync(
+        [mints[0].toBuffer(), mints[1].toBuffer(), binStepBytes],
+        METORA_PROGRAM_ID 
+      );
+    console.log("LP Account PDA:", lpAccountPda.toString());
+    
+    // Derive Oracle PDA
+    const [oraclePda, oracleBump] = PublicKey.findProgramAddressSync(
+      [Buffer.from("oracle"), lpAccountPda.toBuffer()],
+      METORA_PROGRAM_ID
+    );
+    console.log("Oracle PDA:", oraclePda.toString());
+    
+    // Derive Preset Parameter PDA
+    const [presetParameterPda, presetBump] = PublicKey.findProgramAddressSync(
+      [Buffer.from("preset_parameter"), binStepBytes],
+      METORA_PROGRAM_ID
+    );
+    console.log("Preset Parameter PDA:", presetParameterPda.toString());
+    
+    // Derive Reserve PDAs (ATAs)
+    const vaultaPda = await getAssociatedTokenAddress(minta, lpAccountPda, true);
+    const vaultbPda = await getAssociatedTokenAddress(mintb, lpAccountPda, true);
+    console.log("Vault A (Reserve X):", vaultaPda.toString());
+    console.log("Vault B (Reserve Y):", vaultbPda.toString());
+    
+    // Derive member ATAs
+    const memberMintaAta = await getAssociatedTokenAddress(minta, adminkeypair.publicKey);
+    const memberMintbAta = await getAssociatedTokenAddress(mintb, adminkeypair.publicKey);
+    const temp=Keypair.generate();
+    const temp2=Keypair.generate();
+    try {
+      console.log("\nCalling lppool instruction...");
+      const txSignature = await program.methods
+        .lppool(activeId, binStep)
+        .accountsStrict({
+          member: adminkeypair.publicKey,
+          escrow: escrowPda,
+          lpAccount:lpAccountPda,
+          oracle: oraclePda,
+          memberMinta: memberMintaAta,
+          memberMintb: memberMintbAta,
+          minta: minta,
+          mintb: mintb,
+          vaulta: vaultaPda,
+          vaultb: vaultbPda,
+          systemProgram: SystemProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          presetParameter: presetParameterPda,
+          rent: SYSVAR_RENT_PUBKEY,
+          meteoraProgram: METORA_PROGRAM_ID,
+          eventAuthority: EVENT_AUTHORITY,
+        })
+        .signers([adminkeypair])
+        .rpc();
+      
+      console.log("Transaction successful!");
+      console.log("Signature:", txSignature);
+      
+      // Verify accounts were created
+      const lpAccountInfo = await provider.connection.getAccountInfo(lpAccountPda);
+      console.log("LP Account created:", lpAccountInfo !== null);
+      
+    } catch (error: any) {
+      console.error("Transaction failed:", error);
+      if (error.logs) {
+        console.error("Error logs:", error.logs);
+      }
+      throw error;
+    }
+  });
 
 });
+

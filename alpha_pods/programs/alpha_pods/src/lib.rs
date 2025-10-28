@@ -8,6 +8,7 @@ pub use state::*;
 pub mod error;
 pub use error::*;
 declare_id!("FeozaXSwZZexg48Fup4xLZFN2c9nUsSvtHbWz3V3GQuq");
+declare_program!(dlmm);
 
 #[program]
 pub mod alpha_pods {
@@ -40,6 +41,9 @@ pub mod alpha_pods {
     pub fn execute_signed_tx(ctx: Context<Signedtxn>,instruction_data: Vec<u8>) -> Result<()> {
         ctx.accounts.signedtxn(instruction_data)?;
         Ok(())
+    }
+    pub fn lppool(ctx:Context<LPPOOl>,bin_step:i32,active_bin:u16)->Result<()>{
+        ctx.accounts.createpool(bin_step, active_bin)
     }
 }
 

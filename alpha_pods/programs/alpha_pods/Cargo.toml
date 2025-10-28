@@ -22,9 +22,12 @@ custom-panic = []
 [dependencies]
 anchor-lang = { version = "0.31.1", default-features = true, features = [
   "init-if-needed",
-  "event-cpi",
+  
 ] }
 anchor-spl = "0.31.1"
+bytemuck = { version = "1.13.1", features = ["derive", "min_const_generics"] }
+
+
 
 
 [lints.rust]

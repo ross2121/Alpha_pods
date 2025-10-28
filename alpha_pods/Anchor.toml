@@ -7,6 +7,7 @@ skip-lint = false
 
 [programs.localnet]
 alpha_pods = "FeozaXSwZZexg48Fup4xLZFN2c9nUsSvtHbWz3V3GQuq"
+lb_clmm="LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo"
 
 [registry]
 url = "https://api.apr.dev"
