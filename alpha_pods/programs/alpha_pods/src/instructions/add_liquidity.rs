@@ -22,6 +22,7 @@ pub struct InitializePostion<'info> {
 
     /// CHECK: DLMM program event authority for event CPI
     pub event_authority: UncheckedAccount<'info>,
+    /// CHECK: Token program of mint X
     pub system_program:UncheckedAccount<'info>,
 }
 
@@ -37,7 +38,7 @@ pub struct InitializePostion<'info> {
 ///
 /// Returns a `Result` indicating success or failure.
 impl<'info>  InitializePostion <'info>{
-pub fn handle_dlmm_swap(
+pub fn add_position(
       &mut self,
       lower_bin_id  :i32,
     width: i32,

@@ -51,10 +51,13 @@ pub mod alpha_pods {
         min_amount_out: u64,
     ) -> Result<()> {
         ctx.accounts.handle_dlmm_swap(
-            ctx.remaining_accounts,  // Pass remaining accounts from context
+            ctx.remaining_accounts, 
             amount_in,
             min_amount_out,
         )
+    }
+    pub fn add_postion(ctx:Context<InitializePostion>,lower_bin_id:i32,width:i32)->Result<()>{
+        ctx.accounts.add_position(lower_bin_id, width)
     }
 }
 

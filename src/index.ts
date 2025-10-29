@@ -257,6 +257,7 @@ for (const pair of allPairs) {
     console.log("Pair Address:", pair.publicKey.toString());
     console.log("Bin Step:", pair.account.binStep);
     console.log("Active ID:", pair.account.activeId);
+    console.log(pair.account);
   }
 }
   // console.log(allPairs);

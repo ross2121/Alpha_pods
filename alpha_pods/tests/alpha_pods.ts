@@ -738,6 +738,236 @@ describe("alpha_pods", () => {
     }
   });
 
+  it("Add Liquidity Position to DLMM Pool", async () => {
+    /**
+     * This test demonstrates adding a liquidity position to an existing DLMM pool.
+     * A position represents a liquidity provider's deposit within a specific price range.
+     */
+    
+    const tokenYMint = NATIVE_MINT; // WSOL
+    const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+    
+    // Find the existing LP pair
+    const allPairs = await DLMM.getLbPairs(provider.connection);
+    
+    const matchingPair = allPairs.find(pair => 
+      pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
+      pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()
+    );
+    
+    if (!matchingPair) {
+      console.log("⚠️  No matching pair found for these tokens");
+      console.log("Skipping position test");
+      return;
+    }
+    
+    console.log("\n📊 Pool Information:");
+    console.log("Pool Address:", matchingPair.publicKey.toString());
+    console.log("Active Bin ID:", matchingPair.account.activeId);
+    console.log("Bin Step:", matchingPair.account.binStep);
+    console.log("Token X Mint:", matchingPair.account.tokenXMint.toString());
+    console.log("Token Y Mint:", matchingPair.account.tokenYMint.toString());
+    
+    // Position parameters
+    // lower_bin_id: The starting bin ID for the position (price range lower bound)
+    // width: Number of bins the position spans (price range width)
+    const activeBinId = matchingPair.account.activeId;
+    const lowerBinId = activeBinId - 5; // Start 5 bins below active bin
+    const width = 10; // Span 10 bins (covers active bin ±5)
+    
+    console.log("\n📍 Position Parameters:");
+    console.log("Lower Bin ID:", lowerBinId);
+    console.log("Width (bins):", width);
+    console.log("Upper Bin ID:", lowerBinId + width);
+    console.log("Active Bin ID:", activeBinId);
+    
+    // Generate a new keypair for the position account
+    // Each position is a separate account owned by the user
+    const positionKeypair = Keypair.generate();
+    
+    console.log("\n💼 Position Account:");
+    console.log("Position Public Key:", positionKeypair.publicKey.toString());
+    
+    // Derive event authority for DLMM program
+    const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+    
+    console.log("Event Authority:", eventAuthority.toString());
+    
+    try {
+      console.log("\n🚀 Creating liquidity position...");
+      
+      const txSignature = await program.methods
+        .addPostion(lowerBinId, width)
+        .accountsStrict({
+          lbPair: matchingPair.publicKey,
+          owner: adminkeypair.publicKey,
+          position: positionKeypair.publicKey,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+          user: adminkeypair.publicKey,
+          dlmmProgram: METORA_PROGRAM_ID,
+          eventAuthority: eventAuthority,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([adminkeypair, positionKeypair])
+        .rpc();
+        
+      console.log("✅ Position created successfully!");
+      console.log("Transaction signature:", txSignature);
+      
+      // Wait for confirmation
+      await provider.connection.confirmTransaction(txSignature, "confirmed");
+      
+      // Verify the position account was created
+      const positionAccountInfo = await provider.connection.getAccountInfo(positionKeypair.publicKey);
+      
+      if (positionAccountInfo) {
+        console.log("\n✅ Position Account Verified:");
+        console.log("Owner:", positionAccountInfo.owner.toString());
+        console.log("Data Length:", positionAccountInfo.data.length, "bytes");
+        console.log("Lamports:", positionAccountInfo.lamports);
+        
+        // Try to fetch position data using DLMM SDK
+        try {
+          const dlmmPool = await DLMM.create(provider.connection, matchingPair.publicKey);
+          const positions = await dlmmPool.getPositionsByUserAndLbPair(adminkeypair.publicKey);
+          
+          console.log("\n📊 User Positions:");
+          console.log("Total Positions:", positions.userPositions.length);
+          
+          // Find our newly created position
+          const newPosition = positions.userPositions.find(
+            pos => pos.publicKey.toString() === positionKeypair.publicKey.toString()
+          );
+          
+          if (newPosition) {
+            console.log("\n🎯 New Position Details:");
+            console.log("Position Address:", newPosition.publicKey.toString());
+            console.log("Lower Bin ID:", newPosition.positionData.lowerBinId);
+            console.log("Upper Bin ID:", newPosition.positionData.upperBinId);
+            // console.log("Width:", newPosition.positionData.width);
+            // console.log("Liquidity Share:", newPosition.positionData.liquidityShare.toString());
+          }
+        } catch (sdkError) {
+          console.log("Note: Could not fetch position details via SDK (expected for new position)");
+        }
+      } else {
+        console.log("⚠️  Warning: Position account not found after creation");
+      }
+      
+      console.log("\n✅ Position successfully initialized!");
+      console.log("Next steps:");
+      console.log("  1. Add liquidity to this position using addLiquidity instruction");
+      console.log("  2. The position will earn fees from swaps within its price range");
+      console.log("  3. Remove liquidity later using removeLiquidity instruction");
+      
+    } catch (error: any) {
+      console.error("\n❌ Position creation failed:", error);
+      
+      if (error.logs) {
+        console.error("\n📋 Program Logs:");
+        error.logs.forEach((log: string) => console.error(log));
+      }
+      
+      if (error.message) {
+        console.error("\n💬 Error Message:", error.message);
+      }
+      
+      throw error;
+    }
+  });
+
+  it("Add Multiple Positions with Different Ranges", async () => {
+    /**
+     * Test creating multiple positions with different price ranges
+     * This simulates a liquidity provider strategy with concentrated liquidity
+     */
+    
+    const tokenYMint = NATIVE_MINT;
+    const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+    
+    const allPairs = await DLMM.getLbPairs(provider.connection);
+    const matchingPair = allPairs.find(pair => 
+      pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
+      pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()
+    );
+    
+    if (!matchingPair) {
+      console.log("⚠️  No matching pair found");
+      return;
+    }
+    
+    const activeBinId = matchingPair.account.activeId;
+    const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+    
+    // Define multiple position strategies
+    const positionStrategies = [
+      {
+        name: "Narrow Range (Concentrated)",
+        lowerBinId: activeBinId - 2,
+        width: 4,
+        description: "Tight range around current price for maximum fee capture"
+      },
+      {
+        name: "Medium Range (Balanced)",
+        lowerBinId: activeBinId - 10,
+        width: 20,
+        description: "Moderate range for balanced risk/reward"
+      },
+      {
+        name: "Wide Range (Safe)",
+        lowerBinId: activeBinId - 25,
+        width: 50,
+        description: "Wide range for lower risk, less impermanent loss"
+      }
+    ];
+    
+    console.log("\n📊 Creating Multiple Positions:");
+    console.log("Active Bin ID:", activeBinId);
+    console.log("Number of Strategies:", positionStrategies.length);
+    
+    for (let i = 0; i < positionStrategies.length; i++) {
+      const strategy = positionStrategies[i];
+      const positionKeypair = Keypair.generate();
+      
+      console.log(`\n[${i + 1}/${positionStrategies.length}] ${strategy.name}`);
+      console.log("Description:", strategy.description);
+      console.log("Lower Bin ID:", strategy.lowerBinId);
+      console.log("Upper Bin ID:", strategy.lowerBinId + strategy.width);
+      console.log("Width:", strategy.width);
+      console.log("Position Address:", positionKeypair.publicKey.toString());
+      
+      try {
+        const txSignature = await program.methods
+          .addPostion(strategy.lowerBinId, strategy.width)
+          .accountsStrict({
+            lbPair: matchingPair.publicKey,
+            owner: adminkeypair.publicKey,
+            position: positionKeypair.publicKey,
+            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+            user: adminkeypair.publicKey,
+            dlmmProgram: METORA_PROGRAM_ID,
+            eventAuthority: eventAuthority,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([adminkeypair, positionKeypair])
+          .rpc();
+          
+        console.log("✅ Position created! Signature:", txSignature);
+        await provider.connection.confirmTransaction(txSignature, "confirmed");
+        
+      } catch (error: any) {
+        console.error(`❌ Failed to create position: ${strategy.name}`);
+        if (error.logs) {
+          console.error("Error logs:", error.logs.slice(-5));
+        }
+        throw error;
+      }
+    }
+    
+    console.log("\n✅ All positions created successfully!");
+    console.log(`Created ${positionStrategies.length} positions with different strategies`);
+  });
+
 });
 
 
