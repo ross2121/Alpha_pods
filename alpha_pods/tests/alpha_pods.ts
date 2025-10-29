@@ -593,150 +593,186 @@ describe("alpha_pods", () => {
   //   }
   // });
 
-  // it("DLMM Swap CPI Test - With SDK Quote", async () => {
-  //   /**
-  //    * Comprehensive test for DLMM swap using SDK to get proper bin arrays
-  //    */
+  it("DLMM Swap CPI Test - With SDK Quote", async () => {
+    /**
+     * Comprehensive test for DLMM swap using SDK to get proper bin arrays
+     */
     
-  //   const tokenYMint = NATIVE_MINT; // WSOL
-  //   const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+    const tokenYMint = NATIVE_MINT; // WSOL
+    const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
     
-  //   // Find the existing LP pair
-  //   const DLMM_SDK = (await import('@meteora-ag/dlmm')).default;
-  //   const allPairs = await DLMM_SDK.getLbPairs(provider.connection);
+    // Find the existing LP pair
+    const DLMM_SDK = (await import('@meteora-ag/dlmm')).default;
+    const allPairs = await DLMM_SDK.getLbPairs(provider.connection);
     
-  //   const matchingPair = allPairs.find(pair => 
-  //     pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
-  //     pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()
-  //   );
+    const matchingPair = allPairs.find(pair => 
+      pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
+      pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()
+    );
     
-  //   if (!matchingPair) {
-  //     console.log("⚠️  No matching pair found");
-  //     return;
-  //   }
+    if (!matchingPair) {
+      console.log("⚠️  No matching pair found");
+      return;
+    }
 
-  //   console.log("\n📊 Pool State:");
-  //   console.log("Pool Address:", matchingPair.publicKey.toString());
-  //   console.log("Active Bin ID:", matchingPair.account.activeId);
-  //   console.log("Bin Step:", matchingPair.account.binStep);
-  //   console.log("Token X Mint:", matchingPair.account.tokenXMint.toString());
-  //   console.log("Token Y Mint:", matchingPair.account.tokenYMint.toString());
-  //   console.log("Reserve X:", matchingPair.account.reserveX.toString());
-  //   console.log("Reserve Y:", matchingPair.account.reserveY.toString());
-  //   console.log("Oracle:", matchingPair.account.oracle.toString());
+    console.log("\n📊 Pool State:");
+    console.log("Pool Address:", matchingPair.publicKey.toString());
+    console.log("Active Bin ID:", matchingPair.account.activeId);
+    console.log("Bin Step:", matchingPair.account.binStep);
+    console.log("Token X Mint:", matchingPair.account.tokenXMint.toString());
+    console.log("Token Y Mint:", matchingPair.account.tokenYMint.toString());
+    console.log("Reserve X:", matchingPair.account.reserveX.toString());
+    console.log("Reserve Y:", matchingPair.account.reserveY.toString());
+    console.log("Oracle:", matchingPair.account.oracle.toString());
 
-  //   // Wrap SOL to WSOL
-  //   console.log("\n🔄 Wrapping SOL to WSOL...");
-  //   const amountToWrap = 0.01 * anchor.web3.LAMPORTS_PER_SOL;
-  //   const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminkeypair.publicKey);
+    // Wrap SOL to WSOL
+    console.log("\n🔄 Wrapping SOL to WSOL...");
+    const amountToWrap = 0.01 * anchor.web3.LAMPORTS_PER_SOL;
+    const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminkeypair.publicKey);
     
-  //   const wrapTransaction = new Transaction();
-  //   const wsolAccountInfo = await provider.connection.getAccountInfo(wsolAccount);
-  //   if (!wsolAccountInfo) {
-  //     wrapTransaction.add(
-  //       createAssociatedTokenAccountInstruction(
-  //         adminkeypair.publicKey,
-  //         wsolAccount,
-  //         adminkeypair.publicKey,
-  //         NATIVE_MINT
-  //       )
-  //     );
-  //   }
+    const wrapTransaction = new Transaction();
+    const wsolAccountInfo = await provider.connection.getAccountInfo(wsolAccount);
+    if (!wsolAccountInfo) {
+      wrapTransaction.add(
+        createAssociatedTokenAccountInstruction(
+          adminkeypair.publicKey,
+          wsolAccount,
+          adminkeypair.publicKey,
+          NATIVE_MINT
+        )
+      );
+    }
     
-  //   wrapTransaction.add(
-  //     SystemProgram.transfer({
-  //       fromPubkey: adminkeypair.publicKey,
-  //       toPubkey: wsolAccount,
-  //       lamports: amountToWrap,
-  //     })
-  //   );
+    wrapTransaction.add(
+      SystemProgram.transfer({
+        fromPubkey: adminkeypair.publicKey,
+        toPubkey: wsolAccount,
+        lamports: amountToWrap,
+      })
+    );
     
-  //   wrapTransaction.add(
-  //     createSyncNativeInstruction(wsolAccount, TOKEN_PROGRAM_ID)
-  //   );
+    wrapTransaction.add(
+      createSyncNativeInstruction(wsolAccount, TOKEN_PROGRAM_ID)
+    );
     
-  //   await sendAndConfirmTransaction(provider.connection, wrapTransaction, [adminkeypair]);
-  //   console.log("✅ Wrapped SOL!");
+    await sendAndConfirmTransaction(provider.connection, wrapTransaction, [adminkeypair]);
+    console.log("✅ Wrapped SOL!");
 
-  //   // Get user token accounts
-  //   const userTokenX = await getAssociatedTokenAddress(tokenXMint, adminkeypair.publicKey);
-  //   const userTokenY = wsolAccount;
+    // Get user token accounts
+    const userTokenX = await getAssociatedTokenAddress(tokenXMint, adminkeypair.publicKey);
+    const userTokenY = wsolAccount;
 
-  //   console.log("\n👤 User Token Accounts:");
-  //   console.log("User Token X ATA:", userTokenX.toString());
-  //   console.log("User Token Y (WSOL) ATA:", userTokenY.toString());
+    console.log("\n👤 User Token Accounts:");
+    console.log("User Token X ATA:", userTokenX.toString());
+    console.log("User Token Y (WSOL) ATA:", userTokenY.toString());
 
-  //   // Create DLMM pool instance
-  //   // const dlmmPool = await DLMM.create(provider.connection, matchingPair.publicKey);
+    // Create DLMM pool instance
+    // const dlmmPool = await DLMM.create(provider.connection, matchingPair.publicKey);
     
-  //   // Swap parameters
-  //   let pool=deriveBinArray(matchingPair.publicKey,binIdToBinArrayIndex(new anchor.BN(matchingPair.account.activeId)),METORA_PROGRAM_ID)
-  //   const amountIn = new anchor.BN(1_000_000); // 0.001 WSOL
-  //   const swapForY = true; // Swapping Y (WSOL) for X
-  //   const slippageBps = new anchor.BN(100); // 1% slippage
+    // Swap parameters
+    let pool=deriveBinArray(matchingPair.publicKey,binIdToBinArrayIndex(new anchor.BN(matchingPair.account.activeId)),METORA_PROGRAM_ID)
+    const amountIn = new anchor.BN(1_000_000); // 0.001 WSOL
+    const swapForY = true; // Swapping Y (WSOL) for X
+    const slippageBps = new anchor.BN(100); // 1% slippage
 
 
-  //   const activeBinArrayAccountMeta = {
-  //     pubkey:pool[0],
-  //     isSigner: false,
-  //     isWritable: true, // This is crucial. The swap modifies the bin.
-  //   };
-  //   const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+    const activeBinArrayAccountMeta = {
+      pubkey:pool[0],
+      isSigner: false,
+      isWritable: true, // This is crucial. The swap modifies the bin.
+    };
+    const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
 
-  //   console.log("\n🚀 Executing swap transaction...");
+    console.log("\n🚀 Executing swap transaction...");
 
-  //   try {
-  //     const txSignature = await program.methods
-  //       .swap(amountIn, new anchor.BN(22))
-  //       .accountsStrict({
-  //         lbPair: matchingPair.publicKey,
-  //         binArrayBitmapExtension: null,
-  //         reserveX: matchingPair.account.reserveX,
-  //         reserveY: matchingPair.account.reserveY,
-  //         userTokenIn: userTokenY,
-  //         userTokenOut: userTokenX,
-  //         tokenXMint: tokenXMint,
-  //         tokenYMint: tokenYMint,
-  //         oracle: matchingPair.account.oracle,
-  //         hostFeeIn: null,
-  //         user: adminkeypair.publicKey,
-  //         dlmmProgram: METORA_PROGRAM_ID,
-  //         eventAuthority: eventAuthority,
-  //         tokenXProgram: TOKEN_PROGRAM_ID,
-  //         tokenYProgram: TOKEN_PROGRAM_ID,
-  //       }).remainingAccounts([activeBinArrayAccountMeta])
-  //       .signers([adminkeypair])
-  //       .rpc();
+    // Derive escrow vault ATAs
+    const vaulta = await getAssociatedTokenAddress(tokenXMint, escrowPda, true);
+    const vaultb = await getAssociatedTokenAddress(tokenYMint, escrowPda, true);
 
-  //     console.log("✅ Swap successful!");
-  //     console.log("Transaction signature:", txSignature);
+    // Create vault accounts if they don't exist
+    const vaultaInfo = await provider.connection.getAccountInfo(vaulta);
+    if (!vaultaInfo) {
+      console.log("Creating vaulta...");
+      const createVaultaTx = new Transaction().add(
+        createAssociatedTokenAccountInstruction(
+          adminkeypair.publicKey,
+          vaulta,
+          escrowPda,
+          tokenXMint
+        )
+      );
+      await sendAndConfirmTransaction(provider.connection, createVaultaTx, [adminkeypair]);
+    }
 
-  //     // Wait for confirmation
-  //     await provider.connection.confirmTransaction(txSignature, "confirmed");
+    const vaultbInfo = await provider.connection.getAccountInfo(vaultb);
+    if (!vaultbInfo) {
+      console.log("Creating vaultb...");
+      const createVaultbTx = new Transaction().add(
+        createAssociatedTokenAccountInstruction(
+          adminkeypair.publicKey,
+          vaultb,
+          escrowPda,
+          tokenYMint
+        )
+      );
+      await sendAndConfirmTransaction(provider.connection, createVaultbTx, [adminkeypair]);
+    }
 
-  //     // Verify balances
-  //     try {
-  //       const userTokenXAccount = await getAccount(provider.connection, userTokenX);
-  //       const userTokenYAccount = await getAccount(provider.connection, userTokenY);
-
-  //       console.log("\n💰 Final Balances:");
-  //       console.log("User Token X balance:", userTokenXAccount.amount.toString());
-  //       console.log("User Token Y balance:", userTokenYAccount.amount.toString());
-  //     } catch (accountError) {
-  //       console.log("Note: Could not fetch token account balances");
-  //     }
-
-  //   } catch (error: any) {
-  //     console.error("\n❌ Swap failed:", error);
+    try {
+      const txSignature = await program.methods
+        .swap(amountIn, new anchor.BN(22))
+        .accountsStrict({
+          lbPair: matchingPair.publicKey,
+          binArrayBitmapExtension: null,
+          reserveX: matchingPair.account.reserveX,
+          reserveY: matchingPair.account.reserveY,
+          userTokenIn: userTokenY,
+          userTokenOut: userTokenX,
+          escrow: escrowPda,
+          vaulta: vaulta,
+          vaultb: vaultb,
+          tokenXMint: tokenXMint,
+          tokenYMint: tokenYMint,
+          oracle: matchingPair.account.oracle,
+          hostFeeIn: null,
+          dlmmProgram: METORA_PROGRAM_ID,
+          eventAuthority: eventAuthority,
+          tokenXProgram: TOKEN_PROGRAM_ID,
+          tokenYProgram: TOKEN_PROGRAM_ID,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        }).remainingAccounts([activeBinArrayAccountMeta])
       
-  //     if (error.logs) {
-  //       console.error("\n📋 Program Logs:");
-  //       error.logs.forEach((log: string) => console.error(log));
-  //     }
+        .rpc();
+
+      console.log("✅ Swap successful!");
+      console.log("Transaction signature:", txSignature);
+
+      // Wait for confirmation
+      await provider.connection.confirmTransaction(txSignature, "confirmed");
+
+      // Verify balances
+      try {
+        const userTokenXAccount = await getAccount(provider.connection, userTokenX);
+        const userTokenYAccount = await getAccount(provider.connection, userTokenY);
+
+        console.log("\n💰 Final Balances:");
+        console.log("User Token X balance:", userTokenXAccount.amount.toString());
+        console.log("User Token Y balance:", userTokenYAccount.amount.toString());
+      } catch (accountError) {
+        console.log("Note: Could not fetch token account balances");
+      }
+
+    } catch (error: any) {
+      console.error("\n❌ Swap failed:", error);
       
-  //     throw error;
-  //   }
-  // });
+      if (error.logs) {
+        console.error("\n📋 Program Logs:");
+        error.logs.forEach((log: string) => console.error(log));
+      }
+      
+      throw error;
+    }
+  });
 
   // it("Add Liquidity Position to DLMM Pool", async () => {
   //   /**
@@ -968,332 +1004,332 @@ describe("alpha_pods", () => {
 
 
 
-  it("Add Liquidity with Bin Array Management", async () => {    
-    const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
-    const tokenYMint = NATIVE_MINT; // WSOL
-    console.log("🔍 Finding LP Pair...");
-    const allPairs = await DLMM.getLbPairs(provider.connection);
-    const matchingPair = allPairs.find(pair => 
-      pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
-      pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()
-    );
-    if (!matchingPair) {
-      console.log("⚠️  No matching pair found");
-      return;
-    }
+  // it("Add Liquidity with Bin Array Management", async () => {    
+  //   const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+  //   const tokenYMint = NATIVE_MINT; // WSOL
+  //   console.log("🔍 Finding LP Pair...");
+  //   const allPairs = await DLMM.getLbPairs(provider.connection);
+  //   const matchingPair = allPairs.find(pair => 
+  //     pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
+  //     pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()
+  //   );
+  //   if (!matchingPair) {
+  //     console.log("⚠️  No matching pair found");
+  //     return;
+  //   }
   
-    const activeBinId = matchingPair.account.activeId;
-    const lowerBinId = activeBinId - 32;
-    const width = 64;
-    const secretarray=[103,235,105,21,129,3,241,206,2,136,213,61,64,8,215,229,59,211,147,102,17,14,253,162,128,63,209,238,89,0,150,78,13,35,172,92,246,120,75,88,109,7,133,148,167,45,190,77,112,113,68,193,11,232,51,224,225,84,133,129,215,235,67,79
+  //   const activeBinId = matchingPair.account.activeId;
+  //   const lowerBinId = activeBinId - 32;
+  //   const width = 64;
+  //   const secretarray=[103,235,105,21,129,3,241,206,2,136,213,61,64,8,215,229,59,211,147,102,17,14,253,162,128,63,209,238,89,0,150,78,13,35,172,92,246,120,75,88,109,7,133,148,167,45,190,77,112,113,68,193,11,232,51,224,225,84,133,129,215,235,67,79
 
-    ]
-    const secreta=new Uint8Array(secretarray);
-    const positionKeypair =Keypair.fromSecretKey(secreta)
-    console.log(positionKeypair.secretKey.toString())
-    console.log(positionKeypair.publicKey.toBase58())
-    const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+  //   ]
+  //   const secreta=new Uint8Array(secretarray);
+  //   const positionKeypair =Keypair.fromSecretKey(secreta)
+  //   console.log(positionKeypair.secretKey.toString())
+  //   console.log(positionKeypair.publicKey.toBase58())
+  //   const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
     
     
-    // const createPositionTx = await program.methods
-    //   .addPostion(lowerBinId, width)
-    //   .accountsStrict({
-    //     lbPair: matchingPair.publicKey,
-    //     owner: adminkeypair.publicKey,
-    //     position: positionKeypair.publicKey,
-    //     rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-    //     user: adminkeypair.publicKey,
-    //     dlmmProgram: METORA_PROGRAM_ID,
-    //     eventAuthority: eventAuthority,
-    //     systemProgram: SystemProgram.programId,
-    //   })
-    //   .signers([adminkeypair, positionKeypair])
-    //   .rpc();
+  //   // const createPositionTx = await program.methods
+  //   //   .addPostion(lowerBinId, width)
+  //   //   .accountsStrict({
+  //   //     lbPair: matchingPair.publicKey,
+  //   //     owner: adminkeypair.publicKey,
+  //   //     position: positionKeypair.publicKey,
+  //   //     rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+  //   //     user: adminkeypair.publicKey,
+  //   //     dlmmProgram: METORA_PROGRAM_ID,
+  //   //     eventAuthority: eventAuthority,
+  //   //     systemProgram: SystemProgram.programId,
+  //   //   })
+  //   //   .signers([adminkeypair, positionKeypair])
+  //   //   .rpc();
       
-    // console.log("✅ Position created! Signature:", createPositionTx);
-    // await provider.connection.confirmTransaction(createPositionTx, "confirmed");
-    console.log("\n🔄 Wrapping SOL to WSOL...");
-    const amountToWrap = 0.1 * anchor.web3.LAMPORTS_PER_SOL;
-    const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminkeypair.publicKey);
+  //   // console.log("✅ Position created! Signature:", createPositionTx);
+  //   // await provider.connection.confirmTransaction(createPositionTx, "confirmed");
+  //   console.log("\n🔄 Wrapping SOL to WSOL...");
+  //   const amountToWrap = 0.1 * anchor.web3.LAMPORTS_PER_SOL;
+  //   const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminkeypair.publicKey);
     
-    const wrapTransaction = new Transaction();
-    const wsolAccountInfo = await provider.connection.getAccountInfo(wsolAccount);
+  //   const wrapTransaction = new Transaction();
+  //   const wsolAccountInfo = await provider.connection.getAccountInfo(wsolAccount);
     
-    if (!wsolAccountInfo) {
-      wrapTransaction.add(
-        createAssociatedTokenAccountInstruction(
-          adminkeypair.publicKey,
-          wsolAccount,
-          adminkeypair.publicKey,
-          NATIVE_MINT
-        )
-      );
-    }
+  //   if (!wsolAccountInfo) {
+  //     wrapTransaction.add(
+  //       createAssociatedTokenAccountInstruction(
+  //         adminkeypair.publicKey,
+  //         wsolAccount,
+  //         adminkeypair.publicKey,
+  //         NATIVE_MINT
+  //       )
+  //     );
+  //   }
     
-    wrapTransaction.add(
-      SystemProgram.transfer({
-        fromPubkey: adminkeypair.publicKey,
-        toPubkey: wsolAccount,
-        lamports: amountToWrap,
-      }),
-      createSyncNativeInstruction(wsolAccount, TOKEN_PROGRAM_ID)
-    );
+  //   wrapTransaction.add(
+  //     SystemProgram.transfer({
+  //       fromPubkey: adminkeypair.publicKey,
+  //       toPubkey: wsolAccount,
+  //       lamports: amountToWrap,
+  //     }),
+  //     createSyncNativeInstruction(wsolAccount, TOKEN_PROGRAM_ID)
+  //   );
     
-    await sendAndConfirmTransaction(provider.connection, wrapTransaction, [adminkeypair]);
-    console.log("✅ Wrapped SOL!");
+  //   await sendAndConfirmTransaction(provider.connection, wrapTransaction, [adminkeypair]);
+  //   console.log("✅ Wrapped SOL!");
  
-    const userTokenX = await getAssociatedTokenAddress(tokenXMint, adminkeypair.publicKey);
-    const userTokenY = wsolAccount;
+  //   const userTokenX = await getAssociatedTokenAddress(tokenXMint, adminkeypair.publicKey);
+  //   const userTokenY = wsolAccount;
     
-    const userTokenXInfo = await provider.connection.getAccountInfo(userTokenX);
-    if (!userTokenXInfo) {
-      console.log("Creating Token X ATA...");
-      const createTokenXTx = new Transaction().add(
-        createAssociatedTokenAccountInstruction(
-          adminkeypair.publicKey,
-          userTokenX,
-          adminkeypair.publicKey,
-          tokenXMint
-        )
-      );
-      await sendAndConfirmTransaction(provider.connection, createTokenXTx, [adminkeypair]);
-    }
+  //   const userTokenXInfo = await provider.connection.getAccountInfo(userTokenX);
+  //   if (!userTokenXInfo) {
+  //     console.log("Creating Token X ATA...");
+  //     const createTokenXTx = new Transaction().add(
+  //       createAssociatedTokenAccountInstruction(
+  //         adminkeypair.publicKey,
+  //         userTokenX,
+  //         adminkeypair.publicKey,
+  //         tokenXMint
+  //       )
+  //     );
+  //     await sendAndConfirmTransaction(provider.connection, createTokenXTx, [adminkeypair]);
+  //   }
     
-    console.log("\n👤 User Token Accounts:");
-    console.log("User Token X ATA:", userTokenX.toString());
-    console.log("User Token Y (WSOL) ATA:", userTokenY.toString());
-    const upperBinId = lowerBinId + width - 1;
-    const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(lowerBinId));
-    const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(upperBinId));
+  //   console.log("\n👤 User Token Accounts:");
+  //   console.log("User Token X ATA:", userTokenX.toString());
+  //   console.log("User Token Y (WSOL) ATA:", userTokenY.toString());
+  //   const upperBinId = lowerBinId + width - 1;
+  //   const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(lowerBinId));
+  //   const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(upperBinId));
     
-    const [binArrayLower] = deriveBinArray(
-      matchingPair.publicKey,
-      lowerBinArrayIndex,
-      METORA_PROGRAM_ID
-    );
+  //   const [binArrayLower] = deriveBinArray(
+  //     matchingPair.publicKey,
+  //     lowerBinArrayIndex,
+  //     METORA_PROGRAM_ID
+  //   );
     
-    const [binArrayUpper] = deriveBinArray(
-      matchingPair.publicKey,
-      upperBinArrayIndex,
-      METORA_PROGRAM_ID
-    );
+  //   const [binArrayUpper] = deriveBinArray(
+  //     matchingPair.publicKey,
+  //     upperBinArrayIndex,
+  //     METORA_PROGRAM_ID
+  //   );
     
-    console.log("\n📦 Bin Arrays:");
-    console.log("Lower Bin Array:", binArrayLower.toString());
-    console.log("Upper Bin Array:", binArrayUpper.toString());
+  //   console.log("\n📦 Bin Arrays:");
+  //   console.log("Lower Bin Array:", binArrayLower.toString());
+  //   console.log("Upper Bin Array:", binArrayUpper.toString());
     
-    const lowerBinArrayInfo = await provider.connection.getAccountInfo(binArrayLower);
-    if (!lowerBinArrayInfo) {
-      console.log("⚠️  Lower bin array doesn't exist, creating...");
-      try {
-        const createLowerBinArrayTx = await program.methods
-          .addBin(new anchor.BN(lowerBinArrayIndex.toNumber()))
-          .accountsStrict({
-            lbPair: matchingPair.publicKey,
-            binArray: binArrayLower,
-            funder: adminkeypair.publicKey,
-            systemProgram: SystemProgram.programId,
-            dlmmProgram: METORA_PROGRAM_ID,
-          })
-          .signers([adminkeypair])
-          .rpc();
-        await provider.connection.confirmTransaction(createLowerBinArrayTx, "confirmed");
-        console.log("✅ Lower bin array created");
-      } catch (err: any) {
-        console.log("Note: Bin array creation error (may already exist):", err.message);
-      }
-    }
+  //   const lowerBinArrayInfo = await provider.connection.getAccountInfo(binArrayLower);
+  //   if (!lowerBinArrayInfo) {
+  //     console.log("⚠️  Lower bin array doesn't exist, creating...");
+  //     try {
+  //       const createLowerBinArrayTx = await program.methods
+  //         .addBin(new anchor.BN(lowerBinArrayIndex.toNumber()))
+  //         .accountsStrict({
+  //           lbPair: matchingPair.publicKey,
+  //           binArray: binArrayLower,
+  //           funder: adminkeypair.publicKey,
+  //           systemProgram: SystemProgram.programId,
+  //           dlmmProgram: METORA_PROGRAM_ID,
+  //         })
+  //         .signers([adminkeypair])
+  //         .rpc();
+  //       await provider.connection.confirmTransaction(createLowerBinArrayTx, "confirmed");
+  //       console.log("✅ Lower bin array created");
+  //     } catch (err: any) {
+  //       console.log("Note: Bin array creation error (may already exist):", err.message);
+  //     }
+  //   }
     
-    const upperBinArrayInfo = await provider.connection.getAccountInfo(binArrayUpper);
-    if (!upperBinArrayInfo && binArrayUpper.toString() !== binArrayLower.toString()) {
-      console.log("⚠️  Upper bin array doesn't exist, creating...");
-      try {
-        const createUpperBinArrayTx = await program.methods
-          .addBin(new anchor.BN(upperBinArrayIndex.toNumber()))
-          .accountsStrict({
-            lbPair: matchingPair.publicKey,
-            binArray: binArrayUpper,
-            funder: adminkeypair.publicKey,
-            systemProgram: SystemProgram.programId,
-            dlmmProgram: METORA_PROGRAM_ID,
-          })
-          .signers([adminkeypair])
-          .rpc();
-        await provider.connection.confirmTransaction(createUpperBinArrayTx, "confirmed");
-        console.log("✅ Upper bin array created");
-      } catch (err: any) {
-        console.log("Note: Bin array creation error (may already exist):", err.message);
-      }
-    }
+  //   const upperBinArrayInfo = await provider.connection.getAccountInfo(binArrayUpper);
+  //   if (!upperBinArrayInfo && binArrayUpper.toString() !== binArrayLower.toString()) {
+  //     console.log("⚠️  Upper bin array doesn't exist, creating...");
+  //     try {
+  //       const createUpperBinArrayTx = await program.methods
+  //         .addBin(new anchor.BN(upperBinArrayIndex.toNumber()))
+  //         .accountsStrict({
+  //           lbPair: matchingPair.publicKey,
+  //           binArray: binArrayUpper,
+  //           funder: adminkeypair.publicKey,
+  //           systemProgram: SystemProgram.programId,
+  //           dlmmProgram: METORA_PROGRAM_ID,
+  //         })
+  //         .signers([adminkeypair])
+  //         .rpc();
+  //       await provider.connection.confirmTransaction(createUpperBinArrayTx, "confirmed");
+  //       console.log("✅ Upper bin array created");
+  //     } catch (err: any) {
+  //       console.log("Note: Bin array creation error (may already exist):", err.message);
+  //     }
+  //   }
   
-    const amountX = new anchor.BN(0);
-    const amountY = new anchor.BN(10_000_000); // 0.01 SOL
+  //   const amountX = new anchor.BN(0);
+  //   const amountY = new anchor.BN(10_000_000); // 0.01 SOL
     
-    console.log("\n💧 Liquidity Parameters:");
-    console.log("Amount X:", amountX.toString());
-    console.log("Amount Y:", amountY.toString(), "lamports (0.01 SOL)");
+  //   console.log("\n💧 Liquidity Parameters:");
+  //   console.log("Amount X:", amountX.toString());
+  //   console.log("Amount Y:", amountY.toString(), "lamports (0.01 SOL)");
     
-    // Distribution in basis points (10000 = 100%)
-    const liquidityParameter = {
-      amountX: amountX,
-      amountY: amountY,
-      binLiquidityDist: [
-        {
-          binId: activeBinId,
-          distributionX: 0,      // 0% of X (we have no X)
-          distributionY: 10000,  // 100% of Y (10000 basis points = 100%)
-        }
-      ],
-    };
+  //   // Distribution in basis points (10000 = 100%)
+  //   const liquidityParameter = {
+  //     amountX: amountX,
+  //     amountY: amountY,
+  //     binLiquidityDist: [
+  //       {
+  //         binId: activeBinId,
+  //         distributionX: 0,      // 0% of X (we have no X)
+  //         distributionY: 10000,  // 100% of Y (10000 basis points = 100%)
+  //       }
+  //     ],
+  //   };
     
-    console.log("\n💰 Distribution:");
-    console.log("Bin ID:", activeBinId);
-    console.log("Distribution Y:", "100%");
+  //   console.log("\n💰 Distribution:");
+  //   console.log("Bin ID:", activeBinId);
+  //   console.log("Distribution Y:", "100%");
     
-    try {
-      console.log("\n🚀 Adding liquidity...");
+  //   try {
+  //     console.log("\n🚀 Adding liquidity...");
     
-      const sameBinArray = binArrayLower.equals(binArrayUpper);
-      console.log("Same bin array?", sameBinArray);
+  //     const sameBinArray = binArrayLower.equals(binArrayUpper);
+  //     console.log("Same bin array?", sameBinArray);
       
-      if (sameBinArray) {
-        console.log("⚠️  Warning: Position spans single bin array");
-        console.log("Consider widening position or using DLMM SDK directly");
-      }
+  //     if (sameBinArray) {
+  //       console.log("⚠️  Warning: Position spans single bin array");
+  //       console.log("Consider widening position or using DLMM SDK directly");
+  //     }
       
-      // Build remaining accounts - only add unique bin arrays
-      const remainingAccounts = [];
-      remainingAccounts.push({
-        pubkey: binArrayLower,
-        isSigner: false,
-        isWritable: true,
-      });
+  //     // Build remaining accounts - only add unique bin arrays
+  //     const remainingAccounts = [];
+  //     remainingAccounts.push({
+  //       pubkey: binArrayLower,
+  //       isSigner: false,
+  //       isWritable: true,
+  //     });
     
-      if (!sameBinArray) {
-        remainingAccounts.push({
-          pubkey: binArrayUpper,
-          isSigner: false,
-          isWritable: true,
-        });
-      }
+  //     if (!sameBinArray) {
+  //       remainingAccounts.push({
+  //         pubkey: binArrayUpper,
+  //         isSigner: false,
+  //         isWritable: true,
+  //       });
+  //     }
       
-      console.log("Remaining accounts count:", remainingAccounts.length);
+  //     console.log("Remaining accounts count:", remainingAccounts.length);
       
-      const txSignature = await program.methods
-        .addLiquidity(liquidityParameter)
-        .accountsStrict({
-          lbPair: matchingPair.publicKey,
-          position: positionKeypair.publicKey,
-          binArrayBitmapExtension: null,
-          reserveX: matchingPair.account.reserveX,
-          reserveY: matchingPair.account.reserveY,
-          userTokenIn: userTokenX,
-          userTokenOut: userTokenY,
-          tokenXMint: tokenXMint,
-          tokenYMint: tokenYMint,
-          user: adminkeypair.publicKey,
-          dlmmProgram: METORA_PROGRAM_ID,
-          eventAuthority: eventAuthority,
-          tokenXProgram: TOKEN_PROGRAM_ID,
-          tokenYProgram: TOKEN_PROGRAM_ID,
-        })
-        .remainingAccounts(remainingAccounts)
-        .signers([adminkeypair])
-        .rpc();
+  //     const txSignature = await program.methods
+  //       .addLiquidity(liquidityParameter)
+  //       .accountsStrict({
+  //         lbPair: matchingPair.publicKey,
+  //         position: positionKeypair.publicKey,
+  //         binArrayBitmapExtension: null,
+  //         reserveX: matchingPair.account.reserveX,
+  //         reserveY: matchingPair.account.reserveY,
+  //         userTokenIn: userTokenX,
+  //         userTokenOut: userTokenY,
+  //         tokenXMint: tokenXMint,
+  //         tokenYMint: tokenYMint,
+  //         user: adminkeypair.publicKey,
+  //         dlmmProgram: METORA_PROGRAM_ID,
+  //         eventAuthority: eventAuthority,
+  //         tokenXProgram: TOKEN_PROGRAM_ID,
+  //         tokenYProgram: TOKEN_PROGRAM_ID,
+  //       })
+  //       .remainingAccounts(remainingAccounts)
+  //       .signers([adminkeypair])
+  //       .rpc();
         
-      console.log("✅ Liquidity added successfully!");
-      console.log("Transaction signature:", txSignature);
+  //     console.log("✅ Liquidity added successfully!");
+  //     console.log("Transaction signature:", txSignature);
       
-      await provider.connection.confirmTransaction(txSignature, "confirmed");
+  //     await provider.connection.confirmTransaction(txSignature, "confirmed");
       
-      // Verify balances
-      const userTokenYAccount = await getAccount(provider.connection, userTokenY);
+  //     // Verify balances
+  //     const userTokenYAccount = await getAccount(provider.connection, userTokenY);
       
-      console.log("\n🔄 Removing liquidity...");
+  //     console.log("\n🔄 Removing liquidity...");
       
-      // Prepare bin liquidity reduction parameter
-      const binLiquidityReduction = [
-        {
-          binId: activeBinId,
-          bpsToRemove: 10000, // 10000 basis points = 100% (remove all liquidity)
-        }
-      ];
+  
+  //     const binLiquidityReduction = [
+  //       {
+  //         binId: activeBinId,
+  //         bpsToRemove: 10000, 
+  //       }
+  //     ];
       
-      const removeLiquidityTx = await program.methods
-        .removeLiqudity(binLiquidityReduction)
-        .accountsStrict({
-          lbPair: matchingPair.publicKey,
-          binArrayBitmapExtension: null,
-          position: positionKeypair.publicKey,
-          reserveX: matchingPair.account.reserveX,
-          reserveY: matchingPair.account.reserveY,
-          userTokenX: userTokenX,
-          userTokenY: userTokenY,
-          tokenXMint: tokenXMint,
-          tokenYMint: tokenYMint,
-          binArrayLower: binArrayLower,
-          binArrayUpper: binArrayUpper,
-          user: adminkeypair.publicKey,
-          dlmmProgram: METORA_PROGRAM_ID,
-          eventAuthority: eventAuthority,
-          tokenXProgram: TOKEN_PROGRAM_ID,
-          tokenYProgram: TOKEN_PROGRAM_ID,
-        })
-        .remainingAccounts(remainingAccounts)
-        .signers([adminkeypair])
-        .rpc();
+  //     const removeLiquidityTx = await program.methods
+  //       .removeLiqudity(binLiquidityReduction)
+  //       .accountsStrict({
+  //         lbPair: matchingPair.publicKey,
+  //         binArrayBitmapExtension: null,
+  //         position: positionKeypair.publicKey,
+  //         reserveX: matchingPair.account.reserveX,
+  //         reserveY: matchingPair.account.reserveY,
+  //         userTokenX: userTokenX,
+  //         userTokenY: userTokenY,
+  //         tokenXMint: tokenXMint,
+  //         tokenYMint: tokenYMint,
+  //         binArrayLower: binArrayLower,
+  //         binArrayUpper: binArrayUpper,
+  //         user: adminkeypair.publicKey,
+  //         dlmmProgram: METORA_PROGRAM_ID,
+  //         eventAuthority: eventAuthority,
+  //         tokenXProgram: TOKEN_PROGRAM_ID,
+  //         tokenYProgram: TOKEN_PROGRAM_ID,
+  //       })
+  //       .remainingAccounts(remainingAccounts)
+  //       .signers([adminkeypair])
+  //       .rpc();
       
-      console.log("✅ Liquidity removed! Signature:", removeLiquidityTx);
-      await provider.connection.confirmTransaction(removeLiquidityTx, "confirmed");
+  //     console.log("✅ Liquidity removed! Signature:", removeLiquidityTx);
+  //     await provider.connection.confirmTransaction(removeLiquidityTx, "confirmed");
       
-      console.log("\n💰 Final Token Y Balance:", userTokenYAccount.amount.toString());
-      const close=await program.methods.closePosition().accountsStrict({
-        lbPair:matchingPair.publicKey,
-        position:positionKeypair.publicKey,
-        binArrayLower:binArrayLower,
-        binArrayUpper:binArrayUpper,
-        rentReciver:adminkeypair.publicKey,
-        user:adminkeypair.publicKey,
-        dlmmProgram:METORA_PROGRAM_ID,
-        eventAuthority:eventAuthority
-      }).signers([adminkeypair]).rpc()
-      console.log("txx",close);
-      // Fetch position data
-      try {
-        const dlmmPool = await DLMM.create(provider.connection, matchingPair.publicKey);
-        const positions = await dlmmPool.getPositionsByUserAndLbPair(adminkeypair.publicKey);
+  //     console.log("\n💰 Final Token Y Balance:", userTokenYAccount.amount.toString());
+  //     const close=await program.methods.closePosition().accountsStrict({
+  //       lbPair:matchingPair.publicKey,
+  //       position:positionKeypair.publicKey,
+  //       binArrayLower:binArrayLower,
+  //       binArrayUpper:binArrayUpper,
+  //       rentReciver:adminkeypair.publicKey,
+  //       user:adminkeypair.publicKey,
+  //       dlmmProgram:METORA_PROGRAM_ID,
+  //       eventAuthority:eventAuthority
+  //     }).signers([adminkeypair]).rpc()
+  //     console.log("txx",close);
+  //     // Fetch position data
+  //     try {
+  //       const dlmmPool = await DLMM.create(provider.connection, matchingPair.publicKey);
+  //       const positions = await dlmmPool.getPositionsByUserAndLbPair(adminkeypair.publicKey);
         
-        const updatedPosition = positions.userPositions.find(
-          pos => pos.publicKey.toString() === positionKeypair.publicKey.toString()
-        );
+  //       const updatedPosition = positions.userPositions.find(
+  //         pos => pos.publicKey.toString() === positionKeypair.publicKey.toString()
+  //       );
         
-        if (updatedPosition) {
-          console.log("\n📊 Position Info:");
-          console.log("Position Address:", updatedPosition.publicKey.toString());
-          console.log("Total X Amount:", updatedPosition.positionData.totalXAmount.toString());
-          console.log("Total Y Amount:", updatedPosition.positionData.totalYAmount.toString());
-        }
-      } catch (posErr) {
-        console.log("Note: Could not fetch position details via SDK");
-      }
+  //       if (updatedPosition) {
+  //         console.log("\n📊 Position Info:");
+  //         console.log("Position Address:", updatedPosition.publicKey.toString());
+  //         console.log("Total X Amount:", updatedPosition.positionData.totalXAmount.toString());
+  //         console.log("Total Y Amount:", updatedPosition.positionData.totalYAmount.toString());
+  //       }
+  //     } catch (posErr) {
+  //       console.log("Note: Could not fetch position details via SDK");
+  //     }
       
-      console.log("\n✅ Success! Position is now earning fees from swaps.");
+  //     console.log("\n✅ Success! Position is now earning fees from swaps.");
       
-    } catch (error: any) {
-      console.error("\n❌ Add liquidity failed:", error);
+  //   } catch (error: any) {
+  //     console.error("\n❌ Add liquidity failed:", error);
       
-      if (error.logs) {
-        console.error("\n📋 Program Logs:");
-        error.logs.forEach((log: string) => console.error(log));
-      }
+  //     if (error.logs) {
+  //       console.error("\n📋 Program Logs:");
+  //       error.logs.forEach((log: string) => console.error(log));
+  //     }
       
-      if (error.message) {
-        console.error("\n💬 Error Message:", error.message);
-      }
+  //     if (error.message) {
+  //       console.error("\n💬 Error Message:", error.message);
+  //     }
       
-      throw error;
-    }
-  });
+  //     throw error;
+  //   }
+  // });
 
   // it("Close DLMM Position (no liquidity)", async () => {
   //   const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
