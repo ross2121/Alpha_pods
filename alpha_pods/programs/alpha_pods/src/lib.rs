@@ -66,6 +66,10 @@ pub mod alpha_pods {
     ) -> Result<()> {
         ctx.accounts.add_liquidity(ctx.remaining_accounts, liquidity_parameter)
     }
+    pub fn add_bin(ctx:Context<InitializeBinArray>,index:i64)->Result<()>{
+        ctx.accounts.init_bin_array(index)
+        
+    }
 }
 
 
