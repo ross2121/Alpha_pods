@@ -5,18 +5,20 @@ use anchor_lang::prelude::*;
 pub struct InitializeBinArray<'info> {
     /// The LB Pair (pool) account
     #[account(mut)]
+        /// CHECK: This is the Meteora DLMM program ID
     pub lb_pair: UncheckedAccount<'info>,
 
-    /// The bin array to initialize
+
     #[account(mut)]
+        /// CHECK: This is the Meteora DLMM program ID
     pub bin_array: UncheckedAccount<'info>,
     
     /// The account paying for bin array creation
     #[account(mut)]
     pub funder: Signer<'info>,
 
-    /// System program
-    pub system_program: Program<'info, System>,
+        /// CHECK: This is the Meteora DLMM program ID
+    pub system_program:UncheckedAccount<'info>,
     
     /// The Meteora DLMM program
     /// CHECK: This is the Meteora DLMM program ID
@@ -37,7 +39,7 @@ impl<'info> InitializeBinArray<'info> {
             accounts
         );
 
-        // Call the correct CPI function with the index parameter
+       
         dlmm::cpi::initialize_bin_array(cpi_context, index)
     }
 }

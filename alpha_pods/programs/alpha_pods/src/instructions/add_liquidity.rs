@@ -6,10 +6,13 @@ pub struct AddLiquidity<'info> {
     #[account(mut)]
     /// CHECK: The pool account
     pub lb_pair: UncheckedAccount<'info>,
+    #[account(mut)]
     ///CHECK:POSITION
     pub position:UncheckedAccount<'info>,
+    #[account(mut)]
     ///CHECK:POSITION
     pub bin_array_lower:UncheckedAccount<'info>,
+    #[account(mut)]
     ///CHECK:POSITON
     pub bin_array_upper:UncheckedAccount<'info>,
     /// CHECK: Bin array extension account of the pool
