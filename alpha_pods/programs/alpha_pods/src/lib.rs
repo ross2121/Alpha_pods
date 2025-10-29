@@ -4,6 +4,7 @@ use anchor_lang::prelude::*;
 pub mod instructions;
 pub use instructions::*;
 pub mod state;
+
 pub use state::*;
 pub mod error;
 pub use error::*;
@@ -58,6 +59,12 @@ pub mod alpha_pods {
     }
     pub fn add_postion(ctx:Context<InitializePostion>,lower_bin_id:i32,width:i32)->Result<()>{
         ctx.accounts.add_position(lower_bin_id, width)
+    }
+    pub fn add_liquidity<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, AddLiquidity<'info>>,
+        liquidity_parameter:dlmm::types::LiquidityParameter
+    ) -> Result<()> {
+        ctx.accounts.add_liquidity(ctx.remaining_accounts, liquidity_parameter)
     }
 }
 

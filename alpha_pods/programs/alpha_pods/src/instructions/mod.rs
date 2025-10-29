@@ -9,10 +9,14 @@ pub mod signedtxn;
 pub mod metora_liquidity;
 pub mod swap;
 pub use swap::*;
-pub mod add_liquidity;
-pub use add_liquidity::*;
+pub mod add_postition;
+pub use add_postition::*;
 pub use metora_liquidity::*;
 pub use signedtxn::*;
+pub mod add_liquidity;
+pub use add_liquidity::*;
+pub mod initialize_bin_array;
+pub use initialize_bin_array::*;
 
 pub use init::*;
 pub use deposit_mint::*;

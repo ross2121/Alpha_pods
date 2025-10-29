@@ -15,3 +15,4 @@ pub struct  Approval{
     pub address:Pubkey,
    pub amount:u64
 }
+

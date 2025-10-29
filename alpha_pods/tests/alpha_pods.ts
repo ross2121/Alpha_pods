@@ -768,9 +768,7 @@ describe("alpha_pods", () => {
     console.log("Token X Mint:", matchingPair.account.tokenXMint.toString());
     console.log("Token Y Mint:", matchingPair.account.tokenYMint.toString());
     
-    // Position parameters
-    // lower_bin_id: The starting bin ID for the position (price range lower bound)
-    // width: Number of bins the position spans (price range width)
+
     const activeBinId = matchingPair.account.activeId;
     const lowerBinId = activeBinId - 5; // Start 5 bins below active bin
     const width = 10; // Span 10 bins (covers active bin ±5)
@@ -966,6 +964,264 @@ describe("alpha_pods", () => {
     
     console.log("\n✅ All positions created successfully!");
     console.log(`Created ${positionStrategies.length} positions with different strategies`);
+  });
+
+  it("Add Liquidity to DLMM Position", async () => {
+    /**
+     * This test demonstrates adding liquidity to an existing position in a DLMM pool.
+     * After creating a position, we need to deposit actual tokens to earn fees.
+     */
+    
+    const tokenYMint = NATIVE_MINT; // WSOL
+    const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+    
+    // Find the existing LP pair
+    const allPairs = await DLMM.getLbPairs(provider.connection);
+    const matchingPair = allPairs.find(pair => 
+      pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
+      pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()
+    );
+    
+    if (!matchingPair) {
+      console.log("⚠️  No matching pair found");
+      return;
+    }
+    
+    console.log("\n📊 Pool Information:");
+    console.log("Pool Address:", matchingPair.publicKey.toString());
+    console.log("Active Bin ID:", matchingPair.account.activeId);
+    console.log("Bin Step:", matchingPair.account.binStep);
+    
+    // Step 1: Create a new position
+    const activeBinId = matchingPair.account.activeId;
+    const lowerBinId = activeBinId - 5;
+    const width = 10;
+    const positionKeypair = Keypair.generate();
+    
+    console.log("\n🆕 Creating Position First...");
+    console.log("Position Address:", positionKeypair.publicKey.toString());
+    console.log("Lower Bin ID:", lowerBinId);
+    console.log("Width:", width);
+    
+    const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+    
+    // Create position
+    const createPositionTx = await program.methods
+      .addPostion(lowerBinId, width)
+      .accountsStrict({
+        lbPair: matchingPair.publicKey,
+        owner: adminkeypair.publicKey,
+        position: positionKeypair.publicKey,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+        user: adminkeypair.publicKey,
+        dlmmProgram: METORA_PROGRAM_ID,
+        eventAuthority: eventAuthority,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([adminkeypair, positionKeypair])
+      .rpc();
+      
+    console.log("✅ Position created! Signature:", createPositionTx);
+    await provider.connection.confirmTransaction(createPositionTx, "confirmed");
+    
+    // Step 2: Wrap SOL to WSOL
+    console.log("\n🔄 Wrapping SOL to WSOL...");
+    const amountToWrap = 0.1 * anchor.web3.LAMPORTS_PER_SOL;
+    const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminkeypair.publicKey);
+    
+    const wrapTransaction = new Transaction();
+    const wsolAccountInfo = await provider.connection.getAccountInfo(wsolAccount);
+    if (!wsolAccountInfo) {
+      wrapTransaction.add(
+        createAssociatedTokenAccountInstruction(
+          adminkeypair.publicKey,
+          wsolAccount,
+          adminkeypair.publicKey,
+          NATIVE_MINT
+        )
+      );
+    }
+    
+    wrapTransaction.add(
+      SystemProgram.transfer({
+        fromPubkey: adminkeypair.publicKey,
+        toPubkey: wsolAccount,
+        lamports: amountToWrap,
+      })
+    );
+    
+    wrapTransaction.add(
+      createSyncNativeInstruction(wsolAccount, TOKEN_PROGRAM_ID)
+    );
+    
+    await sendAndConfirmTransaction(provider.connection, wrapTransaction, [adminkeypair]);
+    console.log("✅ Wrapped SOL!");
+    
+    // Step 3: Get or create user token accounts
+    const userTokenX = await getAssociatedTokenAddress(tokenXMint, adminkeypair.publicKey);
+    const userTokenY = wsolAccount;
+    
+    // Check if tokenX account exists, create if not
+    const userTokenXInfo = await provider.connection.getAccountInfo(userTokenX);
+    if (!userTokenXInfo) {
+      console.log("Creating Token X ATA...");
+      const createTokenXTx = new Transaction().add(
+        createAssociatedTokenAccountInstruction(
+          adminkeypair.publicKey,
+          userTokenX,
+          adminkeypair.publicKey,
+          tokenXMint
+        )
+      );
+      await sendAndConfirmTransaction(provider.connection, createTokenXTx, [adminkeypair]);
+    }
+    
+    console.log("\n👤 User Token Accounts:");
+    console.log("User Token X ATA:", userTokenX.toString());
+    console.log("User Token Y (WSOL) ATA:", userTokenY.toString());
+    
+    // Step 4: Prepare liquidity parameters
+    const amountX = new anchor.BN(0); // We'll primarily add WSOL
+    const amountY = new anchor.BN(10_000_000); // 0.01 WSOL
+    
+    console.log("\n💧 Liquidity Parameters:");
+    console.log("Amount X:", amountX.toString());
+    console.log("Amount Y:", amountY.toString(), "lamports (0.01 SOL)");
+    
+    // Derive bin arrays for the position's range
+    const upperBinId = lowerBinId + width;
+    const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(lowerBinId));
+    const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(upperBinId));
+    
+    const [binArrayLower] = deriveBinArray(
+      matchingPair.publicKey,
+      lowerBinArrayIndex,
+      METORA_PROGRAM_ID
+    );
+    
+    const [binArrayUpper] = deriveBinArray(
+      matchingPair.publicKey,
+      upperBinArrayIndex,
+      METORA_PROGRAM_ID
+    );
+    
+    console.log("\n📦 Bin Arrays:");
+    console.log("Lower Bin Array Index:", lowerBinArrayIndex.toString());
+    console.log("Lower Bin Array PDA:", binArrayLower.toString());
+    console.log("Upper Bin Array Index:", upperBinArrayIndex.toString());
+    console.log("Upper Bin Array PDA:", binArrayUpper.toString());
+    
+    // Create LiquidityParameter object
+    // This matches the DLMM LiquidityParameter structure
+    const liquidityParameter = {
+      amountX: amountX,
+      amountY: amountY,
+      binLiquidityDist: [
+        {
+          binId: activeBinId,
+          distributionX: 0,
+          distributionY: 100, // 100% of Y goes to active bin
+        }
+      ],
+    };
+    
+    console.log("\n💰 Liquidity Distribution:");
+    console.log("Bin ID:", activeBinId);
+    console.log("Distribution X:", 0, "%");
+    console.log("Distribution Y:", 100, "%");
+    
+    try {
+      console.log("\n🚀 Adding liquidity to position...");
+      
+      const txSignature = await program.methods
+        .addLiquidity(liquidityParameter)
+        .accountsStrict({
+          lbPair: matchingPair.publicKey,
+          position: positionKeypair.publicKey,
+          binArrayLower: binArrayLower,
+          binArrayUpper: binArrayUpper,
+          binArrayBitmapExtension: null,
+          reserveX: matchingPair.account.reserveX,
+          reserveY: matchingPair.account.reserveY,
+          userTokenIn: userTokenX,
+          userTokenOut: userTokenY,
+          tokenXMint: tokenXMint,
+          tokenYMint: tokenYMint,
+          user: adminkeypair.publicKey,
+          dlmmProgram: METORA_PROGRAM_ID,
+          eventAuthority: eventAuthority,
+          tokenXProgram: TOKEN_PROGRAM_ID,
+          tokenYProgram: TOKEN_PROGRAM_ID,
+        })
+        .remainingAccounts([
+          // Pass bin arrays that need to be modified
+          {
+            pubkey: binArrayLower,
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: binArrayUpper,
+            isSigner: false,
+            isWritable: true,
+          },
+        ])
+        .signers([adminkeypair])
+        .rpc();
+        
+      console.log("✅ Liquidity added successfully!");
+      console.log("Transaction signature:", txSignature);
+      
+      // Wait for confirmation
+      await provider.connection.confirmTransaction(txSignature, "confirmed");
+      
+      // Verify balances changed
+      try {
+        const userTokenXAccount = await getAccount(provider.connection, userTokenX);
+        const userTokenYAccount = await getAccount(provider.connection, userTokenY);
+        
+        console.log("\n💰 Final Token Balances:");
+        console.log("User Token X balance:", userTokenXAccount.amount.toString());
+        console.log("User Token Y balance:", userTokenYAccount.amount.toString());
+        
+        // Try to fetch updated position data
+        const dlmmPool = await DLMM.create(provider.connection, matchingPair.publicKey);
+        const positions = await dlmmPool.getPositionsByUserAndLbPair(adminkeypair.publicKey);
+        
+        const updatedPosition = positions.userPositions.find(
+          pos => pos.publicKey.toString() === positionKeypair.publicKey.toString()
+        );
+        
+        if (updatedPosition) {
+          console.log("\n📊 Updated Position Info:");
+          console.log("Position Address:", updatedPosition.publicKey.toString());
+          console.log("Total X Amount:", updatedPosition.positionData.totalXAmount.toString());
+          console.log("Total Y Amount:", updatedPosition.positionData.totalYAmount.toString());
+        }
+      } catch (accountError) {
+        console.log("Note: Could not fetch account details");
+      }
+      
+      console.log("\n✅ Liquidity successfully added to position!");
+      console.log("Next steps:");
+      console.log("  1. Position will now earn fees from swaps in its range");
+      console.log("  2. Monitor position performance and adjust as needed");
+      console.log("  3. Remove liquidity when desired using removeLiquidity");
+      
+    } catch (error: any) {
+      console.error("\n❌ Add liquidity failed:", error);
+      
+      if (error.logs) {
+        console.error("\n📋 Program Logs:");
+        error.logs.forEach((log: string) => console.error(log));
+      }
+      
+      if (error.message) {
+        console.error("\n💬 Error Message:", error.message);
+      }
+      
+      throw error;
+    }
   });
 
 });

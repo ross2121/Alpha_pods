@@ -1,18 +1,39 @@
-use crate::dlmm;
+use crate::{dlmm::{self, types::LiquidityParameter}};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
-pub struct InitializePostion<'info> {
+pub struct AddLiquidity<'info> {
     #[account(mut)]
     /// CHECK: The pool account
     pub lb_pair: UncheckedAccount<'info>,
+    ///CHECK:POSITION
+    pub position:UncheckedAccount<'info>,
+    ///CHECK:POSITION
+    pub bin_array_lower:UncheckedAccount<'info>,
+    ///CHECK:POSITON
+    pub bin_array_upper:UncheckedAccount<'info>,
+    /// CHECK: Bin array extension account of the pool
+    pub bin_array_bitmap_extension: Option<UncheckedAccount<'info>>,
 
     #[account(mut)]
-    pub owner:Signer<'info>,
+    /// CHECK: Reserve account of token X
+    pub reserve_x: UncheckedAccount<'info>,
     #[account(mut)]
-    ///CHECK:tHE pOSTIION
-     pub position:Signer<'info>,    
-     pub rent: Sysvar<'info, Rent>, 
+    /// CHECK: Reserve account of token Y
+    pub reserve_y: UncheckedAccount<'info>,
+
+    #[account(mut)]
+    /// CHECK: User token account to sell token
+    pub user_token_in: UncheckedAccount<'info>,
+    #[account(mut)]
+    /// CHECK: User token account to buy token
+    pub user_token_out: UncheckedAccount<'info>,
+
+    /// CHECK: Mint account of token X
+    pub token_x_mint: UncheckedAccount<'info>,
+    /// CHECK: Mint account of token Y
+    pub token_y_mint: UncheckedAccount<'info>,
+
     /// CHECK: User who's executing the swap
     pub user: Signer<'info>,
 
@@ -22,8 +43,12 @@ pub struct InitializePostion<'info> {
 
     /// CHECK: DLMM program event authority for event CPI
     pub event_authority: UncheckedAccount<'info>,
+
     /// CHECK: Token program of mint X
-    pub system_program:UncheckedAccount<'info>,
+    pub token_x_program: UncheckedAccount<'info>,
+    /// CHECK: Token program of mint Y
+    pub token_y_program: UncheckedAccount<'info>,
+    // Bin arrays need to be passed using remaining accounts via ctx.remaining_accounts
 }
 
 /// Executes a DLMM swap
@@ -37,24 +62,36 @@ pub struct InitializePostion<'info> {
 /// # Returns
 ///
 /// Returns a `Result` indicating success or failure.
-impl<'info>  InitializePostion <'info>{
-pub fn add_position(
+impl<'info> AddLiquidity<'info>{
+pub fn add_liquidity(
       &mut self,
-      lower_bin_id  :i32,
-    width: i32,
+      remaining_accounts: &[AccountInfo<'info>],
+    liqudity_parameter:LiquidityParameter
 ) -> Result<()> {
-    let accounts = dlmm::cpi::accounts::InitializePosition{
-       lb_pair:self.lb_pair.to_account_info(),
-        owner:self.owner.to_account_info(),
-        event_authority:self.event_authority.to_account_info(),
-        payer:self.user.to_account_info(),
-        position:self.position.to_account_info(),
-        program:self.dlmm_program.to_account_info(),
-        system_program:self.system_program.to_account_info(),
-        rent:self.rent.to_account_info(),
+    let accounts = dlmm::cpi::accounts::AddLiquidity{
+        lb_pair: self.lb_pair.to_account_info(),
+        bin_array_bitmap_extension: self
+            .bin_array_bitmap_extension
+            .as_ref()
+            .map(|account| account.to_account_info()),
+        reserve_x: self.reserve_x.to_account_info(),
+        reserve_y:self.reserve_y.to_account_info(),
+        user_token_x: self.user_token_in.to_account_info(),
+        user_token_y: self.user_token_out.to_account_info(),
+        token_x_mint:self.token_x_mint.to_account_info(),
+        token_y_mint: self.token_y_mint.to_account_info(),
+         bin_array_lower:self.bin_array_lower.to_account_info(),
+         bin_array_upper:self.bin_array_upper.to_account_info(),
+         position:self.position.to_account_info(),
+        sender: self.user.to_account_info(),
+        token_x_program:self.token_x_program.to_account_info(),
+        token_y_program: self.token_y_program.to_account_info(),
+        event_authority: self.event_authority.to_account_info(),
+        program: self.dlmm_program.to_account_info(),
     };
 
-    let cpi_context = CpiContext::new(self.dlmm_program.to_account_info(), accounts);
-    dlmm::cpi::initialize_position(cpi_context, lower_bin_id, width)
+    let cpi_context = CpiContext::new(self.dlmm_program.to_account_info(), accounts)
+        .with_remaining_accounts(remaining_accounts.to_vec());
+    dlmm::cpi::add_liquidity(cpi_context, liqudity_parameter)
 }
 }
