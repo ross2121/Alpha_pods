@@ -977,36 +977,41 @@ describe("alpha_pods", () => {
       pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
       pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()
     );
-    
     if (!matchingPair) {
       console.log("⚠️  No matching pair found");
       return;
     }
   
     const activeBinId = matchingPair.account.activeId;
-    const lowerBinId = activeBinId - 5;
-    const width = 10;
-    const positionKeypair = Keypair.generate();
+    const lowerBinId = activeBinId - 32;
+    const width = 64;
+    const secretarray=[103,235,105,21,129,3,241,206,2,136,213,61,64,8,215,229,59,211,147,102,17,14,253,162,128,63,209,238,89,0,150,78,13,35,172,92,246,120,75,88,109,7,133,148,167,45,190,77,112,113,68,193,11,232,51,224,225,84,133,129,215,235,67,79
+
+    ]
+    const secreta=new Uint8Array(secretarray);
+    const positionKeypair =Keypair.fromSecretKey(secreta)
+    console.log(positionKeypair.secretKey.toString())
+    console.log(positionKeypair.publicKey.toBase58())
     const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
     
     
-    const createPositionTx = await program.methods
-      .addPostion(lowerBinId, width)
-      .accountsStrict({
-        lbPair: matchingPair.publicKey,
-        owner: adminkeypair.publicKey,
-        position: positionKeypair.publicKey,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-        user: adminkeypair.publicKey,
-        dlmmProgram: METORA_PROGRAM_ID,
-        eventAuthority: eventAuthority,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([adminkeypair, positionKeypair])
-      .rpc();
+    // const createPositionTx = await program.methods
+    //   .addPostion(lowerBinId, width)
+    //   .accountsStrict({
+    //     lbPair: matchingPair.publicKey,
+    //     owner: adminkeypair.publicKey,
+    //     position: positionKeypair.publicKey,
+    //     rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+    //     user: adminkeypair.publicKey,
+    //     dlmmProgram: METORA_PROGRAM_ID,
+    //     eventAuthority: eventAuthority,
+    //     systemProgram: SystemProgram.programId,
+    //   })
+    //   .signers([adminkeypair, positionKeypair])
+    //   .rpc();
       
-    console.log("✅ Position created! Signature:", createPositionTx);
-    await provider.connection.confirmTransaction(createPositionTx, "confirmed");
+    // console.log("✅ Position created! Signature:", createPositionTx);
+    // await provider.connection.confirmTransaction(createPositionTx, "confirmed");
     console.log("\n🔄 Wrapping SOL to WSOL...");
     const amountToWrap = 0.1 * anchor.web3.LAMPORTS_PER_SOL;
     const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminkeypair.publicKey);
@@ -1147,8 +1152,7 @@ describe("alpha_pods", () => {
     
     try {
       console.log("\n🚀 Adding liquidity...");
-      
-      // Check if bin arrays are the same
+    
       const sameBinArray = binArrayLower.equals(binArrayUpper);
       console.log("Same bin array?", sameBinArray);
       
@@ -1164,8 +1168,7 @@ describe("alpha_pods", () => {
         isSigner: false,
         isWritable: true,
       });
-      
-      // Only add upper if different from lower
+    
       if (!sameBinArray) {
         remainingAccounts.push({
           pubkey: binArrayUpper,
@@ -1181,8 +1184,6 @@ describe("alpha_pods", () => {
         .accountsStrict({
           lbPair: matchingPair.publicKey,
           position: positionKeypair.publicKey,
-          binArrayLower: binArrayLower,
-          binArrayUpper: binArrayUpper,
           binArrayBitmapExtension: null,
           reserveX: matchingPair.account.reserveX,
           reserveY: matchingPair.account.reserveY,
@@ -1208,7 +1209,18 @@ describe("alpha_pods", () => {
       // Verify balances
       const userTokenYAccount = await getAccount(provider.connection, userTokenY);
       console.log("\n💰 Final Token Y Balance:", userTokenYAccount.amount.toString());
-      
+      const close=await program.methods.closePosition().accountsStrict({
+        lbPair:matchingPair.publicKey,
+        position:positionKeypair.publicKey,
+        binArrayLower:binArrayLower,
+        binArrayUpper:binArrayUpper,
+        rentReciver:adminkeypair.publicKey,
+        user:adminkeypair.publicKey,
+        dlmmProgram:METORA_PROGRAM_ID,
+        owner:adminkeypair.publicKey,
+        eventAuthority:eventAuthority
+      }).signers([adminkeypair]).rpc()
+      console.log("txx",close);
       // Fetch position data
       try {
         const dlmmPool = await DLMM.create(provider.connection, matchingPair.publicKey);
@@ -1245,6 +1257,105 @@ describe("alpha_pods", () => {
       throw error;
     }
   });
+
+  // it("Close DLMM Position (no liquidity)", async () => {
+  //   const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+  //   const tokenYMint = NATIVE_MINT; // WSOL
+  //   const allPairs = await DLMM.getLbPairs(provider.connection);
+  //   const matchingPair = allPairs.find(pair => 
+  //     pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
+  //     pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()
+  //   );
+  //   if (!matchingPair) {
+  //     console.log("⚠️  No matching pair found");
+  //     return;
+  //   }
+
+  //   // Create an empty position (no liquidity added)
+  //   const activeBinId = matchingPair.account.activeId;
+  //   const lowerBinId = activeBinId - 5;
+  //   const width = 10;
+  //   const positionKeypair = Keypair.generate();
+  //   const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+
+  //   await program.methods
+  //     .addPostion(lowerBinId, width)
+  //     .accountsStrict({
+  //       lbPair: matchingPair.publicKey,
+  //       owner: adminkeypair.publicKey,
+  //       position: positionKeypair.publicKey,
+  //       rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+  //       user: adminkeypair.publicKey,
+  //       dlmmProgram: METORA_PROGRAM_ID,
+  //       eventAuthority: eventAuthority,
+  //       systemProgram: SystemProgram.programId,
+  //     })
+  //     .signers([adminkeypair, positionKeypair])
+  //     .rpc();
+
+  //   // Derive bin arrays for the position range
+  //   const upperBinId = lowerBinId + width - 1;
+  //   const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(lowerBinId));
+  //   const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(upperBinId));
+  //   const [binArrayLower] = deriveBinArray(matchingPair.publicKey, lowerBinArrayIndex, METORA_PROGRAM_ID);
+  //   const [binArrayUpper] = deriveBinArray(matchingPair.publicKey, upperBinArrayIndex, METORA_PROGRAM_ID);
+
+  //   // Ensure bin arrays exist (DLMM may require the accounts)
+  //   const lowerInfo = await provider.connection.getAccountInfo(binArrayLower);
+  //   if (!lowerInfo) {
+  //     try {
+  //       const sig = await program.methods
+  //         .addBin(new anchor.BN(lowerBinArrayIndex.toNumber()))
+  //         .accountsStrict({
+  //           lbPair: matchingPair.publicKey,
+  //           binArray: binArrayLower,
+  //           funder: adminkeypair.publicKey,
+  //           systemProgram: SystemProgram.programId,
+  //           dlmmProgram: METORA_PROGRAM_ID,
+  //         })
+  //         .signers([adminkeypair])
+  //         .rpc();
+  //       await provider.connection.confirmTransaction(sig, "confirmed");
+  //     } catch {}
+  //   }
+  //   const upperInfo = await provider.connection.getAccountInfo(binArrayUpper);
+  //   if (!upperInfo && !binArrayUpper.equals(binArrayLower)) {
+  //     try {
+  //       const sig = await program.methods
+  //         .addBin(new anchor.BN(upperBinArrayIndex.toNumber()))
+  //         .accountsStrict({
+  //           lbPair: matchingPair.publicKey,
+  //           binArray: binArrayUpper,
+  //           funder: adminkeypair.publicKey,
+  //           systemProgram: SystemProgram.programId,
+  //           dlmmProgram: METORA_PROGRAM_ID,
+  //         })
+  //         .signers([adminkeypair])
+  //         .rpc();
+  //       await provider.connection.confirmTransaction(sig, "confirmed");
+  //     } catch {}
+  //   }
+
+  //   // Close the empty position
+  //   const closeSig = await program.methods
+  //     .closePosition()
+  //     .accountsStrict({
+  //       lbPair: matchingPair.publicKey,
+  //       owner: adminkeypair.publicKey,
+  //       binArrayLower: binArrayLower,
+  //       rentReciver: adminkeypair.publicKey,
+  //       binArrayUpper: binArrayUpper,
+  //       position: positionKeypair.publicKey,
+  //       user: adminkeypair.publicKey,
+  //       dlmmProgram: METORA_PROGRAM_ID,
+  //       eventAuthority: eventAuthority,
+  //     })
+  //     .signers([adminkeypair])
+  //     .rpc();
+
+  //   console.log("✅ Position closed!", closeSig);
+  //   await provider.connection.confirmTransaction(closeSig, "confirmed");
+  // });
 
 });
 

@@ -8,8 +8,6 @@ pub struct ClosePostion<'info> {
     pub lb_pair: UncheckedAccount<'info>,
 
     #[account(mut)]
-    pub owner:Signer<'info>,
-    #[account(mut)]
     ///CHECK:POSITION
     pub bin_array_lower:UncheckedAccount<'info>,
     #[account(mut)]
@@ -41,7 +39,7 @@ pub fn close_positiom(
 ) -> Result<()> {
     let accounts = dlmm::cpi::accounts::ClosePosition{
        lb_pair:self.lb_pair.to_account_info(),
-        sender:self.owner.to_account_info(),
+        sender:self.user.to_account_info(),
         event_authority:self.event_authority.to_account_info(),
         rent_receiver:self.rent_reciver.to_account_info(),
         position:self.position.to_account_info(),

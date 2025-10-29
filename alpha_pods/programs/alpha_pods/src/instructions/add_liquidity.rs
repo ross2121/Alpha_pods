@@ -9,12 +9,6 @@ pub struct AddLiquidity<'info> {
     #[account(mut)]
     ///CHECK:POSITION
     pub position:UncheckedAccount<'info>,
-    #[account(mut)]
-    ///CHECK:POSITION
-    pub bin_array_lower:UncheckedAccount<'info>,
-    #[account(mut)]
-    ///CHECK:POSITON
-    pub bin_array_upper:UncheckedAccount<'info>,
     /// CHECK: Bin array extension account of the pool
     pub bin_array_bitmap_extension: Option<UncheckedAccount<'info>>,
 
@@ -54,23 +48,21 @@ pub struct AddLiquidity<'info> {
     // Bin arrays need to be passed using remaining accounts via ctx.remaining_accounts
 }
 
-/// Executes a DLMM swap
-///
-/// # Arguments
-///
-/// * `ctx` - The context containing accounts and programs.
-/// * `amount_in` - The amount of input tokens to be swapped.
-/// * `min_amount_out` - The minimum amount of output tokens expected a.k.a slippage
-///
-/// # Returns
-///
-/// Returns a `Result` indicating success or failure.
 impl<'info> AddLiquidity<'info>{
 pub fn add_liquidity(
       &mut self,
       remaining_accounts: &[AccountInfo<'info>],
     liqudity_parameter:LiquidityParameter
 ) -> Result<()> {
+    // Extract bin arrays from remaining accounts
+    // Expected order: [binArrayLower, binArrayUpper (if different)]
+    let bin_array_lower = &remaining_accounts[0];
+    let bin_array_upper = if remaining_accounts.len() > 1 {
+        &remaining_accounts[1]
+    } else {
+        &remaining_accounts[0] // Use same if only one provided
+    };
+
     let accounts = dlmm::cpi::accounts::AddLiquidity{
         lb_pair: self.lb_pair.to_account_info(),
         bin_array_bitmap_extension: self
@@ -83,9 +75,9 @@ pub fn add_liquidity(
         user_token_y: self.user_token_out.to_account_info(),
         token_x_mint:self.token_x_mint.to_account_info(),
         token_y_mint: self.token_y_mint.to_account_info(),
-         bin_array_lower:self.bin_array_lower.to_account_info(),
-         bin_array_upper:self.bin_array_upper.to_account_info(),
-         position:self.position.to_account_info(),
+        bin_array_lower: bin_array_lower.clone(),
+        bin_array_upper: bin_array_upper.clone(),
+        position:self.position.to_account_info(),
         sender: self.user.to_account_info(),
         token_x_program:self.token_x_program.to_account_info(),
         token_y_program: self.token_y_program.to_account_info(),
@@ -93,8 +85,7 @@ pub fn add_liquidity(
         program: self.dlmm_program.to_account_info(),
     };
 
-    let cpi_context = CpiContext::new(self.dlmm_program.to_account_info(), accounts)
-        .with_remaining_accounts(remaining_accounts.to_vec());
+    let cpi_context = CpiContext::new(self.dlmm_program.to_account_info(), accounts);
     dlmm::cpi::add_liquidity(cpi_context, liqudity_parameter)
 }
 }
