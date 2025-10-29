@@ -1217,7 +1217,6 @@ describe("alpha_pods", () => {
         rentReciver:adminkeypair.publicKey,
         user:adminkeypair.publicKey,
         dlmmProgram:METORA_PROGRAM_ID,
-        owner:adminkeypair.publicKey,
         eventAuthority:eventAuthority
       }).signers([adminkeypair]).rpc()
       console.log("txx",close);

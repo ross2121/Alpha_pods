@@ -13,6 +13,8 @@ declare_program!(dlmm);
 
 #[program]
 pub mod alpha_pods {
+    
+
     use super::*;
     pub fn initialize(ctx: Context<Initialize>, seed: u64) -> Result<()> {
         ctx.accounts.initialize(seed,ctx.bumps);
@@ -72,6 +74,9 @@ pub mod alpha_pods {
     }
     pub fn close_position(ctx:Context<ClosePostion>)->Result<()>{
          ctx.accounts.close_positiom()
+    }
+    pub fn remove_liqudity<'a,'b,'c,'info>(ctx:Context<'a,'b,'c,'info,Removeliquidity<'info>>, binreduction:Vec<dlmm::types::BinLiquidityReduction>)->Result<()>{
+        ctx.accounts.remove_liqudity(ctx.remaining_accounts,binreduction)
     }
 }
 
