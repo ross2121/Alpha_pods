@@ -17,6 +17,8 @@ pub mod add_liquidity;
 pub use add_liquidity::*;
 pub mod initialize_bin_array;
 pub use initialize_bin_array::*;
+pub mod close_positiom;
+pub use close_positiom::*;
 
 pub use init::*;
 pub use deposit_mint::*;

@@ -968,15 +968,9 @@ describe("alpha_pods", () => {
 
 
 
-  it("Add Liquidity with Bin Array Management", async () => {
-    /**
-     * Complete production-ready liquidity addition flow
-     * Handles bin array initialization and proper DLMM integration
-     */
-    
+  it("Add Liquidity with Bin Array Management", async () => {    
     const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
     const tokenYMint = NATIVE_MINT; // WSOL
-    
     console.log("🔍 Finding LP Pair...");
     const allPairs = await DLMM.getLbPairs(provider.connection);
     const matchingPair = allPairs.find(pair => 
@@ -988,25 +982,13 @@ describe("alpha_pods", () => {
       console.log("⚠️  No matching pair found");
       return;
     }
-    
-    console.log("\n📊 Pool Information:");
-    console.log("Pair Address:", matchingPair.publicKey.toString());
-    console.log("Active Bin ID:", matchingPair.account.activeId);
-    console.log("Bin Step:", matchingPair.account.binStep);
-    
-    // ============================================
-    // Step 1: Initialize Position
-    // ============================================
+  
     const activeBinId = matchingPair.account.activeId;
     const lowerBinId = activeBinId - 5;
     const width = 10;
     const positionKeypair = Keypair.generate();
     const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
     
-    console.log("\n🆕 Creating Position...");
-    console.log("Position Address:", positionKeypair.publicKey.toString());
-    console.log("Lower Bin ID:", lowerBinId);
-    console.log("Width:", width);
     
     const createPositionTx = await program.methods
       .addPostion(lowerBinId, width)
@@ -1025,10 +1007,6 @@ describe("alpha_pods", () => {
       
     console.log("✅ Position created! Signature:", createPositionTx);
     await provider.connection.confirmTransaction(createPositionTx, "confirmed");
-    
-    // ============================================
-    // Step 2: Wrap SOL to WSOL
-    // ============================================
     console.log("\n🔄 Wrapping SOL to WSOL...");
     const amountToWrap = 0.1 * anchor.web3.LAMPORTS_PER_SOL;
     const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminkeypair.publicKey);
@@ -1058,10 +1036,7 @@ describe("alpha_pods", () => {
     
     await sendAndConfirmTransaction(provider.connection, wrapTransaction, [adminkeypair]);
     console.log("✅ Wrapped SOL!");
-    
-    // ============================================
-    // Step 3: Get/Create Token Accounts
-    // ============================================
+ 
     const userTokenX = await getAssociatedTokenAddress(tokenXMint, adminkeypair.publicKey);
     const userTokenY = wsolAccount;
     
@@ -1082,11 +1057,7 @@ describe("alpha_pods", () => {
     console.log("\n👤 User Token Accounts:");
     console.log("User Token X ATA:", userTokenX.toString());
     console.log("User Token Y (WSOL) ATA:", userTokenY.toString());
-    
-    // ============================================
-    // Step 4: Prepare Bin Arrays
-    // ============================================
-    const upperBinId = lowerBinId + width - 1; // Inclusive upper bound
+    const upperBinId = lowerBinId + width - 1;
     const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(lowerBinId));
     const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(upperBinId));
     
@@ -1106,7 +1077,6 @@ describe("alpha_pods", () => {
     console.log("Lower Bin Array:", binArrayLower.toString());
     console.log("Upper Bin Array:", binArrayUpper.toString());
     
-    // Check if bin arrays exist, create if needed
     const lowerBinArrayInfo = await provider.connection.getAccountInfo(binArrayLower);
     if (!lowerBinArrayInfo) {
       console.log("⚠️  Lower bin array doesn't exist, creating...");
@@ -1150,10 +1120,7 @@ describe("alpha_pods", () => {
         console.log("Note: Bin array creation error (may already exist):", err.message);
       }
     }
-    
-    // ============================================
-    // Step 5: Add Liquidity
-    // ============================================
+  
     const amountX = new anchor.BN(0);
     const amountY = new anchor.BN(10_000_000); // 0.01 SOL
     

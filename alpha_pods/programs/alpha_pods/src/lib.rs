@@ -70,6 +70,9 @@ pub mod alpha_pods {
         ctx.accounts.init_bin_array(index)
         
     }
+    pub fn close_position(ctx:Context<ClosePostion>)->Result<()>{
+         ctx.accounts.close_positiom()
+    }
 }
 
 
