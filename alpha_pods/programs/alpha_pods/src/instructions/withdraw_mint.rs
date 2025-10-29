@@ -4,6 +4,8 @@ use crate::{ InitializeAdmin};
 #[derive(Accounts)]
 pub struct WithdrawMint<'info> { 
      #[account(mut)]
+    /// CHECK: Member is only used as the authority for `member_ata` and is not read/written by this program.
+    /// The ATA constraint on `member_ata` enforces the correct authority; no further checks are necessary.
    pub member:UncheckedAccount<'info>,
     #[account(mut,seeds=[b"escrow",escrow.admin.key().as_ref(),&escrow.seed.to_le_bytes()],bump)]
     pub escrow:Account<'info,InitializeAdmin>,

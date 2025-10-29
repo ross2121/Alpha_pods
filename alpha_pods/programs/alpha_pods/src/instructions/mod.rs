@@ -1,5 +1,5 @@
 pub mod init;
-pub mod deposti_sol;
+
 
 
 pub mod deposit_mint;
@@ -27,4 +27,3 @@ pub use deposit_mint::*;
 
 
 pub use withdraw_mint::*;
-pub use deposti_sol::*;

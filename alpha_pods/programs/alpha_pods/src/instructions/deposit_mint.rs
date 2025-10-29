@@ -2,10 +2,6 @@ use anchor_lang::{ prelude::*};
 use anchor_spl::{ token::{ transfer_checked, Mint, TokenAccount, TransferChecked}};
 use crate::{ InitializeAdmin};
 #[derive(Accounts)]
-//send sol to escrow where the depositer should allow 
-// not token only sol
-// sol shouldnt be capture inside the struct
-// It should hold the amount  you want to capture
 //
 pub struct DepositMint<'info> {
   

@@ -13,23 +13,13 @@ declare_program!(dlmm);
 
 #[program]
 pub mod alpha_pods {
-    
-
     use super::*;
     pub fn initialize(ctx: Context<Initialize>, seed: u64) -> Result<()> {
         ctx.accounts.initialize(seed,ctx.bumps);
         Ok(())
     }
 
-    pub fn deposit_sol(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        ctx.accounts.deposit(amount)?;
-        Ok(())
-    }
-
-    // pub fn withdraw_sol(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
-    //     ctx.accounts.withdraw(amount)?;
-    //     Ok(())
-    // }
+    
 
     pub fn deposit_mint(ctx: Context<DepositMint>, amount: u64) -> Result<()> {
         ctx.accounts.trade(amount)?;
@@ -60,7 +50,7 @@ pub mod alpha_pods {
         )
     }
     pub fn add_postion(ctx:Context<InitializePostion>,lower_bin_id:i32,width:i32)->Result<()>{
-        ctx.accounts.add_position(lower_bin_id, width)
+        ctx.accounts.add_position(lower_bin_id, width, &ctx.bumps)
     }
     pub fn add_liquidity<'a, 'b, 'c, 'info>(
         ctx: Context<'a, 'b, 'c, 'info, AddLiquidity<'info>>,

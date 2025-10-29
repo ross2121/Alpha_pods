@@ -9,6 +9,8 @@ pub struct Initialize<'info> {
     pub creator:Signer<'info>,
     #[account(init,payer=creator,space=8+InitializeAdmin::INIT_SPACE,seeds=[b"escrow",admin.key().as_ref(),&seed.to_le_bytes()],bump)]
     pub escrow:Account<'info,InitializeAdmin>,
+    /// CHECK: This PDA holds SOL for escrow operations
+  
 
     pub system_program: Program<'info, System>,
 }
