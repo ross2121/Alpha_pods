@@ -51,7 +51,7 @@ pub struct DlmmSwap<'info> {
     pub token_x_program: UncheckedAccount<'info>,
     /// CHECK: Token program of mint Y
     pub token_y_program: UncheckedAccount<'info>,
-    // Bin arrays need to be passed using remaining accounts
+    // Bin arrays need to be passed using remaining accounts via ctx.remaining_accounts
 }
 
 /// Executes a DLMM swap
@@ -65,38 +65,39 @@ pub struct DlmmSwap<'info> {
 /// # Returns
 ///
 /// Returns a `Result` indicating success or failure.
-pub fn handle_dlmm_swap<'a, 'b, 'c, 'info>(
-    ctx: Context<'a, 'b, 'c, 'info, DlmmSwap<'info>>,
+impl<'info> DlmmSwap<'info>{
+pub fn handle_dlmm_swap(
+      &mut self,
+      remaining_accounts: &[AccountInfo<'info>],
     amount_in: u64,
     min_amount_out: u64,
 ) -> Result<()> {
     let accounts = dlmm::cpi::accounts::Swap {
-        lb_pair: ctx.accounts.lb_pair.to_account_info(),
-        bin_array_bitmap_extension: ctx
-            .accounts
+        lb_pair: self.lb_pair.to_account_info(),
+        bin_array_bitmap_extension: self
             .bin_array_bitmap_extension
             .as_ref()
             .map(|account| account.to_account_info()),
-        reserve_x: ctx.accounts.reserve_x.to_account_info(),
-        reserve_y: ctx.accounts.reserve_y.to_account_info(),
-        user_token_in: ctx.accounts.user_token_in.to_account_info(),
-        user_token_out: ctx.accounts.user_token_out.to_account_info(),
-        token_x_mint: ctx.accounts.token_x_mint.to_account_info(),
-        token_y_mint: ctx.accounts.token_y_mint.to_account_info(),
-        oracle: ctx.accounts.oracle.to_account_info(),
-        host_fee_in: ctx
-            .accounts
+        reserve_x: self.reserve_x.to_account_info(),
+        reserve_y:self.reserve_y.to_account_info(),
+        user_token_in: self.user_token_in.to_account_info(),
+        user_token_out: self.user_token_out.to_account_info(),
+        token_x_mint:self.token_x_mint.to_account_info(),
+        token_y_mint: self.token_y_mint.to_account_info(),
+        oracle: self.oracle.to_account_info(),
+        host_fee_in: self
             .host_fee_in
             .as_ref()
             .map(|account| account.to_account_info()),
-        user: ctx.accounts.user.to_account_info(),
-        token_x_program: ctx.accounts.token_x_program.to_account_info(),
-        token_y_program: ctx.accounts.token_y_program.to_account_info(),
-        event_authority: ctx.accounts.event_authority.to_account_info(),
-        program: ctx.accounts.dlmm_program.to_account_info(),
+        user: self.user.to_account_info(),
+        token_x_program:self.token_x_program.to_account_info(),
+        token_y_program: self.token_y_program.to_account_info(),
+        event_authority: self.event_authority.to_account_info(),
+        program: self.dlmm_program.to_account_info(),
     };
 
-    let cpi_context = CpiContext::new(ctx.accounts.dlmm_program.to_account_info(), accounts)
-        .with_remaining_accounts(ctx.remaining_accounts.to_vec());
+    let cpi_context = CpiContext::new(self.dlmm_program.to_account_info(), accounts)
+        .with_remaining_accounts(remaining_accounts.to_vec());
     dlmm::cpi::swap(cpi_context, amount_in, min_amount_out)
+}
 }

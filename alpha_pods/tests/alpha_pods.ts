@@ -1,9 +1,18 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { AlphaPods } from "../target/types/alpha_pods";
-import { PublicKey, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import { PublicKey, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import axios from "axios";
-import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAccount } from "@solana/spl-token";
+import { 
+  getAssociatedTokenAddress, 
+  TOKEN_PROGRAM_ID, 
+  ASSOCIATED_TOKEN_PROGRAM_ID, 
+  getAccount,
+  createAssociatedTokenAccountInstruction,
+  createSyncNativeInstruction,
+  NATIVE_MINT
+} from "@solana/spl-token";
+import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority, derivePlaceHolderAccountMeta } from "@meteora-ag/dlmm";
 
 describe("alpha_pods", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -286,136 +295,297 @@ describe("alpha_pods", () => {
   //     expect(error.message).to.include("No member exist for this address");
   //   }
   // });
-  it("Quote",async()=>{
-    const ORDER_URL="https://lite-api.jup.ag/ultra/v1";
-     const quotemint = "So11111111111111111111111111111111111111112";
-     const basemint ="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-     const amount = 0.5
-     const amountInLamport=Math.floor(amount * 1e6)
-     console.log("escrow",escrowPda.toString()); 
-     const url = `${ORDER_URL}/order?inputMint=${basemint}&outputMint=${quotemint}&amount=${amountInLamport}&taker=${escrowPda.toString()}`;  
-   try {
-     const response = await axios.get(url);
-     console.log("Order Response:", response.data);
-     const transactionBuffer = Buffer.from(response.data.transaction, 'base64');
-     const transactionArray = Array.from(transactionBuffer);
-     const swap = await program.methods
-     .executeSignedTx(transactionBuffer)
-     .accountsStrict({
-         admin: adminkeypair.publicKey,
-         escrow: escrowPda,
-         recipient: new PublicKey(response.data.toAccount || escrowPda.toString()),
-         jupiterProgram: new PublicKey("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"),
-         systemProgram: SystemProgram.programId,
-     })
-     .signers([adminkeypair])
-     .rpc();
-     console.log("Swap transaction:", swap);
-   } catch (error) {
-     console.error("Error fetching order:", error);
-     throw error;
-   }
+  // it("Quote",async()=>{
+  //   const ORDER_URL="https://lite-api.jup.ag/ultra/v1";
+  //    const quotemint = "So11111111111111111111111111111111111111112";
+  //    const basemint ="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  //    const amount = 0.5
+  //    const amountInLamport=Math.floor(amount * 1e6)
+  //    console.log("escrow",escrowPda.toString()); 
+  //    const url = `${ORDER_URL}/order?inputMint=${basemint}&outputMint=${quotemint}&amount=${amountInLamport}&taker=${escrowPda.toString()}`;  
+  //  try {
+  //    const response = await axios.get(url);
+  //    console.log("Order Response:", response.data);
+  //    const transactionBuffer = Buffer.from(response.data.transaction, 'base64');
+  //    const transactionArray = Array.from(transactionBuffer);
+  //    const swap = await program.methods
+  //    .executeSignedTx(transactionBuffer)
+  //    .accountsStrict({
+  //        admin: adminkeypair.publicKey,
+  //        escrow: escrowPda,
+  //        recipient: new PublicKey(response.data.toAccount || escrowPda.toString()),
+  //        jupiterProgram: new PublicKey("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"),
+  //        systemProgram: SystemProgram.programId,
+  //    })
+  //    .signers([adminkeypair])
+  //    .rpc();
+  //    console.log("Swap transaction:", swap);
+  //  } catch (error) {
+  //    console.error("Error fetching order:", error);
+  //    throw error;
+  //  }
    
      
  
-  })
+  // })
 
-  it("Create LP Pool", async () => {
-    // Test parameters
-    const minta = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
-    const mintb = new PublicKey("DP3fit2BHZviEgKD9di8LqMeZH6HYJwRf59ebe3mKaCa");
-    const activeId = 8388608 // Example bin ID
-    const binStep = 25;     // 0.2% bin step (in basis points, divided by 100)
+//   it("Create LP Pool", async () => {
+//     // Test parameters
+//     const minta = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+//     const mintb = new PublicKey("DP3fit2BHZviEgKD9di8LqMeZH6HYJwRf59ebe3mKaCa");
+//     const activeId = 8388608 // Example bin ID
+//     const binStep = 25;     // 0.2% bin step (in basis points, divided by 100)
     
-    // Derive PDAs for Metora
-    const binStepBytes = Buffer.allocUnsafe(2);
-    binStepBytes.writeUInt16LE(binStep, 0);
+//     // Derive PDAs for Metora
+//     const binStepBytes = Buffer.allocUnsafe(2);
+//     binStepBytes.writeUInt16LE(binStep, 0);
     
-    // Sort mints lexicographically
-    const mints = [minta, mintb].sort((a, b) => a.toBase58().localeCompare(b.toBase58()));
+//     // Sort mints lexicographically
+//     const mints = [minta, mintb].sort((a, b) => a.toBase58().localeCompare(b.toBase58()));
     
-    // Derive LP Account PDA
-    const [lpAccountPda, lpBump] = PublicKey.findProgramAddressSync(
-      [mints[0].toBuffer(), mints[1].toBuffer(), binStepBytes],
-      METORA_PROGRAM_ID 
+//     // Derive LP Account PDA
+//     const [lpAccountPda, lpBump] = PublicKey.findProgramAddressSync(
+//       [mints[0].toBuffer(), mints[1].toBuffer(), binStepBytes],
+//       METORA_PROGRAM_ID 
+//     );
+//     console.log("LP Account PDA:", lpAccountPda.toString());
+    
+//     // Derive Oracle PDA
+//     const [oraclePda, oracleBump] = PublicKey.findProgramAddressSync(
+//       [Buffer.from("oracle"), lpAccountPda.toBuffer()],
+//       METORA_PROGRAM_ID
+//     );
+//     console.log("Oracle PDA:", oraclePda.toString());
+    
+//     // Derive Preset Parameter PDA
+//     const [presetParameterPda, presetBump] = PublicKey.findProgramAddressSync(
+//       [Buffer.from("preset_parameter"), binStepBytes],
+//       METORA_PROGRAM_ID
+//     );
+//     console.log("Preset Parameter PDA:", presetParameterPda.toString());
+    
+//     // Check if preset parameter exists
+//     const presetAccountInfo = await provider.connection.getAccountInfo(presetParameterPda);
+//     if (!presetAccountInfo) {
+//       console.log("⚠️  Preset parameter account does not exist for bin step", binStep);
+//       console.log("Skipping test - preset parameters must be created by Metora first");
+//     }
+//     const [tokenX, tokenY] = minta.toBuffer().compare(mintb.toBuffer()) < 0 
+//   ? [minta, mintb] 
+//   : [mintb, minta];
+//   const binStepBuffer = Buffer.alloc(2);
+// binStepBuffer.writeUInt16LE(binStep);
+//   const [lbPairPda, lbPairBump] = PublicKey.findProgramAddressSync(
+//     [tokenX.toBuffer(), tokenY.toBuffer(), binStepBuffer],
+//     METORA_PROGRAM_ID
+//   );
+//     // Derive Reserve PDAs (ATAs)
+//     const vaultaPda = await getAssociatedTokenAddress(minta, lpAccountPda, true);
+//     const vaultbPda = await getAssociatedTokenAddress(mintb, lpAccountPda, true);
+//     console.log("Vault A (Reserve X):", vaultaPda.toString());
+//     console.log("Vault B (Reserve Y):", vaultbPda.toString());
+    
+//     // Derive member ATAs
+//     const memberMintaAta = await getAssociatedTokenAddress(minta, adminkeypair.publicKey);
+//     const memberMintbAta = await getAssociatedTokenAddress(mintb, adminkeypair.publicKey);
+//     const temp=Keypair.generate();
+//     const temp2=Keypair.generate();
+//     try {
+//       console.log("\nCalling lppool instruction...");
+//       const txSignature = await program.methods
+//         .lppool(activeId, binStep)
+//         .accountsStrict({
+//           member: adminkeypair.publicKey,
+//           escrow: escrowPda,
+//           lpAccount:lbPairPda,
+//           oracle: oraclePda,
+//           memberMinta: memberMintaAta,
+//           memberMintb: memberMintbAta,
+//           minta: minta,
+//           mintb: mintb,
+//           vaulta: vaultaPda,
+//           vaultb: vaultbPda,
+//           systemProgram: SystemProgram.programId,
+//           tokenProgram: TOKEN_PROGRAM_ID,
+//           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+//           presetParameter: new PublicKey("HxshKrRQVS7ZAzCf4ejgmqGyWZLUtwL7KCfDksdZz69h"),
+//           rent: SYSVAR_RENT_PUBKEY,
+//           meteoraProgram: METORA_PROGRAM_ID,
+//           eventAuthority: EVENT_AUTHORITY,
+//         })
+//         .signers([adminkeypair])
+//         .rpc();
+      
+//       console.log("Transaction successful!");
+//       console.log("Signature:", txSignature);
+      
+//       // Verify accounts were created
+//       const lpAccountInfo = await provider.connection.getAccountInfo(lpAccountPda);
+//       console.log("LP Account created:", lpAccountInfo !== null);
+      
+//     } catch (error: any) {
+//       console.error("Transaction failed:", error);
+//       if (error.logs) {
+//         console.error("Error logs:", error.logs);
+//       }
+//       throw error;
+//     }
+//   });
+
+  it("Swap tokens via Meteora DLMM", async () => {
+    /**
+     * This test demonstrates swapping tokens through Meteora DLMM pool via CPI.
+     * Using existing pair: WSOL / Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr
+     */
+    
+    const tokenYMint = NATIVE_MINT; // WSOL
+    const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+    
+    // Find the existing LP pair for these tokens
+    const allPairs = await (await import('@meteora-ag/dlmm')).default.getLbPairs(provider.connection);
+    
+    const matchingPair = allPairs.find(pair => 
+      pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
+      pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()
     );
-    console.log("LP Account PDA:", lpAccountPda.toString());
     
-    // Derive Oracle PDA
-    const [oraclePda, oracleBump] = PublicKey.findProgramAddressSync(
-      [Buffer.from("oracle"), lpAccountPda.toBuffer()],
-      METORA_PROGRAM_ID
-    );
-    console.log("Oracle PDA:", oraclePda.toString());
-    
-    // Derive Preset Parameter PDA
-    const [presetParameterPda, presetBump] = PublicKey.findProgramAddressSync(
-      [Buffer.from("preset_parameter"), binStepBytes],
-      METORA_PROGRAM_ID
-    );
-    console.log("Preset Parameter PDA:", presetParameterPda.toString());
-    
-    // Check if preset parameter exists
-    const presetAccountInfo = await provider.connection.getAccountInfo(presetParameterPda);
-    if (!presetAccountInfo) {
-      console.log("⚠️  Preset parameter account does not exist for bin step", binStep);
-      console.log("Skipping test - preset parameters must be created by Metora first");
+    if (!matchingPair) {
+      console.log("⚠️  No matching pair found for these tokens");
+      console.log("Skipping swap test");
+      return;
     }
-    const [tokenX, tokenY] = minta.toBuffer().compare(mintb.toBuffer()) < 0 
-  ? [minta, mintb] 
-  : [mintb, minta];
-  const binStepBuffer = Buffer.alloc(2);
-binStepBuffer.writeUInt16LE(binStep);
-  const [lbPairPda, lbPairBump] = PublicKey.findProgramAddressSync(
-    [tokenX.toBuffer(), tokenY.toBuffer(), binStepBuffer],
-    METORA_PROGRAM_ID
-  );
-    // Derive Reserve PDAs (ATAs)
-    const vaultaPda = await getAssociatedTokenAddress(minta, lpAccountPda, true);
-    const vaultbPda = await getAssociatedTokenAddress(mintb, lpAccountPda, true);
-    console.log("Vault A (Reserve X):", vaultaPda.toString());
-    console.log("Vault B (Reserve Y):", vaultbPda.toString());
     
-    // Derive member ATAs
-    const memberMintaAta = await getAssociatedTokenAddress(minta, adminkeypair.publicKey);
-    const memberMintbAta = await getAssociatedTokenAddress(mintb, adminkeypair.publicKey);
-    const temp=Keypair.generate();
-    const temp2=Keypair.generate();
+    console.log("✅ Found LP pair:", matchingPair.publicKey.toString());
+    console.log("Bin Step:", matchingPair.account.binStep);
+    console.log("Active ID:", matchingPair.account.activeId);
+    console.log("Reserve X:", matchingPair.account.reserveX.toString());
+    console.log("Reserve Y:", matchingPair.account.reserveY.toString());
+    console.log("Oracle:", matchingPair.account.oracle.toString());
+  
+    console.log("\n🔄 Wrapping SOL to WSOL...");
+    const amountToWrap = 0.01 * anchor.web3.LAMPORTS_PER_SOL;
+    const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminkeypair.publicKey);
+    
+    const wrapTransaction = new Transaction();
+    const wsolAccountInfo = await provider.connection.getAccountInfo(wsolAccount);
+    if (!wsolAccountInfo) {
+      console.log("Creating WSOL associated token account...");
+      wrapTransaction.add(
+        createAssociatedTokenAccountInstruction(
+          adminkeypair.publicKey,
+          wsolAccount,
+          adminkeypair.publicKey,
+          NATIVE_MINT
+        )
+      );
+    }
+    
+    // Transfer SOL to WSOL account
+    wrapTransaction.add(
+      SystemProgram.transfer({
+        fromPubkey: adminkeypair.publicKey,
+        toPubkey: wsolAccount,
+        lamports: amountToWrap,
+      })
+    );
+    
+    // Sync native to recognize as WSOL
+    wrapTransaction.add(
+      createSyncNativeInstruction(wsolAccount, TOKEN_PROGRAM_ID)
+    );
+    
+    const wrapSig = await sendAndConfirmTransaction(
+      provider.connection,
+      wrapTransaction,
+      [adminkeypair]
+    );
+    console.log("✅ Wrapped SOL! Signature:", wrapSig);
+    
+    // Verify WSOL balance
+    const wsolBalance = await getAccount(provider.connection, wsolAccount);
+    console.log("WSOL Balance:", wsolBalance.amount.toString(), "lamports");
+    
+    // Derive user token accounts
+    const userTokenX = await getAssociatedTokenAddress(tokenXMint, adminkeypair.publicKey);
+    const userTokenY = wsolAccount; // Use the wrapped SOL account
+    
+    console.log("User Token X ATA:", userTokenX.toString());
+    console.log("User Token Y (WSOL) ATA:", userTokenY.toString());
+    
+    // Swap parameters - swap WSOL for tokenX
+    const amountIn = 1000000; // 0.001 WSOL (1,000,000 lamports)
+    const minAmountOut = 1; // Minimum output (adjust based on your slippage tolerance)
+    
     try {
-      console.log("\nCalling lppool instruction...");
+      console.log("\nExecuting swap...");
+      console.log("Amount In:", amountIn);
+      console.log("Min Amount Out:", minAmountOut);
+      
+      // Import DLMM SDK to get bin arrays
+      const DLMM = (await import('@meteora-ag/dlmm')).default;
+      
+      // Create DLMM instance to fetch bin arrays
+      const dlmmPool = await DLMM.create(provider.connection, matchingPair.publicKey);
+      
+      // Get swap quote to determine which bin arrays are needed
+      const swapQuote = await dlmmPool.swapQuote(
+        new anchor.BN(amountIn),
+        true, // swapForY (true means swapping Y for X, i.e., WSOL for tokenX)
+        new anchor.BN(10), // slippage in BPS (10 = 0.1%)
+        [adminkeypair.publicKey]
+      );
+   
+      console.log("Swap quote:", {
+        minOutAmount: swapQuote.minOutAmount.toString(),
+        fee: swapQuote.fee.toString(),
+        priceImpact: swapQuote.priceImpact,
+      });
+      
+      // Get the bin arrays needed for the swap
+      const binArrays = swapQuote.binArraysPubkey || [];
+      console.log("Bin arrays needed:", binArrays.map(ba => ba.toString()));
+      
       const txSignature = await program.methods
-        .lppool(activeId, binStep)
+        .swap(new anchor.BN(amountIn), swapQuote.minOutAmount)
         .accountsStrict({
-          member: adminkeypair.publicKey,
-          escrow: escrowPda,
-          lpAccount:lbPairPda,
-          oracle: oraclePda,
-          memberMinta: memberMintaAta,
-          memberMintb: memberMintbAta,
-          minta: minta,
-          mintb: mintb,
-          vaulta: vaultaPda,
-          vaultb: vaultbPda,
-          systemProgram: SystemProgram.programId,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-          presetParameter: new PublicKey("HxshKrRQVS7ZAzCf4ejgmqGyWZLUtwL7KCfDksdZz69h"),
-          rent: SYSVAR_RENT_PUBKEY,
-          meteoraProgram: METORA_PROGRAM_ID,
-          eventAuthority: EVENT_AUTHORITY,
+          lbPair: matchingPair.publicKey,
+          binArrayBitmapExtension: null,
+          reserveX: matchingPair.account.reserveX,
+          reserveY: matchingPair.account.reserveY,
+          userTokenOut: userTokenX,
+          userTokenIn: userTokenY,
+          tokenXMint: tokenXMint,
+          tokenYMint: tokenYMint,
+          oracle: matchingPair.account.oracle,
+          hostFeeIn: null,
+          user: adminkeypair.publicKey,
+          dlmmProgram: METORA_PROGRAM_ID,
+          eventAuthority: deriveEventAuthority(METORA_PROGRAM_ID)[0],
+          tokenXProgram: TOKEN_PROGRAM_ID,
+          tokenYProgram: TOKEN_PROGRAM_ID,
         })
+        .remainingAccounts(
+          binArrays.map(binArray => ({
+            pubkey: binArray,
+            isSigner: false,
+            isWritable: true,
+          }))
+        )
         .signers([adminkeypair])
         .rpc();
+        
+      console.log("✅ Swap successful!");
+      console.log("Transaction signature:", txSignature);
       
-      console.log("Transaction successful!");
-      console.log("Signature:", txSignature);
+      // Verify balances changed
+      const userTokenXAccount = await getAccount(provider.connection, userTokenX);
+      const userTokenYAccount = await getAccount(provider.connection, userTokenY);
       
-      // Verify accounts were created
-      const lpAccountInfo = await provider.connection.getAccountInfo(lpAccountPda);
-      console.log("LP Account created:", lpAccountInfo !== null);
+      console.log("User Token X balance:", userTokenXAccount.amount.toString());
+      console.log("User Token Y balance:", userTokenYAccount.amount.toString());
       
     } catch (error: any) {
-      console.error("Transaction failed:", error);
+      console.error("Swap failed:", error);
       if (error.logs) {
         console.error("Error logs:", error.logs);
       }
@@ -423,5 +593,152 @@ binStepBuffer.writeUInt16LE(binStep);
     }
   });
 
+  it("DLMM Swap CPI Test - With SDK Quote", async () => {
+    /**
+     * Comprehensive test for DLMM swap using SDK to get proper bin arrays
+     */
+    
+    const tokenYMint = NATIVE_MINT; // WSOL
+    const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+    
+    // Find the existing LP pair
+    const DLMM_SDK = (await import('@meteora-ag/dlmm')).default;
+    const allPairs = await DLMM_SDK.getLbPairs(provider.connection);
+    
+    const matchingPair = allPairs.find(pair => 
+      pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
+      pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()
+    );
+    
+    if (!matchingPair) {
+      console.log("⚠️  No matching pair found");
+      return;
+    }
+
+    console.log("\n📊 Pool State:");
+    console.log("Pool Address:", matchingPair.publicKey.toString());
+    console.log("Active Bin ID:", matchingPair.account.activeId);
+    console.log("Bin Step:", matchingPair.account.binStep);
+    console.log("Token X Mint:", matchingPair.account.tokenXMint.toString());
+    console.log("Token Y Mint:", matchingPair.account.tokenYMint.toString());
+    console.log("Reserve X:", matchingPair.account.reserveX.toString());
+    console.log("Reserve Y:", matchingPair.account.reserveY.toString());
+    console.log("Oracle:", matchingPair.account.oracle.toString());
+
+    // Wrap SOL to WSOL
+    console.log("\n🔄 Wrapping SOL to WSOL...");
+    const amountToWrap = 0.01 * anchor.web3.LAMPORTS_PER_SOL;
+    const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminkeypair.publicKey);
+    
+    const wrapTransaction = new Transaction();
+    const wsolAccountInfo = await provider.connection.getAccountInfo(wsolAccount);
+    if (!wsolAccountInfo) {
+      wrapTransaction.add(
+        createAssociatedTokenAccountInstruction(
+          adminkeypair.publicKey,
+          wsolAccount,
+          adminkeypair.publicKey,
+          NATIVE_MINT
+        )
+      );
+    }
+    
+    wrapTransaction.add(
+      SystemProgram.transfer({
+        fromPubkey: adminkeypair.publicKey,
+        toPubkey: wsolAccount,
+        lamports: amountToWrap,
+      })
+    );
+    
+    wrapTransaction.add(
+      createSyncNativeInstruction(wsolAccount, TOKEN_PROGRAM_ID)
+    );
+    
+    await sendAndConfirmTransaction(provider.connection, wrapTransaction, [adminkeypair]);
+    console.log("✅ Wrapped SOL!");
+
+    // Get user token accounts
+    const userTokenX = await getAssociatedTokenAddress(tokenXMint, adminkeypair.publicKey);
+    const userTokenY = wsolAccount;
+
+    console.log("\n👤 User Token Accounts:");
+    console.log("User Token X ATA:", userTokenX.toString());
+    console.log("User Token Y (WSOL) ATA:", userTokenY.toString());
+
+    // Create DLMM pool instance
+    // const dlmmPool = await DLMM.create(provider.connection, matchingPair.publicKey);
+    
+    // Swap parameters
+    let pool=deriveBinArray(matchingPair.publicKey,binIdToBinArrayIndex(new anchor.BN(matchingPair.account.activeId)),METORA_PROGRAM_ID)
+    const amountIn = new anchor.BN(1_000_000); // 0.001 WSOL
+    const swapForY = true; // Swapping Y (WSOL) for X
+    const slippageBps = new anchor.BN(100); // 1% slippage
+
+
+    const activeBinArrayAccountMeta = {
+      pubkey:pool[0],
+      isSigner: false,
+      isWritable: true, // This is crucial. The swap modifies the bin.
+    };
+    const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+
+    console.log("\n🚀 Executing swap transaction...");
+
+    try {
+      const txSignature = await program.methods
+        .swap(amountIn, new anchor.BN(22))
+        .accountsStrict({
+          lbPair: matchingPair.publicKey,
+          binArrayBitmapExtension: null,
+          reserveX: matchingPair.account.reserveX,
+          reserveY: matchingPair.account.reserveY,
+          userTokenIn: userTokenY,
+          userTokenOut: userTokenX,
+          tokenXMint: tokenXMint,
+          tokenYMint: tokenYMint,
+          oracle: matchingPair.account.oracle,
+          hostFeeIn: null,
+          user: adminkeypair.publicKey,
+          dlmmProgram: METORA_PROGRAM_ID,
+          eventAuthority: eventAuthority,
+          tokenXProgram: TOKEN_PROGRAM_ID,
+          tokenYProgram: TOKEN_PROGRAM_ID,
+        }).remainingAccounts([activeBinArrayAccountMeta])
+        .signers([adminkeypair])
+        .rpc();
+
+      console.log("✅ Swap successful!");
+      console.log("Transaction signature:", txSignature);
+
+      // Wait for confirmation
+      await provider.connection.confirmTransaction(txSignature, "confirmed");
+
+      // Verify balances
+      try {
+        const userTokenXAccount = await getAccount(provider.connection, userTokenX);
+        const userTokenYAccount = await getAccount(provider.connection, userTokenY);
+
+        console.log("\n💰 Final Balances:");
+        console.log("User Token X balance:", userTokenXAccount.amount.toString());
+        console.log("User Token Y balance:", userTokenYAccount.amount.toString());
+      } catch (accountError) {
+        console.log("Note: Could not fetch token account balances");
+      }
+
+    } catch (error: any) {
+      console.error("\n❌ Swap failed:", error);
+      
+      if (error.logs) {
+        console.error("\n📋 Program Logs:");
+        error.logs.forEach((log: string) => console.error(log));
+      }
+      
+      throw error;
+    }
+  });
+
 });
 
+
+     

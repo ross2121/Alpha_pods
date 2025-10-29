@@ -45,6 +45,17 @@ pub mod alpha_pods {
     pub fn lppool(ctx:Context<LPPOOl>,bin_step:i32,active_bin:u16)->Result<()>{
         ctx.accounts.createpool(bin_step, active_bin)
     }
+    pub fn swap<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, DlmmSwap<'info>>,
+        amount_in: u64,
+        min_amount_out: u64,
+    ) -> Result<()> {
+        ctx.accounts.handle_dlmm_swap(
+            ctx.remaining_accounts,  // Pass remaining accounts from context
+            amount_in,
+            min_amount_out,
+        )
+    }
 }
 
 

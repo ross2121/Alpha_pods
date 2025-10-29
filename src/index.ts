@@ -245,12 +245,21 @@ console.log("parem2",paramet.presetParameter2);
     positionNft: positionNftForPosition.publicKey,
     payer: wallet.publicKey
   });
+
   const allPairs = await DLMM.getLbPairs(connection);
-  for (const pair of allPairs){
-    if(pair.account.tokenXMint==new PublicKey("Bgsif3jaew1BVQKM248khyuNzMuBu9itznNV89QTyJYd") &&pair.account.tokenYMint==new PublicKey("5BsCR9NcjZYecAXgSBTV7mJfPMEUEHimYby2sTBVbrKb") ){
-         console.log(pair.account);
-    }
+
+for (const pair of allPairs) {
+  if (
+    pair.account.tokenYMint.toBase58() === "So11111111111111111111111111111111111111112" &&
+    pair.account.tokenXMint.toBase58() === "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
+  ) {
+    console.log("✅ Found matching pair!");
+    console.log("Pair Address:", pair.publicKey.toString());
+    console.log("Bin Step:", pair.account.binStep);
+    console.log("Active ID:", pair.account.activeId);
   }
+}
+  // console.log(allPairs);
 
   // Set blockhash and fee payer BEFORE signing
   const { blockhash } = await connection.getLatestBlockhash();
