@@ -26,10 +26,10 @@ pub mod alpha_pods {
         Ok(())
     }
 
-    pub fn withdraw_sol(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
-        ctx.accounts.withdraw(amount)?;
-        Ok(())
-    }
+    // pub fn withdraw_sol(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+    //     ctx.accounts.withdraw(amount)?;
+    //     Ok(())
+    // }
 
     pub fn deposit_mint(ctx: Context<DepositMint>, amount: u64) -> Result<()> {
         ctx.accounts.trade(amount)?;
