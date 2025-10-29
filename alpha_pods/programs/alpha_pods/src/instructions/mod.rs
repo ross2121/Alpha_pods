@@ -9,6 +9,8 @@ pub mod signedtxn;
 pub mod metora_liquidity;
 pub mod swap;
 pub use swap::*;
+pub mod add_liquidity;
+pub use add_liquidity::*;
 pub use metora_liquidity::*;
 pub use signedtxn::*;
 
