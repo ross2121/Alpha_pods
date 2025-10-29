@@ -10,7 +10,8 @@ import {
   getAccount,
   createAssociatedTokenAccountInstruction,
   createSyncNativeInstruction,
-  NATIVE_MINT
+  NATIVE_MINT,
+  transfer
 } from "@solana/spl-token";
 import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority, derivePlaceHolderAccountMeta } from "@meteora-ag/dlmm";
 
@@ -657,7 +658,7 @@ describe("alpha_pods", () => {
     
     await sendAndConfirmTransaction(provider.connection, wrapTransaction, [adminkeypair]);
     console.log("✅ Wrapped SOL!");
-
+ 
     // Get user token accounts
     const userTokenX = await getAssociatedTokenAddress(tokenXMint, adminkeypair.publicKey);
     const userTokenY = wsolAccount;
@@ -718,6 +719,17 @@ describe("alpha_pods", () => {
       await sendAndConfirmTransaction(provider.connection, createVaultbTx, [adminkeypair]);
     }
 
+    // Transfer WSOL from user to escrow vault (amount equals amountIn)
+    console.log("Transferring WSOL to escrow vault...");
+    await transfer(
+      provider.connection,
+      adminkeypair,
+      userTokenY,
+      vaultb,
+      adminkeypair,
+      amountIn.toNumber()
+    );
+
     try {
       const txSignature = await program.methods
         .swap(amountIn, new anchor.BN(22))
@@ -741,7 +753,7 @@ describe("alpha_pods", () => {
           tokenYProgram: TOKEN_PROGRAM_ID,
           tokenProgram: TOKEN_PROGRAM_ID,
         }).remainingAccounts([activeBinArrayAccountMeta])
-      
+        
         .rpc();
 
       console.log("✅ Swap successful!");
