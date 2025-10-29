@@ -1208,6 +1208,44 @@ describe("alpha_pods", () => {
       
       // Verify balances
       const userTokenYAccount = await getAccount(provider.connection, userTokenY);
+      
+      console.log("\n🔄 Removing liquidity...");
+      
+      // Prepare bin liquidity reduction parameter
+      const binLiquidityReduction = [
+        {
+          binId: activeBinId,
+          bpsToRemove: 10000, // 10000 basis points = 100% (remove all liquidity)
+        }
+      ];
+      
+      const removeLiquidityTx = await program.methods
+        .removeLiqudity(binLiquidityReduction)
+        .accountsStrict({
+          lbPair: matchingPair.publicKey,
+          binArrayBitmapExtension: null,
+          position: positionKeypair.publicKey,
+          reserveX: matchingPair.account.reserveX,
+          reserveY: matchingPair.account.reserveY,
+          userTokenX: userTokenX,
+          userTokenY: userTokenY,
+          tokenXMint: tokenXMint,
+          tokenYMint: tokenYMint,
+          binArrayLower: binArrayLower,
+          binArrayUpper: binArrayUpper,
+          user: adminkeypair.publicKey,
+          dlmmProgram: METORA_PROGRAM_ID,
+          eventAuthority: eventAuthority,
+          tokenXProgram: TOKEN_PROGRAM_ID,
+          tokenYProgram: TOKEN_PROGRAM_ID,
+        })
+        .remainingAccounts(remainingAccounts)
+        .signers([adminkeypair])
+        .rpc();
+      
+      console.log("✅ Liquidity removed! Signature:", removeLiquidityTx);
+      await provider.connection.confirmTransaction(removeLiquidityTx, "confirmed");
+      
       console.log("\n💰 Final Token Y Balance:", userTokenYAccount.amount.toString());
       const close=await program.methods.closePosition().accountsStrict({
         lbPair:matchingPair.publicKey,
