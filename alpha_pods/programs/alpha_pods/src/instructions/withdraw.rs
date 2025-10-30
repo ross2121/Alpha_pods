@@ -30,7 +30,8 @@ impl <'info> Withdraw<'info>{
            account,
            signer_seeds
        );
-      transfer(cpi_ctx, amount * LAMPORTS_PER_SOL)?;
+      // Amount is already in lamports from JavaScript
+      transfer(cpi_ctx, amount)?;
       Ok(())
     }
 }

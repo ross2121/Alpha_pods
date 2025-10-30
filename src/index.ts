@@ -30,9 +30,31 @@ import { createAssociatedTokenAccountInstruction, createSyncNativeInstruction, g
 import { executeSwapViaDLMM } from "./services/dlmm_swap";
 import { Program } from "@coral-xyz/anchor";
 import { AlphaPods } from "./idl/alpha_pods";
-import { temppp } from "./services/temp";
 import { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority } from "@meteora-ag/dlmm";
+import { PrismaClient } from "@prisma/client";
+
 dotenv.config();
+
+// Initialize Prisma Client and check database connection
+const prisma = new PrismaClient();
+
+// Database connection check
+async function checkDatabaseConnection() {
+  try {
+    await prisma.$connect();
+    console.log("✅ Database connected successfully!");
+  } catch (error) {
+    console.error("❌ Failed to connect to database:");
+    console.error(error);
+    console.error("\n🔴 Database connection error. Please check:");
+    console.error("1. Your DATABASE_URL in .env file");
+    console.error("2. Database server is running");
+    console.error("3. Network connectivity");
+    console.error("\nExiting...");
+    process.exit(1);
+  }
+}
+
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
 const mainKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback("Swap", "Swap")],
@@ -47,8 +69,6 @@ const app=express();
 const proposeWizard = createProposeWizard(bot);
 const stage = new Scenes.Stage<MyContext>([proposeWizard, createLiquidityWizard as any]);
 app.use(json);
-
-dotenv.config();
 
 bot.use(session());
 bot.use(stage.middleware());
@@ -83,9 +103,20 @@ bot.action("close_position", admin_middleware, async (ctx) => {
   await handleClosePosition(ctx);
 });
 
-bot.action(/close_position:(\d+)/, admin_middleware, async (ctx) => {
-  const positionId = parseInt(ctx.match[1]);
+bot.action(/close_position:(.+)/, admin_middleware, async (ctx) => {
+  const positionId = ctx.match[1]; // UUID string
   await executeClosePosition(ctx, positionId);
+});
+
+bot.action(/refresh_position:(.+)/, async (ctx) => {
+  await ctx.answerCbQuery("🔄 Refreshing position data...");
+  await handleViewPositions(ctx);
+});
+
+bot.action(/claim_fees:(.+)/, admin_middleware, async (ctx) => {
+  const positionAddress = ctx.match[1];
+  await ctx.answerCbQuery("💰 Claiming fees feature coming soon!");
+  await ctx.reply(`💰 **Claim Fees Feature**\n\nPosition: \`${positionAddress}\`\n\nThis feature will allow you to claim accumulated trading fees from your liquidity position.\n\n🚧 Coming soon!`, { parse_mode: "Markdown" });
 });
 
 // Liquidity commands
@@ -412,4 +443,34 @@ const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
 }
 // temp()
 
-bot.launch();
+// Start the bot with database check
+async function startBot() {
+  console.log("🚀 Starting Telegram Bot...");
+  
+  // Check database connection first
+  await checkDatabaseConnection();
+  
+  // Launch bot
+  await bot.launch();
+  console.log("✅ Bot launched successfully!");
+  
+  // Graceful shutdown
+  process.once('SIGINT', async () => {
+    console.log("\n⏳ Shutting down gracefully...");
+    await prisma.$disconnect();
+    bot.stop('SIGINT');
+  });
+  
+  process.once('SIGTERM', async () => {
+    console.log("\n⏳ Shutting down gracefully...");
+    await prisma.$disconnect();
+    bot.stop('SIGTERM');
+  });
+}
+
+// Start the bot
+startBot().catch((error) => {
+  console.error("❌ Failed to start bot:");
+  console.error(error);
+  process.exit(1);
+});

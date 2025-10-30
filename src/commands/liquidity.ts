@@ -16,43 +16,10 @@ import * as idl from "../idl/alpha_pods.json";
 import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority } from "@meteora-ag/dlmm";
 import { PrismaClient } from "@prisma/client";
 import { deposit } from "../contract/contract";
-import crypto from "crypto";
 import { decryptPrivateKey } from "../services/auth";
 
 const prisma = new PrismaClient();
 const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
-
-// Helper function to decrypt private key and get Keypair
-async function getUserKeypair(telegramId: string): Promise<Keypair | null> {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { telegram_id: telegramId }
-    });
-
-    if (!user) {
-      console.error(`User not found for telegram ID: ${telegramId}`);
-      return null;
-    }
-
-    // Decrypt the private key
-    const algorithm = 'aes-256-cbc';
-    const encryptionKey = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key!!';
-    const key = crypto.scryptSync(encryptionKey, 'salt', 32);
-    const iv = Buffer.from(user.encryption_iv, 'hex');
-    
-    const decipher = crypto.createDecipheriv(algorithm, key, iv);
-    let decrypted = decipher.update(user.encrypted_private_key, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    const privateKeyArray = JSON.parse(decrypted);
-    const keypair = Keypair.fromSecretKey(new Uint8Array(privateKeyArray));
-    
-    return keypair;
-  } catch (error) {
-    console.error(`Error getting keypair for telegram ID ${telegramId}:`, error);
-    return null;
-  }
-}
 
 interface LiquiditySessionData extends Scenes.WizardSessionData {
   mint?: string;
@@ -160,8 +127,8 @@ const createProposalStep = async (ctx: LiquidityContext) => {
     const state = ctx.wizard.state as any;
     const chatId = state.chatId;
     const mint = state.mint;
+    const creatorTelegramId = ctx.from?.id?.toString() || "";
 
-    // Create proposal in database
     const proposalMessage = await ctx.reply(
       `🗳️ **Liquidity Proposal**\n\n` +
       `**Token Mint:** \`${mint}\`\n` +
@@ -179,7 +146,6 @@ const createProposalStep = async (ctx: LiquidityContext) => {
       }
     );
 
-    // Save proposal to database
     const proposal = await prisma.proposal.create({
       data: {
         mint: mint,
@@ -191,7 +157,7 @@ const createProposalStep = async (ctx: LiquidityContext) => {
         createdAt: BigInt(Date.now()),
         Votestatus: "Running",
         ProposalStatus: "Running",
-        Members: [],
+        Members: [creatorTelegramId], // Admin automatically added
         mintb: "LIQUIDITY_PROPOSAL" // Special marker for liquidity proposals
       }
     });
@@ -205,10 +171,69 @@ const createProposalStep = async (ctx: LiquidityContext) => {
 
 Members can now vote! Those who vote YES will contribute ${amount} SOL to the liquidity pool.
 
-After voting closes, use: \`/execute_liquidity ${proposal.id}\`
+**Voting closes in 5 minutes.**
     `;
 
     await ctx.reply(successMessage, { parse_mode: "Markdown" });
+
+    setTimeout(async () => {
+      const expiredproposal = await prisma.proposal.findUnique({
+        where: { id: proposal.id }
+      });
+
+      if (!expiredproposal || expiredproposal.Votestatus !== "Running") {
+        return;
+      }
+
+      const expiredText =
+        `Liquidity Proposal EXPIRED ⛔\n\n` +
+        `**Token Mint:** \`${expiredproposal.mint}\`\n` +
+        `**Amount per member:** \`${expiredproposal.amount} SOL\`\n\n` +
+        `**Final Result:** Yes (${expiredproposal.yes}) - No (${expiredproposal.no})`;
+
+      await prisma.proposal.update({
+        where: { id: proposal.id },
+        data: { 
+          Votestatus: "Expired",
+        }
+      });
+
+      try {
+        await ctx.telegram.editMessageText(
+          Number(expiredproposal.chatId),
+          Number(expiredproposal.messagId),
+          undefined,
+          expiredText,
+          { parse_mode: "Markdown" }
+        );
+      } catch (editError) {
+        console.log("Failed to edit message:", editError);
+        try {
+          await ctx.telegram.sendMessage(
+            Number(expiredproposal.chatId),
+            expiredText,
+            { parse_mode: "Markdown" }
+          );
+        } catch (sendError) {
+          console.error("Failed to send expiration message:", sendError);
+        }
+      }
+
+      console.log("Voting period over.");
+      if (expiredproposal.yes > 0) {
+        try {
+          await checkLiquidityFunds(expiredproposal.id, ctx);
+          await ctx.telegram.sendMessage(
+            Number(expiredproposal.chatId),
+            `✅ Voting complete! \n\n${expiredproposal.Members.length} members voted YES.\n\nPlease use \`/execute_liquidity ${expiredproposal.id}\` to collect funds and add liquidity.`,
+            { parse_mode: "Markdown" }
+          );
+        } catch (error) {
+          console.error("Error checking funds:", error);
+        }
+      }
+    }, 0.5 * 60 * 1000); // 5 minutes
+
     return ctx.scene.leave();
 
   } catch (error: any) {
@@ -218,7 +243,113 @@ After voting closes, use: \`/execute_liquidity ${proposal.id}\`
   }
 };
 
-// OLD CODE - keeping for reference, will create new execute function
+// Check if members have sufficient funds and send personal messages
+const checkLiquidityFunds = async (proposal_id: string, ctx: any) => {
+  const url = process.env.RPC_URL;
+  const connection = new Connection(url || "https://api.devnet.solana.com", { commitment: "confirmed" });
+
+  const proposal = await prisma.proposal.findUnique({
+    where: { id: proposal_id }
+  });
+
+  const members = proposal?.Members;
+  if (!members || members.length === 0) {
+    console.log("No members found for liquidity proposal");
+    return;
+  }
+
+  console.log(`Checking funding for ${members.length} members who voted "Yes"`);
+
+  for (const memberTelegramId of members) {
+    const member = await prisma.user.findUnique({
+      where: { telegram_id: memberTelegramId }
+    });
+
+    if (!member) {
+      console.log(`User with telegram_id ${memberTelegramId} not found`);
+      continue;
+    }
+
+    const public_key = new PublicKey(member.public_key);
+    const balance = await connection.getBalance(public_key);
+    const balancesol = balance / anchor.web3.LAMPORTS_PER_SOL;
+
+    if (balancesol < proposal!.amount) {
+      const shortfall = proposal!.amount - balancesol;
+
+      const fundingMessage = `
+🚨 **Funding Required for Approved Liquidity Proposal** 🚨
+
+The liquidity proposal you voted "Yes" for has been approved! However, your wallet needs more SOL to participate.
+
+**Proposal Details:**
+• Token Mint: \`${proposal!.mint}\`
+• Required Amount: ${proposal!.amount} SOL
+• Your Current Balance: ${balancesol.toFixed(4)} SOL
+• Shortfall: ${shortfall.toFixed(4)} SOL
+
+**Your Wallet Address:**
+\`${member.public_key}\`
+
+Please fund your wallet with at least ${shortfall.toFixed(4)} SOL to participate in this approved liquidity proposal.
+
+You can get SOL from exchanges like:
+• Binance
+• Coinbase
+• Jupiter (for swapping other tokens)
+• Or any other Solana-compatible exchange
+
+**Note:** This proposal has already been approved by the community vote!
+      `;
+
+      try {
+        await ctx.telegram.sendMessage(
+          parseInt(member.telegram_id),
+          fundingMessage,
+          { parse_mode: 'Markdown' }
+        );
+        console.log(`Funding message sent to user ${member.telegram_id}`);
+      } catch (error) {
+        console.error(`Failed to send funding message to user ${member.telegram_id}:`, error);
+      }
+    }
+  }
+};
+
+// Remove members who don't have enough funds
+const removeLiquidityMembersWithoutFunds = async (proposal_id: string) => {
+  const url = process.env.RPC_URL;
+  const connection = new Connection(url || "https://api.devnet.solana.com", { commitment: "confirmed" });
+
+  const proposal = await prisma.proposal.findUnique({
+    where: { id: proposal_id }
+  });
+
+  if (!proposal) {
+    return;
+  }
+
+  for (const memberTelegramId of proposal.Members) {
+    const user = await prisma.user.findUnique({
+      where: { telegram_id: memberTelegramId }
+    });
+
+    if (!user) continue;
+
+    const publickey = new PublicKey(user.public_key);
+    const balance = await connection.getBalance(publickey);
+    const amount = balance / anchor.web3.LAMPORTS_PER_SOL;
+
+    if (proposal.amount > amount) {
+      proposal.Members = proposal.Members.filter(memberId => memberId !== memberTelegramId);
+      await prisma.proposal.update({
+        where: { id: proposal.id },
+        data: { Members: proposal.Members }
+      });
+      console.log(`Removed member ${memberTelegramId} due to insufficient funds`);
+    }
+  }
+};
 const executeLiquidityOLD = async (tokenXMint: PublicKey, amount: number, chatId: number, connection: Connection) => {
     try {
     const secretKeyArray = [123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
@@ -260,7 +391,8 @@ const executeLiquidityOLD = async (tokenXMint: PublicKey, amount: number, chatId
     const positionKeypair = Keypair.generate();
     const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
 
-    // Create position
+    console.log("escrow",escrowPda);
+    console.log("escrowpda",escrow_vault_pda);
     const createPositionTx = await program.methods
       .addPostion(lowerBinId, width)
       .accountsStrict({
@@ -274,40 +406,16 @@ const executeLiquidityOLD = async (tokenXMint: PublicKey, amount: number, chatId
         systemProgram: SystemProgram.programId,
       })
       .signers([positionKeypair])
-      .rpc();
+      .rpc(); 
     
     await connection.confirmTransaction(createPositionTx, "confirmed");
     console.log("position",createPositionTx);
-    // Wrap SOL to WSOL
-    const amountToWrap = amount * anchor.web3.LAMPORTS_PER_SOL;
-    const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminKeypair.publicKey);
+    
+    // Amount is already in lamports from member deposits
+    const amountInLamports = amount;
+    console.log(`Using ${amountInLamports} lamports (${amountInLamports / anchor.web3.LAMPORTS_PER_SOL} SOL) from escrow vault`);
 
-    const wrapTransaction = new Transaction();
-    const wsolAccountInfo = await connection.getAccountInfo(wsolAccount);
 
-    if (!wsolAccountInfo) {
-      wrapTransaction.add(
-        createAssociatedTokenAccountInstruction(
-          adminKeypair.publicKey,
-          wsolAccount,
-          adminKeypair.publicKey,
-          NATIVE_MINT
-        )
-      );
-    }
-
-    wrapTransaction.add(
-      SystemProgram.transfer({
-        fromPubkey: adminKeypair.publicKey,
-        toPubkey: wsolAccount,
-        lamports: amountToWrap,
-      }),
-      createSyncNativeInstruction(wsolAccount, TOKEN_PROGRAM_ID)
-    );
-
-    await sendAndConfirmTransaction(connection, wrapTransaction, [adminKeypair]);
-
-    // Setup bin arrays
     const upperBinId = lowerBinId + width - 1;
     const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(lowerBinId));
     const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(upperBinId));
@@ -315,7 +423,6 @@ const executeLiquidityOLD = async (tokenXMint: PublicKey, amount: number, chatId
     const [binArrayLower] = deriveBinArray(matchingPair.publicKey, lowerBinArrayIndex, METORA_PROGRAM_ID);
     const [binArrayUpper] = deriveBinArray(matchingPair.publicKey, upperBinArrayIndex, METORA_PROGRAM_ID);
 
-    // Create bin arrays if needed
     const lowerBinArrayInfo = await connection.getAccountInfo(binArrayLower);
     if (!lowerBinArrayInfo) {
       try {
@@ -355,8 +462,6 @@ const executeLiquidityOLD = async (tokenXMint: PublicKey, amount: number, chatId
         console.log("Bin array creation note:", err.message);
       }
     }
-
-    // Setup vault accounts
     const vaulta = await getAssociatedTokenAddress(tokenXMint, escrow_vault_pda, true);
     const vaultb = await getAssociatedTokenAddress(tokenYMint, escrow_vault_pda, true);
 
@@ -375,10 +480,58 @@ const executeLiquidityOLD = async (tokenXMint: PublicKey, amount: number, chatId
       );
       await sendAndConfirmTransaction(connection, createVaultbTx, [adminKeypair]);
     }
-
-    // Transfer WSOL to vault
-    const amountY = new anchor.BN(amountToWrap);
-    await transfer(connection, adminKeypair, wsolAccount, vaultb, adminKeypair, amountY.toNumber());
+    
+    // Wrap SOL: withdraw from vault → admin wraps it → transfer to vaultb
+    console.log("💧 Wrapping SOL from vault...");
+    
+    // Step 1: Withdraw SOL from vault to admin
+    const withdrawTx = await program.methods
+      .withdraw(new anchor.BN(amountInLamports))
+      .accountsStrict({
+        vault: escrow_vault_pda,
+        member: adminKeypair.publicKey,
+        systemProgram: SystemProgram.programId,
+        escrow: escrowPda
+      })
+      .signers([adminKeypair])
+      .rpc();
+    await connection.confirmTransaction(withdrawTx, "confirmed");
+    console.log("✅ Withdrawn from vault:", withdrawTx);
+    
+    // Step 2: Wrap admin's SOL to WSOL
+    const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminKeypair.publicKey);
+    const wrapTransaction = new Transaction();
+    
+    const wsolAccountInfo = await connection.getAccountInfo(wsolAccount);
+    if (!wsolAccountInfo) {
+      wrapTransaction.add(
+        createAssociatedTokenAccountInstruction(
+          adminKeypair.publicKey,
+          wsolAccount,
+          adminKeypair.publicKey,
+          NATIVE_MINT
+        )
+      );
+    }
+    
+    wrapTransaction.add(
+      SystemProgram.transfer({
+        fromPubkey: adminKeypair.publicKey,
+        toPubkey: wsolAccount,
+        lamports: amountInLamports,
+      }),
+      createSyncNativeInstruction(wsolAccount, TOKEN_PROGRAM_ID)
+    );
+    
+    await sendAndConfirmTransaction(connection, wrapTransaction, [adminKeypair]);
+    console.log("✅ Wrapped SOL to WSOL");
+    
+    // Step 3: Transfer WSOL from admin to vaultb
+    await transfer(connection, adminKeypair, wsolAccount, vaultb, adminKeypair, amountInLamports);
+    console.log("✅ Transferred WSOL to vaultb");
+    
+    const amountY = new anchor.BN(amountInLamports);
+    console.log("Amount Y for liquidity:", amountY.toString(), "lamports");
 
     // Add liquidity
     const liquidityParameter = {
@@ -392,7 +545,7 @@ const executeLiquidityOLD = async (tokenXMint: PublicKey, amount: number, chatId
         }
       ],
     };
-
+ 
     const sameBinArray = binArrayLower.equals(binArrayUpper);
     const txSignature = await program.methods
       .addLiquidity(liquidityParameter)
@@ -437,7 +590,7 @@ const executeLiquidityOLD = async (tokenXMint: PublicKey, amount: number, chatId
   }
 };
 
-// Handle voting on liquidity proposals
+
 export const handleLiquidityVote = async (ctx: any) => {
   const action = ctx.match[1]; // yes or no
   const mint = ctx.match[2];
@@ -456,11 +609,8 @@ export const handleLiquidityVote = async (ctx: any) => {
     if (!proposal || proposal.mintb !== "LIQUIDITY_PROPOSAL") {
       return ctx.answerCbQuery('This is not a valid liquidity proposal.');
     }
-
     const member = proposal.Members || [];
     const newvote = (action === 'yes');
-
-    // Check if user already voted
     if (member.includes(userId.toString())) {
       return ctx.answerCbQuery('You have already voted!');
     }
@@ -558,57 +708,145 @@ export const handleExecuteLiquidity = async (ctx: Context) => {
       await ctx.reply("❌ No escrow found for this chat.");
       return;
     }
+    await ctx.reply(`🔍 Checking member balances...`);
+    await removeLiquidityMembersWithoutFunds(proposalId);
 
-    // Step 1: Collect deposits from all members who voted YES
-    await ctx.reply(`💰 Collecting ${proposal.amount} SOL from ${proposal.Members.length} members...`);
-    
-    const depositAmount = new anchor.BN(proposal.amount * anchor.web3.LAMPORTS_PER_SOL);
+
+    const updatedProposal = await prisma.proposal.findUnique({
+      where: { id: proposalId }
+    });
+
+    if (!updatedProposal || updatedProposal.Members.length === 0) {
+      await ctx.reply("❌ No members have sufficient funds. Cannot execute.");
+      return;
+    }
+    await ctx.reply(`💰 Collecting ${updatedProposal.amount} SOL from ${updatedProposal.Members.length} members...`);
+
     let successfulDeposits = 0;
     const failedMembers: string[] = [];
 
-    for (const memberTelegramId of proposal.Members) {
+    for (const memberTelegramId of updatedProposal.Members) {
       try {
-         const user=await prisma.user.findUnique({
-            where:{
-                telegram_id:memberTelegramId
-            }
-         });
-         if(!user){
-            return;
-         }
-        const privatekey =decryptPrivateKey(user?.encrypted_private_key,user?.encryption_iv)
-        const keypair=Keypair.fromSecretKey(privatekey)
-        await deposit(new anchor.BN(proposal.amount),keypair,proposal.chatId)
-        console.log(`Would collect ${proposal.amount} SOL from member ${memberTelegramId}`);
+        const user = await prisma.user.findUnique({
+          where: { telegram_id: memberTelegramId }
+        });
+
+        if (!user) {
+          console.log(`User ${memberTelegramId} not found in database`);
+          failedMembers.push(memberTelegramId);
+          
+          await ctx.reply(`❌ Member ${memberTelegramId} not found in database. Stopping execution.`);
+          return;
+        }
+
+        const privatekey = decryptPrivateKey(user.encrypted_private_key, user.encryption_iv);
+        const keypair = Keypair.fromSecretKey(privatekey);
+        
+        // deposit() now accepts SOL directly
+        const sig = await deposit(updatedProposal.amount, keypair, updatedProposal.chatId);
+        console.log(`✅ Collected ${updatedProposal.amount} SOL from member ${memberTelegramId}, tx: ${sig}`);
         successfulDeposits++;
         
       } catch (error: any) {
         console.error(`Failed to collect from member ${memberTelegramId}:`, error);
-        ctx.reply("Not enough to execute")
         failedMembers.push(memberTelegramId);
-        return;
         
+        
+        const userForError = await prisma.user.findUnique({
+          where: { telegram_id: memberTelegramId }
+        });
+    
+        const errorMsg = error.message || error.toString();
+        let userMessage = '';
+        
+        if (errorMsg.includes('insufficient lamports')) {
+          const match = errorMsg.match(/insufficient lamports (\d+), need (\d+)/);
+          if (match) {
+            const hasLamports = parseInt(match[1]);
+            const needLamports = parseInt(match[2]);
+            const shortfallLamports = needLamports - hasLamports;
+            const shortfallSOL = shortfallLamports / anchor.web3.LAMPORTS_PER_SOL;
+            
+            userMessage = `
+🚨 **Insufficient Funds - Execution Stopped** 🚨
+
+We couldn't collect ${updatedProposal.amount} SOL from your wallet for the liquidity proposal.
+
+**Your Balance:** ${(hasLamports / anchor.web3.LAMPORTS_PER_SOL).toFixed(4)} SOL
+**Required:** ${(needLamports / anchor.web3.LAMPORTS_PER_SOL).toFixed(4)} SOL
+**Shortfall:** ${shortfallSOL.toFixed(4)} SOL
+
+**Your Wallet Address:**
+\`${userForError?.public_key || 'Unknown'}\`
+
+⚠️ **IMPORTANT:** The liquidity execution has been STOPPED. Please fund your wallet with at least ${shortfallSOL.toFixed(4)} SOL and then the admin can retry with:
+\`/execute_liquidity ${proposalId}\`
+
+You can get SOL from exchanges like Binance, Coinbase, or Jupiter.
+            `;
+          } else {
+            userMessage = `
+🚨 **Insufficient Funds - Execution Stopped** 🚨
+
+We couldn't collect ${updatedProposal.amount} SOL from your wallet.
+
+**Your Wallet Address:**
+\`${userForError?.public_key || 'Unknown'}\`
+
+Please fund your wallet with at least ${updatedProposal.amount} SOL and retry.
+            `;
+          }
+        } else {
+          userMessage = `
+❌ **Payment Failed - Execution Stopped**
+
+Failed to collect ${updatedProposal.amount} SOL from your wallet.
+
+**Error:** ${errorMsg}
+
+Please ensure your wallet is funded and try again with:
+\`/execute_liquidity ${proposalId}\`
+          `;
+        }
+      
+        try {
+          await ctx.telegram.sendMessage(
+            parseInt(memberTelegramId),
+            userMessage,
+            { parse_mode: 'Markdown' }
+          );
+        } catch (msgError) {
+          console.error(`Failed to send error message to ${memberTelegramId}:`, msgError);
+        }
+        
+        
+        await ctx.reply(`❌ **Execution Stopped**\n\nFailed to collect funds from member. A funding request has been sent to the member.\n\nPlease retry after they fund their wallet with:\n\`/execute_liquidity ${proposalId}\``, { parse_mode: 'Markdown' });
+        
+       
+        return;
       }
     }
 
-    if (failedMembers.length > 0) {
-      await ctx.reply(`⚠️ Warning: Failed to collect from ${failedMembers.length} members. Continuing with ${successfulDeposits} deposits...`);
-    } else {
-      await ctx.reply(`✅ Successfully collected from all ${successfulDeposits} members!`);
+    if (successfulDeposits === 0) {
+      await ctx.reply("❌ Failed to collect funds from any member. Cannot execute.");
+      return;
     }
+    
+    await ctx.reply(`✅ Successfully collected from all ${successfulDeposits} members!`);
+    
+    // Calculate total in lamports (proposal.amount is in SOL)
+    const actualTotalAmountLamports = Math.floor(updatedProposal.amount * anchor.web3.LAMPORTS_PER_SOL * successfulDeposits);
 
-    // Step 2: Execute the actual liquidity addition
     await ctx.reply("📝 Creating liquidity position...");
-    const result = await executeLiquidityOLD(tokenMint, totalAmount, Number(proposal.chatId), connection);
+    const result = await executeLiquidityOLD(tokenMint, actualTotalAmountLamports, Number(updatedProposal.chatId), connection);
 
-    // Save position to database
     await prisma.liquidityPosition.create({
       data: {
         positionAddress: result.positionAddress,
         poolAddress: result.poolAddress,
         tokenMint: tokenMint.toBase58(),
-        amount: totalAmount.toString(),
-        chatId: BigInt(proposal.chatId),
+        amount: actualTotalAmountLamports.toString(),
+        chatId: BigInt(updatedProposal.chatId),
         escrowId: escrowRow.id,
         lowerBinId: result.lowerBinId,
         upperBinId: result.upperBinId,
@@ -622,7 +860,7 @@ export const handleExecuteLiquidity = async (ctx: Context) => {
 **Position Details:**
 • Position: \`${result.positionAddress}\`
 • Pool: \`${result.poolAddress}\`
-• Total Liquidity: ${totalAmount} SOL from ${proposal.Members.length} members
+• Total Liquidity: ${updatedProposal.amount * successfulDeposits} SOL from ${successfulDeposits} members
 • Bin Range: ${result.lowerBinId} - ${result.upperBinId}
 • Active Bin: ${result.activeBinId}
 
@@ -653,16 +891,26 @@ View on Solscan: https://solscan.io/tx/${result.txSignature}
     await ctx.reply(errorMsg);
   }
 };
-
-// Create the wizard
 export const createLiquidityWizard = new Scenes.WizardScene<LiquidityContext>(
   "add_liquidity_wizard",
   askMintStep,
   findPoolsStep,
   createProposalStep
 );
+async function fetchPositionDetails(positionAddress: string) {
+  try {
+    const response = await fetch(`https://devnet-dlmm-api.meteora.ag/position_v2/${positionAddress}`);
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching position details:", error);
+    return null;
+  }
+}
 
-// View positions command
+// View positions command with detailed monitoring
 export const handleViewPositions = async (ctx: Context) => {
   try {
     const chatId = ctx.chat?.id;
@@ -686,25 +934,107 @@ export const handleViewPositions = async (ctx: Context) => {
       return;
     }
 
-    let message = `📊 **Your Liquidity Positions** (${positions.length})\n\n`;
+    await ctx.reply("🔄 Fetching position details from Meteora...");
 
-    positions.forEach((pos: any, index: number) => {
-      message += `**Position ${index + 1}:**\n`;
-      message += `• Address: \`${pos.positionAddress}\`\n`;
-      message += `• Pool: \`${pos.poolAddress.slice(0, 8)}...${pos.poolAddress.slice(-8)}\`\n`;
-      message += `• Token: \`${pos.tokenMint.slice(0, 8)}...${pos.tokenMint.slice(-8)}\`\n`;
-      message += `• Amount: ${pos.amount} SOL\n`;
-      message += `• Range: ${pos.lowerBinId} - ${pos.upperBinId}\n\n`;
-    });
+    for (let i = 0; i < positions.length; i++) {
+      const pos = positions[i];
+      const details = await fetchPositionDetails(pos.positionAddress);
 
-    await ctx.reply(message, { parse_mode: "Markdown" });
+      if (!details) {
+        const basicMessage = `
+📊 **Position ${i + 1}/${positions.length}**
+
+**Basic Info:**
+• Address: \`${pos.positionAddress}\`
+• Pool: \`${pos.poolAddress.slice(0, 8)}...${pos.poolAddress.slice(-8)}\`
+• Token: \`${pos.tokenMint.slice(0, 8)}...${pos.tokenMint.slice(-8)}\`
+• Initial Deposit: ${parseFloat(pos.amount) / 1e9} SOL
+• Bin Range: ${pos.lowerBinId} - ${pos.upperBinId}
+• Created: ${pos.createdAt.toLocaleDateString()}
+
+⚠️ Unable to fetch live data from Meteora API
+        `;
+        
+        await ctx.reply(basicMessage, {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "🔗 View on Meteora", url: `https://app.meteora.ag/dlmm/${pos.poolAddress}` },
+                { text: "📈 DexScreener", url: `https://dexscreener.com/solana/${pos.poolAddress}` }
+              ],
+              [
+                { text: "💰 Claim Fees", callback_data: `claim_fees:${pos.positionAddress}` },
+                { text: "🔄 Refresh", callback_data: `refresh_position:${pos.id}` }
+              ],
+              [
+                { text: "🔒 Close & Swap to SOL", callback_data: `close_position:${pos.id}` }
+              ]
+            ]
+          }
+        });
+        continue;
+      }
+      const unclaimedFeesUsd = details.total_fee_usd_claimed || 0;
+      const unclaimedFeeX = details.total_fee_x_claimed || 0;
+      const unclaimedFeeY = details.total_fee_y_claimed || 0;
+      const rewardUsd = details.total_reward_usd_claimed || 0;
+
+      // Build detailed message
+      const detailedMessage = `
+📊 **Position ${i + 1}/${positions.length}** - ${pos.tokenMint.slice(0, 4)}...${pos.tokenMint.slice(-4)}/SOL
+
+**💼 Position Info:**
+• Address: \`${pos.positionAddress}\`
+• Pool: [\`${pos.poolAddress.slice(0, 8)}...\`](https://app.meteora.ag/dlmm/${pos.poolAddress})
+• Owner: \`${details.owner?.slice(0, 8)}...\`
+• Created: ${new Date(details.created_at).toLocaleDateString()}
+
+**💰 Total Deposit:**
+• Initial: ${(parseFloat(pos.amount) / 1e9).toFixed(4)} SOL
+• Current Value: *Calculating...*
+
+**🎁 Unclaimed Fees:**
+• Total USD: $${unclaimedFeesUsd.toFixed(4)}
+• Token X: ${unclaimedFeeX.toLocaleString()}
+• Token Y (SOL): ${unclaimedFeeY.toLocaleString()}
+
+**🌾 Farm Rewards:**
+• Total USD: $${rewardUsd.toFixed(4)}
+
+**📊 Liquidity Range:**
+• Lower Bin: ${pos.lowerBinId}
+• Upper Bin: ${pos.upperBinId}
+• Status: ${pos.lowerBinId <= pos.upperBinId ? "✅ In Range" : "⚠️ Out of Range"}
+
+**🔗 Quick Links:**
+[Meteora](https://app.meteora.ag/dlmm/${pos.poolAddress}) • [DexScreener](https://dexscreener.com/solana/${pos.poolAddress})
+      `;
+
+      await ctx.reply(detailedMessage, {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "💰 Claim Fees", callback_data: `claim_fees:${pos.positionAddress}` },
+              { text: "🔄 Refresh", callback_data: `refresh_position:${pos.id}` }
+            ],
+            [
+              { text: "🔒 Close & Swap to SOL", callback_data: `close_position:${pos.id}` }
+            ]
+          ]
+        },
+        // disable_web_page_preview: true
+      });
+    }
+
   } catch (error) {
     console.error("Error viewing positions:", error);
     await ctx.reply("❌ Failed to fetch positions.");
   }
 };
 
-// Close position command - asks user which position to close
+
 export const handleClosePosition = async (ctx: Context) => {
   try {
     const chatId = ctx.chat?.id;
@@ -743,14 +1073,13 @@ export const handleClosePosition = async (ctx: Context) => {
   }
 };
 
-// Execute close position
-export const executeClosePosition = async (ctx: Context, positionId: number) => {
+export const executeClosePosition = async (ctx: Context, positionId: string) => {
   try {
     await ctx.answerCbQuery("⏳ Closing position...");
     await ctx.reply("⏳ Closing liquidity position... This may take a moment.");
-
+    console.log("Closing position with ID:",positionId);
     const position = await prisma.liquidityPosition.findUnique({
-      where: { id: positionId.toString() },
+      where: { id: positionId },
       include: { escrow: true }
     });
 
@@ -758,26 +1087,26 @@ export const executeClosePosition = async (ctx: Context, positionId: number) => 
       await ctx.reply("❌ Position not found or already closed.");
       return;
     }
-
     const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com", { commitment: "confirmed" });
-    
     const secretKeyArray = [123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
     const adminKeypair = Keypair.fromSecretKey(new Uint8Array(secretKeyArray));
     
     const program = getProgram(connection, adminKeypair);
 
     const escrowPda = new PublicKey(position.escrow.escrow_pda);
+    console.log("escrow",escrowPda);
     const [escrow_vault_pda] = PublicKey.findProgramAddressSync(
       [Buffer.from("vault"), escrowPda.toBuffer()],
       program.programId
     );
+    console.log("pda",escrow_vault_pda);
 
     const positionPubkey = new PublicKey(position.positionAddress);
     const poolPubkey = new PublicKey(position.poolAddress);
     const tokenXMint = new PublicKey(position.tokenMint);
     const tokenYMint = NATIVE_MINT;
 
-    // Get pool data
+
     const allPairs = await DLMM.getLbPairs(connection);
     const matchingPair = allPairs.find(pair => pair.publicKey.toBase58() === poolPubkey.toBase58());
 

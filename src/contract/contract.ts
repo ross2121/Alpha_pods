@@ -72,7 +72,7 @@ const lamportsToSol = (lamports: anchor.BN): number => {
   return lamports.toNumber() / LAMPORTS_PER_SOL;
 };
 
-export const deposit = async (amount: anchor.BN, member: Keypair, chatid: BigInt) => {
+export const deposit = async (amountInSol: number, member: Keypair, chatid: BigInt) => {
   const escrowRow = await prisma.escrow.findUnique({
     where: {
       chatId: Number(chatid),
@@ -87,8 +87,12 @@ export const deposit = async (amount: anchor.BN, member: Keypair, chatid: BigInt
     [Buffer.from("vault"), escrowPda.toBuffer()],
     program.programId
   );
+  
+  // Convert SOL to lamports for the contract call
+  const amountInLamports = new anchor.BN(Math.floor(amountInSol * anchor.web3.LAMPORTS_PER_SOL));
+  
   const sig = await program.methods
-    .deposit(amount)
+    .deposit(amountInLamports)
     .accountsStrict({
       member: member.publicKey,
       escrow: escrowPda,
@@ -97,9 +101,7 @@ export const deposit = async (amount: anchor.BN, member: Keypair, chatid: BigInt
     })
     .signers([member])
     .rpc();
-
-  const amountInSol = lamportsToSol(amount);
-
+  
   const deposit = await prisma.deposit.findUnique({
     where: {
       publicKey_escrowId_mint: {
@@ -114,7 +116,7 @@ export const deposit = async (amount: anchor.BN, member: Keypair, chatid: BigInt
     await prisma.deposit.create({
       data: {
         publicKey: member.publicKey.toString(),
-        amount: amountInSol,
+        amount: parseFloat(amountInSol.toFixed(9)),
         mint: "",
         escrowId: escrowRow.id,
       },
@@ -126,7 +128,7 @@ export const deposit = async (amount: anchor.BN, member: Keypair, chatid: BigInt
       },
       data: {
         amount: {
-          increment: amountInSol, 
+          increment: parseFloat(amountInSol.toFixed(9)), 
         },
       },
     });

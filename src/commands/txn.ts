@@ -25,7 +25,7 @@ if(!proposal){
     }
     const secretkey=decryptPrivateKey(member_info.encrypted_private_key,member_info.encryption_iv);
     const keypair=Keypair.fromSecretKey(secretkey);
-    await   deposit(new BN(proposal.amount),keypair,proposal.chatId)
+    // await   deposit(new BN(proposal.amount),keypair,proposal.chatId)
   } 
   
 }
