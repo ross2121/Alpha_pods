@@ -18,7 +18,9 @@ pub mod alpha_pods {
         ctx.accounts.initialize(seed,ctx.bumps);
         Ok(())
     }
-
+  pub fn deposit(ctx:Context<Deposit>,amount:u64)->Result<()>{
+    ctx.accounts.deposit(amount)
+  }
     
 
     pub fn deposit_mint(ctx: Context<DepositMint>, amount: u64) -> Result<()> {

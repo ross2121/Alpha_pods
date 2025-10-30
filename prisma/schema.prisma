@@ -12,44 +12,61 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-model User{
-   id          String      @id @unique @default(uuid())
-  telegram_id String       @unique
-  name       String
-  public_key  String
-  role          Role
+
+model User {
+  id                    String  @id @unique @default(uuid())
+  telegram_id           String  @unique
+  name                  String
+  public_key            String  @unique
+  role                  Role
   encrypted_private_key String
-  encryption_iv String
+  encryption_iv         String
 }
-model Proposal{
-  id String @id @unique @default(uuid())
-   mint  String
-    amount Float
-    yes  Int
-    no  Int
-    messagId BigInt
-    chatId BigInt
-    createdAt  BigInt
-    requestId  String?
-    Txn      String?
-    mintb    String?
-    Votestatus  Status
-    ProposalStatus Status
-    Members   String[]
-      @@unique([chatId, messagId])
+
+model Proposal {
+  id             String   @id @unique @default(uuid())
+  mint           String
+  amount         Float
+  yes            Int
+  no             Int
+  messagId       BigInt
+  chatId         BigInt
+  createdAt      BigInt
+  requestId      String?
+  Txn            String?
+  mintb          String?
+  Votestatus     Status
+  ProposalStatus Status
+  Members        String[]
+
+  @@unique([chatId, messagId])
 }
-enum Status{
+
+enum Status {
   Expired
   Running
 }
-model Escrow{
-  id    String @id @unique @default(uuid())
-escrow_pda  String   @unique
-chatId    BigInt   @unique
-seed      String
-creator_pubkey String
+
+model Escrow {
+  id             String    @id @unique @default(uuid())
+  escrow_pda     String    @unique
+  chatId         BigInt    @unique
+  seed           String
+  creator_pubkey String
+  deposits       Deposit[] 
 }
-enum Role{
+model Deposit {
+  id        String @id @unique @default(uuid())
+  publicKey String
+  amount    Float
+  mint      String | null
+  escrowId  String
+  escrow    Escrow @relation(fields: [escrowId], references: [id])
+@@unique([publicKey, escrowId, mint])
+}
+
+
+enum Role {
   admin
   user
 }

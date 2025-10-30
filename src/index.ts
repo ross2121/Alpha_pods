@@ -12,7 +12,7 @@ import {
     handleLeftChatMember, 
     handleMyChatMember 
 } from "./commands/group";
-import { getQuote, handleSwap } from "./commands/swap";
+import { getQuote, handleExecuteSwap, handleConfirmSwap } from "./commands/swap";
 import { getminimumfund } from "./commands/fund";
 dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
@@ -29,6 +29,8 @@ const app=express();
 const proposeWizard = createProposeWizard(bot);
 const stage = new Scenes.Stage<MyContext>([proposeWizard]);
 app.use(json);
+// Serve static assets from public folder (e.g., logo images)
+app.use(express.static('public'));
 dotenv.config();
 
 bot.use(session());
@@ -47,72 +49,110 @@ bot.on('new_chat_members', handleNewChatMembers);
 
 bot.action(/vote:(yes|no):(.+)/, user_middleware,handleVote);
 
+// Command to send Telegram logo from public folder
+bot.command('logo', async (ctx) => {
+  try {
+    await ctx.replyWithPhoto({ source: 'public/telegram.png' });
+  } catch (e) {
+    await ctx.reply('Logo not found in public/telegram.png');
+  }
+});
+
 bot.action(/get_quote:(.+)/, async (ctx) => {
     const proposalId = ctx.match[1];
-    await ctx.answerCbQuery("🔄 Generating quote...");
+    await ctx.answerCbQuery("🔍 Searching for best DLMM pool...");
     
     try {
         const quoteResult = await getQuote(proposalId);
-        const prisma=new  PrismaClient();
-        await prisma.proposal.update({
-          where:{
-            id:proposalId
-          },data:{
-              requestId:quoteResult.requestId,
-              Txn:quoteResult.transaction
-          }
-        })
       
         if (quoteResult) {
             const inputAmount = parseInt(quoteResult.inAmount) / 1e9;
-            const outputAmount = parseInt(quoteResult.outAmount) / 1e6;
-            const priceImpact = parseFloat(quoteResult.priceImpactPct) * 100;
+            const outputAmount = parseInt(quoteResult.outAmount) / 1e9;
+            const priceImpact = parseFloat(quoteResult.priceImpact);
             const feePercent = quoteResult.feeBps / 100;
+            const liquidityInSol = quoteResult.liquidity / 1e9;
             
             const approveButton = Markup.inlineKeyboard([
-                Markup.button.callback('✅ Approve Quote', `approve_quote:${proposalId}`)
+                Markup.button.callback('✅ Execute Swap', `execute_swap:${proposalId}`)
             ]);
             
             const quoteMessage = `
-🎯 **Quote Ready for Approved Proposal!** 🎯
+🎯 **Best Pool Found!** 🎯
 
-**Proposal Details:**
-• Mint: \`${quoteResult.mint || 'N/A'}\`
-• Input: ${inputAmount} SOL
-• Participants: Calculated based on members
+**Selected Pool:**
+• Address: \`${quoteResult.poolAddress.slice(0, 8)}...${quoteResult.poolAddress.slice(-8)}\`
+• Liquidity: ${liquidityInSol.toFixed(2)} SOL
+• Bin Step: ${quoteResult.binStep} bps
+• Fee: ${feePercent}%
 
-**Swap Quote:**
-• Input: ${inputAmount} SOL
-• Output: ~${outputAmount.toFixed(2)} tokens
-• Price Impact: ${priceImpact.toFixed(3)}%
-• Platform Fee: ${feePercent}%
-• Request ID: \`${quoteResult.requestId}\`
+**Swap Details:**
+• Input: ${inputAmount.toFixed(4)} SOL
+• Est. Output: ~${outputAmount.toFixed(6)} tokens
+• Price Impact: ${priceImpact}%
 
-**Quote Status:**
-✅ Quote generated successfully
-⏰ Quote valid until executed
-💰 Ready for execution
+**Pool Comparison:**
+${quoteResult.allPoolsInfo}
 
-**Next Steps:**
-Review the quote and approve to proceed with execution.
+**Status:**
+✅ Best pool selected
+💎 Optimal liquidity and pricing
+🎯 Ready for execution
+
+The system has analyzed all available pools and selected the best option!
             `;
             
             await ctx.reply(quoteMessage, { ...approveButton, parse_mode: 'Markdown' });
         } else {
-            await ctx.reply("❌ **Quote Generation Failed**\n\nUnable to generate quote at this time. Please try again later.", { parse_mode: 'Markdown' });
+            await ctx.reply("❌ **No DLMM Pools Found**\n\nNo suitable pools found for this token pair. Please try a different token.", { parse_mode: 'Markdown' });
         }
     } catch (error: any) {
-        console.error("Error generating quote:", error);
-        await ctx.reply("❌ **Quote Generation Failed**\n\nUnable to generate quote at this time. Please try again later.", { parse_mode: 'Markdown' });
+        console.error("Error finding pool:", error);
+        await ctx.reply("❌ **Pool Search Failed**\n\nUnable to find pools at this time. Please try again later.", { parse_mode: 'Markdown' });
     }
 });
 
-bot.action(/approve_quote:(.+)/, admin_middleware, async (ctx) => {
+bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
     const proposalId = ctx.match[1];
     console.log(proposalId);
-    await ctx.answerCbQuery("✅ Approving quote...");
-   await  transaction(proposalId);
-      
+    await ctx.answerCbQuery("⏳ Executing swap...");
+    await ctx.reply("⏳ Executing swap via DLMM. This may take a moment...");
+    
+    try {
+        const { executeSwap } = await import("./commands/swap");
+        const { Keypair } = await import("@solana/web3.js");
+        
+        // Use superadmin keypair for execution
+        const secretKeyArray = [123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
+        const secretKey = new Uint8Array(secretKeyArray);
+        const superadmin = Keypair.fromSecretKey(secretKey);
+        
+        const result = await executeSwap(proposalId, superadmin);
+        
+        if (result) {
+            const outputAmount = parseFloat(result.outputAmount) / 1e9;
+            
+            const successMessage = `
+✅ **Swap Executed Successfully!**
+
+**Transaction Details:**
+• Signature: \`${result.signature}\`
+• Output: ${outputAmount.toFixed(6)} tokens
+
+**Status:**
+✅ Tokens received in escrow
+🎉 Swap completed via Meteora DLMM
+
+View transaction: https://solscan.io/tx/${result.signature}
+            `;
+            
+            await ctx.reply(successMessage, { parse_mode: 'Markdown' });
+        } else {
+            await ctx.reply("❌ Swap execution failed. Please check the logs and try again.");
+        }
+    } catch (error: any) {
+        console.error("Error executing swap:", error);
+        await ctx.reply(`❌ Swap execution failed. Error: ${error.message}`);
+    }
 });
 
 bot.launch();

@@ -176,21 +176,21 @@ export const createProposeWizard = (bot: any) => new Scenes.WizardScene<MyContex
                                console.log("Proposal not found after funding check");
                                return;
                            }
-                           const quoteButton = Markup.inlineKeyboard([
-                               Markup.button.callback('🚀 Get Quote from Jupiter', `get_quote:${fundedProposal.id}`)
-                           ]);
+                          const quoteButton = Markup.inlineKeyboard([
+                              Markup.button.callback('🚀 Get Best DLMM Pool', `get_quote:${fundedProposal.id}`)
+                          ]);
 
-                           const confirmationMessage = `
+                          const confirmationMessage = `
 📊 **Funding Period Complete!**
 
 **Status:**
 • Members with sufficient funds: ${fundedProposal.Members.length}
 
 **Next Step:**
-You can now get the swap quote from Jupiter.
+The system will search all Meteora DLMM pools to find the best rate for your swap!
 
-Click the button below to get the quote:
-                           `;
+Click the button below to get the best pool:
+                          `;
                     
                            await bot.telegram.sendMessage(
                                Number(fundedProposal.chatId),
@@ -214,3 +214,4 @@ Click the button below to get the quote:
         return ctx.scene.leave();
     }
 );
+//https://tpg.sanctum.so/v1/mainnet?apiKey=01K8QQN2YWWXAMWPAD3J95F8YT

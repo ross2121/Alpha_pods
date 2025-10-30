@@ -1043,7 +1043,13 @@ describe("alpha_pods", () => {
       console.log("⚠️  No matching pair found");
       return;
     }
-  
+    const deposit=await program.methods.deposit(new anchor.BN(1)).accountsStrict({
+      escrow:escrowPda,
+      vault:escrow_vault_pda,
+      member:adminkeypair.publicKey,
+      systemProgram:SystemProgram.programId
+    }).signers([adminkeypair]).rpc();
+    console.log("deposit",deposit);
     const activeBinId = matchingPair.account.activeId;
     const lowerBinId = activeBinId -24;
     const width = 48;

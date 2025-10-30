@@ -1,13 +1,14 @@
 
 import * as anchor from "@coral-xyz/anchor";
 import { Program, AnchorProvider } from "@coral-xyz/anchor";
-import { PublicKey, Keypair, SystemProgram, Connection } from "@solana/web3.js"
+import { PublicKey, Keypair, SystemProgram, Connection, LAMPORTS_PER_SOL } from "@solana/web3.js"
 import dotenv from "dotenv";
 
 import * as idl from "../idl/alpha_pods.json";
 
 import { PrismaClient } from "@prisma/client";
 import { AlphaPods } from "../idl/alpha_pods";
+import { keyboard } from "telegraf/typings/markup";
 dotenv.config();
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
 
@@ -68,21 +69,137 @@ export const init = async (
         };
     }
 };
-export const deposit=async(amount:anchor.BN,member:Keypair,chatid:BigInt)=>{
-  const prisma=new PrismaClient();
-  const escrow=await prisma.escrow.findUnique({
-    where:{
-        chatId:Number(chatid)
-    }
-  })
-   const tx=await program.methods.depositSol(amount).accountsStrict({
-        member:member.publicKey,
-        escrow: new PublicKey(escrow?.escrow_pda || ""),
-        systemProgram:SystemProgram.programId
-   }).signers([member]).rpc();
-  console.log("transaction",tx);
+
+const prisma = new PrismaClient();
+const lamportsToSol = (lamports: anchor.BN): number => {
+  return lamports.toNumber() / LAMPORTS_PER_SOL;
+};
+
+export const deposit = async (amount: anchor.BN, member: Keypair, chatid: BigInt) => {
+  const escrowRow = await prisma.escrow.findUnique({
+    where: {
+      chatId: Number(chatid),
+    },
+  });
+  if (!escrowRow) {
+    throw new Error("Escrow not found for chatId");
+  }
+
+  const escrowPda = new PublicKey(escrowRow.escrow_pda);
+  const [escrowVaultPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), escrowPda.toBuffer()],
+    program.programId
+  );
+  const sig = await program.methods
+    .deposit(amount)
+    .accountsStrict({
+      member: member.publicKey,
+      escrow: escrowPda,
+      vault: escrowVaultPda,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([member])
+    .rpc();
+
+  const amountInSol = lamportsToSol(amount);
+
+  const deposit = await prisma.deposit.findUnique({
+    where: {
+      publicKey_escrowId_mint: {
+        publicKey: member.publicKey.toString(),
+        escrowId: escrowRow.id,
+        mint: "", 
+      },
+    },
+  });
+
+  if (!deposit) {
+    // This is the user's first deposit, so CREATE a new record
+    await prisma.deposit.create({
+      data: {
+        publicKey: member.publicKey.toString(),
+        amount: amountInSol,
+        mint: "",
+        escrowId: escrowRow.id,
+      },
+    });
+  } else {
+    await prisma.deposit.update({
+      where: {
+        id: deposit.id,
+      },
+      data: {
+        amount: {
+          increment: amountInSol, 
+        },
+      },
+    });
+  }
+
+  return sig;
+};
+
+export const withdraw = async (amount: anchor.BN, member: Keypair, chatid: BigInt) => {
+  const escrowRow = await prisma.escrow.findUnique({
+    where: {
+      chatId: Number(chatid),
+    },
+  });
+  if (!escrowRow) {
+    throw new Error("Escrow not found for chatId");
+  }
+
+  const escrowPda = new PublicKey(escrowRow.escrow_pda);
+  const [escrowVaultPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), escrowPda.toBuffer()],
+    program.programId
+  );
+  const sig = await program.methods
+    .withdraw(amount)
+    .accountsStrict({
+      member: member.publicKey,
+      vault: escrowVaultPda,
+      escrow: escrowPda,
+      systemProgram: SystemProgram.programId,
+    })
+    .signers([member])
+    .rpc();
+
+  const amountInSol = lamportsToSol(amount);
+
+  const deposit = await prisma.deposit.findUnique({
+    where: {
+      publicKey_escrowId_mint: {
+        publicKey: member.publicKey.toString(),
+        escrowId: escrowRow.id,
+        mint: "",
+      },
+    },
+  });
+
+  if (!deposit) {
+    throw new Error("Withdrawal succeeded but no deposit record found in DB.");
+  }
+
+  if (deposit.amount < amountInSol) {
+
+    throw new Error(
+      `DB sync error: Withdrawal amount (${amountInSol}) is greater than DB balance (${deposit.amount})`
+    );
+  }
 
 
-}
+  await prisma.deposit.update({
+    where: {
+      id: deposit.id,
+    },
+    data: {
+      amount: {
+        decrement: amountInSol, 
+      },
+    },
+  });
 
+  return sig;
+};
 

@@ -16,6 +16,8 @@ pub use metora_liquidity::*;
 pub use signedtxn::*;
 pub mod add_liquidity;
 pub use add_liquidity::*;
+pub  mod deposit_sol;
+pub use deposit_sol::*;
 pub mod initialize_bin_array;
 pub mod withdraw;
 pub use withdraw::*;

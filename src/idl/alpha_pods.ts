@@ -14,6 +14,622 @@ export type AlphaPods = {
   },
   "instructions": [
     {
+      "name": "addBin",
+      "discriminator": [
+        37,
+        99,
+        243,
+        249,
+        58,
+        96,
+        157,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "lbPair",
+          "docs": [
+            "The LB Pair (pool) account"
+          ],
+          "writable": true
+        },
+        {
+          "name": "binArray",
+          "writable": true
+        },
+        {
+          "name": "escrow",
+          "docs": [
+            "The account paying for bin array creation"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.admin",
+                "account": "initializeAdmin"
+              },
+              {
+                "kind": "account",
+                "path": "escrow.seed",
+                "account": "initializeAdmin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "dlmmProgram",
+          "docs": [
+            "The Meteora DLMM program"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "addLiquidity",
+      "discriminator": [
+        181,
+        157,
+        89,
+        67,
+        143,
+        182,
+        52,
+        72
+      ],
+      "accounts": [
+        {
+          "name": "lbPair",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true
+        },
+        {
+          "name": "binArrayBitmapExtension",
+          "optional": true
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.admin",
+                "account": "initializeAdmin"
+              },
+              {
+                "kind": "account",
+                "path": "escrow.seed",
+                "account": "initializeAdmin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reserveX",
+          "writable": true
+        },
+        {
+          "name": "reserveY",
+          "writable": true
+        },
+        {
+          "name": "binArrayLower",
+          "writable": true
+        },
+        {
+          "name": "binArrayUpper",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vaulta",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "tokenXMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "vaultb",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "tokenYMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "tokenXMint"
+        },
+        {
+          "name": "tokenYMint"
+        },
+        {
+          "name": "dlmmProgram",
+          "address": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "tokenXProgram"
+        },
+        {
+          "name": "tokenYProgram"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "liquidityParameter",
+          "type": {
+            "defined": {
+              "name": "liquidityParameter"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "addPostion",
+      "discriminator": [
+        238,
+        4,
+        184,
+        207,
+        237,
+        169,
+        54,
+        219
+      ],
+      "accounts": [
+        {
+          "name": "lbPair",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.admin",
+                "account": "initializeAdmin"
+              },
+              {
+                "kind": "account",
+                "path": "escrow.seed",
+                "account": "initializeAdmin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "dlmmProgram",
+          "address": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "lowerBinId",
+          "type": "i32"
+        },
+        {
+          "name": "width",
+          "type": "i32"
+        }
+      ]
+    },
+    {
+      "name": "closePosition",
+      "discriminator": [
+        123,
+        134,
+        81,
+        0,
+        49,
+        68,
+        98,
+        98
+      ],
+      "accounts": [
+        {
+          "name": "lbPair",
+          "writable": true
+        },
+        {
+          "name": "binArrayLower",
+          "writable": true
+        },
+        {
+          "name": "rentReciver",
+          "writable": true
+        },
+        {
+          "name": "binArrayUpper",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.admin",
+                "account": "initializeAdmin"
+              },
+              {
+                "kind": "account",
+                "path": "escrow.seed",
+                "account": "initializeAdmin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "dlmmProgram",
+          "address": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo"
+        },
+        {
+          "name": "eventAuthority"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "deposit",
+      "discriminator": [
+        242,
+        35,
+        198,
+        137,
+        82,
+        225,
+        242,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "member",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.admin",
+                "account": "initializeAdmin"
+              },
+              {
+                "kind": "account",
+                "path": "escrow.seed",
+                "account": "initializeAdmin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "depositMint",
       "discriminator": [
         106,
@@ -257,20 +873,20 @@ export type AlphaPods = {
       ]
     },
     {
-      "name": "depositSol",
+      "name": "executeSignedTx",
       "discriminator": [
-        108,
-        81,
-        78,
-        117,
-        125,
-        155,
-        56,
-        200
+        106,
+        180,
+        252,
+        251,
+        15,
+        80,
+        63,
+        230
       ],
       "accounts": [
         {
-          "name": "member",
+          "name": "admin",
           "writable": true,
           "signer": true
         },
@@ -304,14 +920,21 @@ export type AlphaPods = {
           }
         },
         {
+          "name": "recipient",
+          "writable": true
+        },
+        {
+          "name": "jupiterProgram"
+        },
+        {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "amount",
-          "type": "u64"
+          "name": "instructionData",
+          "type": "bytes"
         }
       ]
     },
@@ -378,16 +1001,16 @@ export type AlphaPods = {
       ]
     },
     {
-      "name": "withdrawMint",
+      "name": "lppool",
       "discriminator": [
-        16,
-        149,
-        186,
-        95,
-        145,
-        87,
-        132,
-        111
+        28,
+        245,
+        11,
+        130,
+        34,
+        11,
+        37,
+        140
       ],
       "accounts": [
         {
@@ -425,11 +1048,551 @@ export type AlphaPods = {
           }
         },
         {
-          "name": "mint",
+          "name": "lpAccount",
           "writable": true
         },
         {
-          "name": "escrowAta",
+          "name": "oracle",
+          "writable": true
+        },
+        {
+          "name": "memberMinta",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "member"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "minta"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "memberMintb",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "member"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mintb"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "minta"
+        },
+        {
+          "name": "mintb"
+        },
+        {
+          "name": "vaulta",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "lpAccount"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "minta"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "vaultb",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "lpAccount"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mintb"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "presetParameter"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        },
+        {
+          "name": "meteoraProgram",
+          "writable": true
+        },
+        {
+          "name": "eventAuthority"
+        }
+      ],
+      "args": [
+        {
+          "name": "binStep",
+          "type": "i32"
+        },
+        {
+          "name": "activeBin",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "removeLiqudity",
+      "discriminator": [
+        39,
+        194,
+        102,
+        248,
+        56,
+        120,
+        137,
+        188
+      ],
+      "accounts": [
+        {
+          "name": "lbPair",
+          "writable": true
+        },
+        {
+          "name": "binArrayBitmapExtension",
+          "optional": true
+        },
+        {
+          "name": "position",
+          "writable": true
+        },
+        {
+          "name": "reserveX",
+          "writable": true
+        },
+        {
+          "name": "reserveY",
+          "writable": true
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.admin",
+                "account": "initializeAdmin"
+              },
+              {
+                "kind": "account",
+                "path": "escrow.seed",
+                "account": "initializeAdmin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vaulta",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "tokenXMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "vaultb",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "tokenYMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "tokenXMint"
+        },
+        {
+          "name": "tokenYMint"
+        },
+        {
+          "name": "binArrayLower",
+          "writable": true
+        },
+        {
+          "name": "binArrayUpper",
+          "writable": true
+        },
+        {
+          "name": "user",
+          "signer": true
+        },
+        {
+          "name": "dlmmProgram",
+          "address": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "tokenXProgram"
+        },
+        {
+          "name": "tokenYProgram"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "binreduction",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "binLiquidityReduction"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "swap",
+      "discriminator": [
+        248,
+        198,
+        158,
+        145,
+        225,
+        117,
+        135,
+        200
+      ],
+      "accounts": [
+        {
+          "name": "lbPair",
+          "writable": true
+        },
+        {
+          "name": "vaulta",
           "writable": true,
           "pda": {
             "seeds": [
@@ -438,41 +1601,345 @@ export type AlphaPods = {
                 "path": "escrow"
               },
               {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "tokenXMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "vaultb",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "escrow"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "tokenYMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
                 "kind": "const",
                 "value": [
-                  6,
-                  221,
-                  246,
-                  225,
-                  215,
                   101,
-                  161,
-                  147,
-                  217,
-                  203,
-                  225,
-                  70,
-                  206,
-                  235,
-                  121,
-                  172,
-                  28,
-                  180,
-                  133,
-                  237,
-                  95,
-                  91,
-                  55,
-                  145,
-                  58,
-                  140,
-                  245,
-                  133,
-                  126,
-                  255,
-                  0,
-                  169
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
                 ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.admin",
+                "account": "initializeAdmin"
+              },
+              {
+                "kind": "account",
+                "path": "escrow.seed",
+                "account": "initializeAdmin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "binArrayBitmapExtension",
+          "optional": true
+        },
+        {
+          "name": "reserveX",
+          "writable": true
+        },
+        {
+          "name": "reserveY",
+          "writable": true
+        },
+        {
+          "name": "userTokenIn",
+          "writable": true
+        },
+        {
+          "name": "userTokenOut",
+          "writable": true
+        },
+        {
+          "name": "tokenXMint"
+        },
+        {
+          "name": "tokenYMint"
+        },
+        {
+          "name": "oracle",
+          "writable": true
+        },
+        {
+          "name": "hostFeeIn",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "dlmmProgram",
+          "address": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "tokenXProgram"
+        },
+        {
+          "name": "tokenYProgram"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amountIn",
+          "type": "u64"
+        },
+        {
+          "name": "minAmountOut",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw",
+      "discriminator": [
+        183,
+        18,
+        70,
+        156,
+        148,
+        109,
+        161,
+        34
+      ],
+      "accounts": [
+        {
+          "name": "member",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.admin",
+                "account": "initializeAdmin"
+              },
+              {
+                "kind": "account",
+                "path": "escrow.seed",
+                "account": "initializeAdmin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdrawMint",
+      "discriminator": [
+        16,
+        149,
+        186,
+        95,
+        145,
+        87,
+        132,
+        111
+      ],
+      "accounts": [
+        {
+          "name": "member",
+          "docs": [
+            "The ATA constraint on `member_ata` enforces the correct authority; no further checks are necessary."
+          ],
+          "writable": true
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.admin",
+                "account": "initializeAdmin"
+              },
+              {
+                "kind": "account",
+                "path": "escrow.seed",
+                "account": "initializeAdmin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "escrow"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
               },
               {
                 "kind": "account",
@@ -517,6 +1984,10 @@ export type AlphaPods = {
               ]
             }
           }
+        },
+        {
+          "name": "mint",
+          "writable": true
         },
         {
           "name": "memberAta",
@@ -615,65 +2086,6 @@ export type AlphaPods = {
         {
           "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-        }
-      ],
-      "args": [
-        {
-          "name": "amount",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "withdrawSol",
-      "discriminator": [
-        145,
-        131,
-        74,
-        136,
-        65,
-        137,
-        42,
-        38
-      ],
-      "accounts": [
-        {
-          "name": "member",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "escrow",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  101,
-                  115,
-                  99,
-                  114,
-                  111,
-                  119
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "escrow.admin",
-                "account": "initializeAdmin"
-              },
-              {
-                "kind": "account",
-                "path": "escrow.seed",
-                "account": "initializeAdmin"
-              }
-            ]
-          }
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -808,6 +2220,42 @@ export type AlphaPods = {
   ],
   "types": [
     {
+      "name": "binLiquidityDistribution",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "binId",
+            "type": "i32"
+          },
+          {
+            "name": "distributionX",
+            "type": "u16"
+          },
+          {
+            "name": "distributionY",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "binLiquidityReduction",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "binId",
+            "type": "i32"
+          },
+          {
+            "name": "bpsToRemove",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
       "name": "initializeAdmin",
       "type": {
         "kind": "struct",
@@ -823,6 +2271,32 @@ export type AlphaPods = {
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "liquidityParameter",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amountX",
+            "type": "u64"
+          },
+          {
+            "name": "amountY",
+            "type": "u64"
+          },
+          {
+            "name": "binLiquidityDist",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "binLiquidityDistribution"
+                }
+              }
+            }
           }
         ]
       }
