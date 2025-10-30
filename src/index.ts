@@ -13,6 +13,14 @@ import {
     handleMyChatMember 
 } from "./commands/group";
 import { getQuote, handleExecuteSwap, handleConfirmSwap } from "./commands/swap";
+import { 
+    createLiquidityWizard, 
+    handleViewPositions, 
+    handleClosePosition, 
+    executeClosePosition,
+    handleLiquidityVote,
+    handleExecuteLiquidity
+} from "./commands/liquidity";
 import * as anchor from "@coral-xyz/anchor";
 import * as idl from "./idl/alpha_pods.json";
 import { getminimumfund } from "./commands/fund";
@@ -31,13 +39,13 @@ const mainKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback("Propose", "propose")],
     [Markup.button.callback("🔄 Swap Tokens", "swap_tokens")],
     [Markup.button.callback("💼 Manage Wallet", "manage_wallet")],
-    [Markup.button.callback("🚀 Start Strategy", "start_strategy")],
-    [Markup.button.callback("⏹️ Stop Strategy", "stop_strategy")],
-    [Markup.button.callback("📈 Exit Position", "exit_position")]
+    [Markup.button.callback("🏊 Add Liquidity", "add_liquidity")],
+    [Markup.button.callback("📊 View Positions", "view_positions")],
+    [Markup.button.callback("🔒 Close Position", "close_position")]
 ]);
 const app=express();
 const proposeWizard = createProposeWizard(bot);
-const stage = new Scenes.Stage<MyContext>([proposeWizard]);
+const stage = new Scenes.Stage<MyContext>([proposeWizard, createLiquidityWizard as any]);
 app.use(json);
 
 dotenv.config();
@@ -57,6 +65,37 @@ bot.on("left_chat_member", handleLeftChatMember);
 bot.on('new_chat_members', handleNewChatMembers);
 
 bot.action(/vote:(yes|no):(.+)/, user_middleware,handleVote);
+bot.action(/vote_liquidity:(yes|no):(.+)/, user_middleware, handleLiquidityVote);
+
+// Liquidity management actions
+bot.action("add_liquidity", admin_middleware, async (ctx) => {
+  await ctx.answerCbQuery();
+  await ctx.scene.enter('add_liquidity_wizard');
+});
+
+bot.action("view_positions", async (ctx) => {
+  await ctx.answerCbQuery();
+  await handleViewPositions(ctx);
+});
+
+bot.action("close_position", admin_middleware, async (ctx) => {
+  await ctx.answerCbQuery();
+  await handleClosePosition(ctx);
+});
+
+bot.action(/close_position:(\d+)/, admin_middleware, async (ctx) => {
+  const positionId = parseInt(ctx.match[1]);
+  await executeClosePosition(ctx, positionId);
+});
+
+// Liquidity commands
+bot.command("add_liquidity", admin_middleware, async (ctx) => {
+  await ctx.scene.enter('add_liquidity_wizard');
+});
+
+bot.command("view_positions", handleViewPositions);
+bot.command("close_position", admin_middleware, handleClosePosition);
+bot.command("execute_liquidity", admin_middleware, handleExecuteLiquidity);
 
 
 bot.action(/get_quote:(.+)/, async (ctx) => {
@@ -148,7 +187,23 @@ View transaction: https://solscan.io/tx/${result.signature}
         }
     } catch (error: any) {
         console.error("Error executing swap:", error);
-        await ctx.reply(`❌ Swap execution failed. Error: ${error.message}`);
+        
+        // User-friendly error messages - don't show technical details
+        let userMessage = "❌ Swap execution failed.";
+        
+        if (error.message?.includes("insufficient lamports")) {
+            userMessage = "❌ Insufficient SOL balance. Please ensure the escrow has enough SOL for the swap.";
+        } else if (error.message?.includes("InsufficientOutAmount")) {
+            userMessage = "❌ Insufficient liquidity in the pool. Try reducing the swap amount.";
+        } else if (error.message?.includes("Simulation failed")) {
+            userMessage = "❌ Transaction failed. Please check escrow balance and try again.";
+        } else if (error.message?.includes("No suitable pool")) {
+            userMessage = "❌ No liquidity pool found for this token pair.";
+        } else {
+            userMessage = "❌ Swap failed. Please try again or contact support.";
+        }
+        
+        await ctx.reply(userMessage);
     }
 });
 const temp=async()=>{
@@ -355,6 +410,6 @@ const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
 
  
 }
-temp()
+// temp()
 
-// bot.launch();
+bot.launch();

@@ -48,21 +48,40 @@ enum Status {
 }
 
 model Escrow {
-  id             String    @id @unique @default(uuid())
-  escrow_pda     String    @unique
-  chatId         BigInt    @unique
-  seed           String
-  creator_pubkey String
-  deposits       Deposit[] 
+  id                String              @id @unique @default(uuid())
+  escrow_pda        String              @unique
+  chatId            BigInt              @unique
+  seed              String
+  creator_pubkey    String
+  deposits          Deposit[]
+  liquidityPositions LiquidityPosition[]
 }
+
 model Deposit {
   id        String @id @unique @default(uuid())
   publicKey String
   amount    Float
-  mint      String | null
+  mint      String?
   escrowId  String
   escrow    Escrow @relation(fields: [escrowId], references: [id])
-@@unique([publicKey, escrowId, mint])
+  
+  @@unique([publicKey, escrowId, mint])
+}
+
+model LiquidityPosition {
+  id              String   @id @unique @default(uuid())
+  positionAddress String   @unique
+  poolAddress     String
+  tokenMint       String
+  amount          String
+  chatId          BigInt
+  escrowId        String
+  lowerBinId      Int
+  upperBinId      Int
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  closedAt        DateTime?
+  escrow          Escrow   @relation(fields: [escrowId], references: [id])
 }
 
 

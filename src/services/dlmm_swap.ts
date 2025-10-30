@@ -193,6 +193,7 @@ export async function executeSwapViaDLMM(
   adminKeypair: Keypair
 ): Promise<{ signature: string; outputAmount: string } | null> {
   try {
+      console.log("addmin",adminKeypair.publicKey);
     const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
     const DLMM_SDK = (await import('@meteora-ag/dlmm')).default;
     const allPairs = await DLMM_SDK.getLbPairs(connection);
@@ -287,7 +288,7 @@ export async function executeSwapViaDLMM(
       wsolAccount,
       targetVault,
       adminKeypair,
-      amountIn.toNumber()
+      1
     );
 
     let pool = deriveBinArray(matchingPair.publicKey, binIdToBinArrayIndex(new anchor.BN(matchingPair.account.activeId)), METORA_PROGRAM_ID);
@@ -300,6 +301,9 @@ export async function executeSwapViaDLMM(
     const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
 
     console.log("\n🚀 Executing swap transaction...");
+    console.log("vai",vaulta);
+    console.log("dasd",vaulta);
+    console.log("dasdd",escrowPda);
 
     const txSignature = await program.methods
       .swap(amountIn, new anchor.BN(0))

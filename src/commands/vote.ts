@@ -5,7 +5,7 @@ export enum Vote {
     Yes,
     NO
 }
-export const proposevotes = new Map<number, {vote: Vote}>();
+export const proposevotes = new Map<string, {vote: Vote}>();
 
 export const handleVote = async (ctx: Context<Update.CallbackQueryUpdate> & { match: RegExpExecArray })=> {
     const action = ctx.match[1]; 
@@ -31,7 +31,10 @@ export const handleVote = async (ctx: Context<Update.CallbackQueryUpdate> & { ma
         return ctx.answerCbQuery('This proposal is no longer valid.');
     }
     const newvote = (action === 'yes') ? Vote.Yes : Vote.NO;
-    const existingVote = proposevotes.get(userId);
+    
+    // Create unique key for this user + proposal combination
+    const voteKey = `${userId}_${ctx.callbackQuery.message?.chat.id}_${ctx.callbackQuery.message?.message_id}`;
+    const existingVote = proposevotes.get(voteKey);
     if (existingVote && existingVote.vote === newvote) {
         return ctx.answerCbQuery(`You have already voted ${action === 'yes' ? 'Yes' : 'No'}!`);
     }
@@ -51,7 +54,7 @@ export const handleVote = async (ctx: Context<Update.CallbackQueryUpdate> & { ma
         proposal.no++;
     }
     
-    proposevotes.set(userId, {vote: newvote});
+    proposevotes.set(voteKey, {vote: newvote});
     await prisma.proposal.update({
         where: {
             chatId_messagId: {
