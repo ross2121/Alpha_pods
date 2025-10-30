@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Connection, PublicKey, Keypair, SystemProgram, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority } from "@meteora-ag/dlmm";
-import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, getAccount } from "@solana/spl-token";
+import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, getAccount, NATIVE_MINT, createSyncNativeInstruction, transfer } from "@solana/spl-token";
 import { Program, AnchorProvider } from "@coral-xyz/anchor";
 import { AlphaPods } from "../idl/alpha_pods";
 import * as idl from "../idl/alpha_pods.json";
@@ -25,10 +25,6 @@ interface BestPoolResult {
   estimatedOut: anchor.BN;
   priceImpact: number;
 }
-
-/**
- * Get all DLMM pools for a token pair
- */
 export async function getDLMMPools(
   connection: Connection,
   tokenXMint: PublicKey,
@@ -69,39 +65,45 @@ export async function getDLMMPools(
   }
 }
 
-/**
- * Get swap quote for a specific pool
- */
 async function getPoolSwapQuote(
   connection: Connection,
   poolPubkey: PublicKey,
   amountIn: anchor.BN,
-  swapForY: boolean
+  swapForY: boolean,
+  poolAccount: any
 ): Promise<{ minOutAmount: anchor.BN; fee: anchor.BN; priceImpact: string } | null> {
   try {
-    const dlmmPool = await DLMM.create(connection, poolPubkey);
+   
+    const reserveX = parseFloat(poolAccount.reserveX?.toString() || "0");
+    const reserveY = parseFloat(poolAccount.reserveY?.toString() || "0");
     
-    const swapQuote = await dlmmPool.swapQuote(
-      amountIn,
-      swapForY,
-      new anchor.BN(100),
-      []
-    );
-
+    if (reserveX === 0 || reserveY === 0) {
+      return null;
+    }
+    
+    const amountInFloat = parseFloat(amountIn.toString());
+    
+    const outputAmount = swapForY 
+      ? (reserveX * amountInFloat) / (reserveY + amountInFloat)
+      : (reserveY * amountInFloat) / (reserveX + amountInFloat);
+    
+    // Apply fee
+    const feeBps = poolAccount.parameters?.baseFactor || 25;
+    const outputAfterFee = outputAmount * (1 - feeBps / 10000);
+    
+    // Calculate price impact
+    const priceImpact = ((amountInFloat / (swapForY ? reserveY : reserveX)) * 100).toFixed(4);
+    
     return {
-      minOutAmount: swapQuote.minOutAmount,
-      fee: swapQuote.fee,
-      priceImpact: swapQuote.priceImpact.toString()
+      minOutAmount: new anchor.BN(Math.floor(outputAfterFee * 0.99)), // 1% slippage
+      fee: new anchor.BN(Math.floor(outputAmount - outputAfterFee)),
+      priceImpact: priceImpact
     };
   } catch (error) {
-    console.error(`Error getting quote for pool ${poolPubkey.toString()}:`, error);
     return null;
   }
 }
 
-/**
- * Select the best pool based on multiple criteria
- */
 export async function getBestDLMMPool(
   connection: Connection,
   tokenXMint: PublicKey,
@@ -119,10 +121,10 @@ export async function getBestDLMMPool(
 
     console.log(`Found ${pools.length} pools for token pair`);
 
-    // Get quotes for all pools
+
     const poolQuotes = await Promise.all(
       pools.map(async (pool) => {
-        const quote = await getPoolSwapQuote(connection, pool.publicKey, amountIn, swapForY);
+        const quote = await getPoolSwapQuote(connection, pool.publicKey, amountIn, swapForY, pool.account);
         return { pool, quote };
       })
     );
@@ -180,9 +182,7 @@ export async function getBestDLMMPool(
   }
 }
 
-/**
- * Execute swap via the AlphaPods contract
- */
+
 export async function executeSwapViaDLMM(
   connection: Connection,
   program: Program<AlphaPods>,
@@ -193,30 +193,31 @@ export async function executeSwapViaDLMM(
   adminKeypair: Keypair
 ): Promise<{ signature: string; outputAmount: string } | null> {
   try {
-    // Find the best pool
-    const bestPoolResult = await getBestDLMMPool(
-      connection,
-      tokenXMint,
-      tokenYMint,
-      amountIn,
-      true // swapping Y for X (SOL for token)
-    );
-
-    if (!bestPoolResult) {
-      throw new Error("No suitable pool found");
+    const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
+    const DLMM_SDK = (await import('@meteora-ag/dlmm')).default;
+    const allPairs = await DLMM_SDK.getLbPairs(connection);
+    
+    const targetPoolKey = new PublicKey("3RrtUag8F8aw6jAhTF4RxwvQmFX6KEXJUZ6zDL3eKaJE");
+    const matchingPair = allPairs.find(pair => pair.publicKey.toBase58() === targetPoolKey.toBase58());
+    
+    if (!matchingPair) {
+      console.log("⚠️  No matching pair found");
+      return null;
     }
+    console.log("mathc",matchingPair)
+    console.log("\n📊 Pool State:");
+    console.log("Pool Address:", matchingPair.publicKey.toString());
+    console.log("Active Bin ID:", matchingPair.account.activeId);
+    console.log("Bin Step:", matchingPair.account.binStep);
+    console.log("Token X Mint:", matchingPair.account.tokenXMint.toString());
+    console.log("Token Y Mint:", matchingPair.account.tokenYMint.toString());
+    console.log("Reserve X:", matchingPair.account.reserveX.toString());
+    console.log("Reserve Y:", matchingPair.account.reserveY.toString());
+    console.log("Oracle:", matchingPair.account.oracle.toString());
 
-    const { pool, estimatedOut } = bestPoolResult;
-
-    console.log(`Executing swap on pool: ${pool.publicKey.toString()}`);
-    console.log(`Amount In: ${amountIn.toString()}`);
-    console.log(`Min Amount Out: ${estimatedOut.toString()}`);
-
-    // Derive vault ATAs
     const vaulta = await getAssociatedTokenAddress(tokenXMint, escrowPda, true);
     const vaultb = await getAssociatedTokenAddress(tokenYMint, escrowPda, true);
 
-    // Create vault accounts if they don't exist
     const vaultaInfo = await connection.getAccountInfo(vaulta);
     if (!vaultaInfo) {
       console.log("Creating vaulta...");
@@ -245,26 +246,68 @@ export async function executeSwapViaDLMM(
       await sendAndConfirmTransaction(connection, createVaultbTx, [adminKeypair]);
     }
 
-    // Get bin arrays for the swap
-    const dlmmPool = await DLMM.create(connection, pool.publicKey);
-    const swapQuote = await dlmmPool.swapQuote(
-      amountIn,
-      true,
-      new anchor.BN(100),
-      []
+    // Wrap SOL to WSOL and transfer to appropriate vault
+    console.log("\n🔄 Wrapping SOL to WSOL...");
+    const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminKeypair.publicKey);
+    
+    const wrapTransaction = new Transaction();
+    const wsolAccountInfo = await connection.getAccountInfo(wsolAccount);
+    if (!wsolAccountInfo) {
+      wrapTransaction.add(
+        createAssociatedTokenAccountInstruction(
+          adminKeypair.publicKey,
+          wsolAccount,
+          adminKeypair.publicKey,
+          NATIVE_MINT
+        )
+      );
+    }
+    
+    wrapTransaction.add(
+      SystemProgram.transfer({
+        fromPubkey: adminKeypair.publicKey,
+        toPubkey: wsolAccount,
+        lamports: amountIn.toNumber(),
+      })
     );
     
-    const binArrays = swapQuote.binArraysPubkey || [];
+    wrapTransaction.add(
+      createSyncNativeInstruction(wsolAccount, TOKEN_PROGRAM_ID)
+    );
+    
+    await sendAndConfirmTransaction(connection, wrapTransaction, [adminKeypair]);
+    console.log("✅ Wrapped SOL!");
+
+    // Transfer WSOL to the vault that matches NATIVE_MINT
+    console.log("Transferring WSOL to escrow vault...");
+    const targetVault = tokenYMint.equals(NATIVE_MINT) ? vaultb : vaulta;
+    await transfer(
+      connection,
+      adminKeypair,
+      wsolAccount,
+      targetVault,
+      adminKeypair,
+      amountIn.toNumber()
+    );
+
+    let pool = deriveBinArray(matchingPair.publicKey, binIdToBinArrayIndex(new anchor.BN(matchingPair.account.activeId)), METORA_PROGRAM_ID);
+
+    const activeBinArrayAccountMeta = {
+      pubkey: pool[0],
+      isSigner: false,
+      isWritable: true, 
+    };
     const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
 
-    // Execute swap via contract
+    console.log("\n🚀 Executing swap transaction...");
+
     const txSignature = await program.methods
-      .swap(amountIn, estimatedOut)
+      .swap(amountIn, new anchor.BN(0))
       .accountsStrict({
-        lbPair: pool.publicKey,
+        lbPair: matchingPair.publicKey,
         binArrayBitmapExtension: null,
-        reserveX: pool.account.reserveX,
-        reserveY: pool.account.reserveY,
+        reserveX: matchingPair.account.reserveX,
+        reserveY: matchingPair.account.reserveY,
         userTokenIn: vaultb,
         userTokenOut: vaulta,
         escrow: escrowPda,
@@ -272,7 +315,7 @@ export async function executeSwapViaDLMM(
         vaultb: vaultb,
         tokenXMint: tokenXMint,
         tokenYMint: tokenYMint,
-        oracle: pool.account.oracle,
+        oracle: matchingPair.account.oracle,
         hostFeeIn: null,
         dlmmProgram: METORA_PROGRAM_ID,
         eventAuthority: eventAuthority,
@@ -280,29 +323,42 @@ export async function executeSwapViaDLMM(
         tokenYProgram: TOKEN_PROGRAM_ID,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .remainingAccounts(
-        binArrays.map(binArray => ({
-          pubkey: binArray,
-          isSigner: false,
-          isWritable: true,
-        }))
-      )
+      .remainingAccounts([activeBinArrayAccountMeta])
       .rpc();
 
     console.log("✅ Swap successful!");
     console.log("Transaction signature:", txSignature);
 
-    // Get final balance
-    const vaultaAccount = await getAccount(connection, vaulta);
-    const outputAmount = vaultaAccount.amount.toString();
+    await connection.confirmTransaction(txSignature, "confirmed");
+    try {
+      const userTokenXAccount = await getAccount(connection, vaulta);
+      const userTokenYAccount = await getAccount(connection, vaultb);
 
-    return {
-      signature: txSignature,
-      outputAmount
-    };
-  } catch (error) {
-    console.error("Error executing swap:", error);
-    return null;
+      console.log("\n💰 Final Balances:");
+      console.log("User Token X balance:", userTokenXAccount.amount.toString());
+      console.log("User Token Y balance:", userTokenYAccount.amount.toString());
+      
+      return {
+        signature: txSignature,
+        outputAmount: userTokenXAccount.amount.toString()
+      };
+    } catch (accountError) {
+      console.log("Note: Could not fetch token account balances");
+      return {
+        signature: txSignature,
+        outputAmount: "0"
+      };
+    }
+
+  } catch (error: any) {
+    console.error("\n❌ Swap failed:", error);
+    
+    if (error.logs) {
+      console.error("\n📋 Program Logs:");
+      error.logs.forEach((log: string) => console.error(log));
+    }
+    
+    throw error;
   }
 }
 

@@ -3,15 +3,12 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program, AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, Keypair, SystemProgram, Connection, LAMPORTS_PER_SOL } from "@solana/web3.js"
 import dotenv from "dotenv";
-
 import * as idl from "../idl/alpha_pods.json";
-
 import { PrismaClient } from "@prisma/client";
 import { AlphaPods } from "../idl/alpha_pods";
 import { keyboard } from "telegraf/typings/markup";
 dotenv.config();
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
-
 const secretKeyArray=[123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
 const secretKey = new Uint8Array(secretKeyArray);
 const    superadmin = Keypair.fromSecretKey(secretKey);
@@ -114,7 +111,6 @@ export const deposit = async (amount: anchor.BN, member: Keypair, chatid: BigInt
   });
 
   if (!deposit) {
-    // This is the user's first deposit, so CREATE a new record
     await prisma.deposit.create({
       data: {
         publicKey: member.publicKey.toString(),

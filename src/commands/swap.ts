@@ -20,9 +20,6 @@ const wallet = new anchor.Wallet(superadmin);
 const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
 const program = new Program<AlphaPods>(idl as AlphaPods, provider);
 
-/**
- * Get quote from best DLMM pool
- */
 export const getQuote = async (proposal_id: string) => {
   const prisma = new PrismaClient();
   const proposal = await prisma.proposal.findUnique({
@@ -30,24 +27,25 @@ export const getQuote = async (proposal_id: string) => {
       id: proposal_id
     }
   });
-  
   if (!proposal) {
     return null;
   }
 
   try {
-    const tokenYMint = NATIVE_MINT; // WSOL (SOL)
-    const tokenXMint = new PublicKey(proposal.mint); // Target token
+    const tokenYMint = NATIVE_MINT; 
+    const tokenXMint = new PublicKey(proposal.mint);
+    console.log("token y",tokenYMint);
+    console.log("token x",tokenXMint)
     const amount = proposal.Members.length * proposal.amount;
     const amountInLamports = new anchor.BN(Math.floor(amount * 1e9));
 
-    // Get best pool and quote
+    
     const bestPoolResult = await getBestDLMMPool(
       connection,
       tokenXMint,
       tokenYMint,
       amountInLamports,
-      true // swapping Y for X (SOL for token)
+      true
     );
 
     if (!bestPoolResult) {
@@ -55,9 +53,6 @@ export const getQuote = async (proposal_id: string) => {
     }
 
     const { pool, estimatedOut, priceImpact } = bestPoolResult;
-
-    // Get all pools info for comparison
-    const poolsInfo = await getAllPoolsInfo(connection, tokenXMint, tokenYMint);
 
     return {
       poolAddress: pool.publicKey.toString(),
@@ -67,7 +62,6 @@ export const getQuote = async (proposal_id: string) => {
       feeBps: pool.feeBps,
       binStep: pool.binStep,
       liquidity: pool.liquidity,
-      allPoolsInfo: poolsInfo,
       mint: proposal.mint,
       inputMint: tokenYMint.toString(),
       outputMint: proposal.mint
@@ -98,7 +92,23 @@ export const executeSwap = async (proposal_id: string, adminKeypair: Keypair): P
     throw new Error("Escrow not found");
   }
 
-  const escrowPda = new PublicKey(escrow.escrow_pda);
+  const [escrowPda, escrowBump] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("escrow"),
+      adminKeypair.publicKey.toBuffer(),
+      Buffer.from(new anchor.BN(escrow.seed).toArrayLike(Buffer, "le", 8)),
+    ],
+    program.programId
+  );
+
+ 
+const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
+  [
+    Buffer.from("vault"),
+    escrowPda.toBuffer(),
+  ],
+  program.programId
+)
   const tokenYMint = NATIVE_MINT;
   const tokenXMint = new PublicKey(proposal.mint);
   const amount = proposal.Members.length * proposal.amount;
@@ -107,7 +117,7 @@ export const executeSwap = async (proposal_id: string, adminKeypair: Keypair): P
   const result = await executeSwapViaDLMM(
     connection,
     program,
-    escrowPda,
+    new PublicKey(escrow.escrow_pda),
     tokenXMint,
     tokenYMint,
     amountInLamports,
@@ -149,28 +159,25 @@ export const handleExecuteSwap = async (ctx: any) => {
       const liquidityInSol = quoteResult.liquidity / 1e9;
       
       const quoteMessage = `
-🎯 **Best Pool Found!** 🎯
+🎯 **Best Pool Selected!** 🎯
 
-**Selected Pool:**
+**Pool Details:**
 • Address: \`${quoteResult.poolAddress.slice(0, 8)}...${quoteResult.poolAddress.slice(-8)}\`
 • Liquidity: ${liquidityInSol.toFixed(2)} SOL
 • Bin Step: ${quoteResult.binStep} bps
 • Fee: ${feePercent}%
 
-**Swap Details:**
+**Swap Quote:**
 • Input: ${inputAmount.toFixed(4)} SOL
 • Est. Output: ~${outputAmount.toFixed(6)} tokens
 • Price Impact: ${priceImpact}%
 
-**Pool Comparison:**
-${quoteResult.allPoolsInfo}
+**Why This Pool?**
+✅ Highest output amount
+💎 Best liquidity/price ratio
+⚡ Optimal fee structure
 
-**Status:**
-✅ Best pool selected
-💎 Optimal liquidity and pricing
-🎯 Ready for execution
-
-The system has analyzed all available pools and selected the best option!
+Ready to execute the swap!
       `;
       
       await ctx.reply(quoteMessage, { parse_mode: 'Markdown' });

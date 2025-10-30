@@ -13,7 +13,17 @@ import {
     handleMyChatMember 
 } from "./commands/group";
 import { getQuote, handleExecuteSwap, handleConfirmSwap } from "./commands/swap";
+import * as anchor from "@coral-xyz/anchor";
+import * as idl from "./idl/alpha_pods.json";
 import { getminimumfund } from "./commands/fund";
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from "@solana/web3.js";
+import { program } from "@coral-xyz/anchor/dist/cjs/native/system";
+import { createAssociatedTokenAccountInstruction, createSyncNativeInstruction, getAccount, getAssociatedTokenAddress, NATIVE_MINT, TOKEN_PROGRAM_ID, transfer } from "@solana/spl-token";
+import { executeSwapViaDLMM } from "./services/dlmm_swap";
+import { Program } from "@coral-xyz/anchor";
+import { AlphaPods } from "./idl/alpha_pods";
+import { temppp } from "./services/temp";
+import { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority } from "@meteora-ag/dlmm";
 dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
 const mainKeyboard = Markup.inlineKeyboard([
@@ -29,8 +39,7 @@ const app=express();
 const proposeWizard = createProposeWizard(bot);
 const stage = new Scenes.Stage<MyContext>([proposeWizard]);
 app.use(json);
-// Serve static assets from public folder (e.g., logo images)
-app.use(express.static('public'));
+
 dotenv.config();
 
 bot.use(session());
@@ -49,14 +58,6 @@ bot.on('new_chat_members', handleNewChatMembers);
 
 bot.action(/vote:(yes|no):(.+)/, user_middleware,handleVote);
 
-// Command to send Telegram logo from public folder
-bot.command('logo', async (ctx) => {
-  try {
-    await ctx.replyWithPhoto({ source: 'public/telegram.png' });
-  } catch (e) {
-    await ctx.reply('Logo not found in public/telegram.png');
-  }
-});
 
 bot.action(/get_quote:(.+)/, async (ctx) => {
     const proposalId = ctx.match[1];
@@ -77,28 +78,25 @@ bot.action(/get_quote:(.+)/, async (ctx) => {
             ]);
             
             const quoteMessage = `
-🎯 **Best Pool Found!** 🎯
+🎯 **Best Pool Selected!** 🎯
 
-**Selected Pool:**
+**Pool Details:**
 • Address: \`${quoteResult.poolAddress.slice(0, 8)}...${quoteResult.poolAddress.slice(-8)}\`
 • Liquidity: ${liquidityInSol.toFixed(2)} SOL
 • Bin Step: ${quoteResult.binStep} bps
 • Fee: ${feePercent}%
 
-**Swap Details:**
+**Swap Quote:**
 • Input: ${inputAmount.toFixed(4)} SOL
 • Est. Output: ~${outputAmount.toFixed(6)} tokens
 • Price Impact: ${priceImpact}%
 
-**Pool Comparison:**
-${quoteResult.allPoolsInfo}
+**Why This Pool?**
+✅ Highest output amount
+💎 Best liquidity/price ratio
+⚡ Optimal fee structure
 
-**Status:**
-✅ Best pool selected
-💎 Optimal liquidity and pricing
-🎯 Ready for execution
-
-The system has analyzed all available pools and selected the best option!
+Ready to execute the swap!
             `;
             
             await ctx.reply(quoteMessage, { ...approveButton, parse_mode: 'Markdown' });
@@ -120,8 +118,7 @@ bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
     try {
         const { executeSwap } = await import("./commands/swap");
         const { Keypair } = await import("@solana/web3.js");
-        
-        // Use superadmin keypair for execution
+  
         const secretKeyArray = [123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
         const secretKey = new Uint8Array(secretKeyArray);
         const superadmin = Keypair.fromSecretKey(secretKey);
@@ -154,206 +151,210 @@ View transaction: https://solscan.io/tx/${result.signature}
         await ctx.reply(`❌ Swap execution failed. Error: ${error.message}`);
     }
 });
-
-bot.launch();
-import { clusterApiUrl, Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { BN } from "@coral-xyz/anchor";
-import {
-  ActivationType,
-  BaseFeeMode,
-  CpAmm,
-  getBaseFeeParams,
-  getDynamicFeeParams,
-  getSqrtPriceFromPrice,
-  MAX_SQRT_PRICE,
-  MIN_SQRT_PRICE,
-  PoolFeesParams,
-} from "@meteora-ag/cp-amm-sdk";
-import {
-  getMint,
-  NATIVE_MINT,
-  TOKEN_2022_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
-import { transaction } from "./commands/txn";
-import { PrismaClient } from "@prisma/client";
-import DLMM from '@meteora-ag/dlmm'
-
-(async () => {
-  const POOL_CONFIG = {
-    rpcUrl: clusterApiUrl("devnet"),
-    tokenAMint: new PublicKey("DP3fit2BHZviEgKD9di8LqMeZH6HYJwRf59ebe3mKaCa"),
-    tokenBMint: NATIVE_MINT,
-    tokenADecimals: 9,
-    tokenBDecimals: 9,
-    maxTokenAAmount: 1_000_000,
-    maxTokenBAmount: 1, // SOL
-    initialPrice: 1, // 1 base token = 1 quote token
-    startingFeeBps: 5000, // 50%
-    endingFeeBps: 25, // 0.25%
-    useDynamicFee: true,
-    isLockLiquidity: true,
-    baseFeeMode: BaseFeeMode.FeeSchedulerExponential,
-    numberOfPeriod: 60, // 60 peridos
-    totalDuration: 3600, // 60 * 60
-  };
-
+const temp=async()=>{
+  const tokenYMint = NATIVE_MINT;
+  const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+  const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
+  const DLMM_SDK = (await import('@meteora-ag/dlmm')).default;
+  const connection=new Connection("https://api.devnet.solana.com")
+  const allPairs = await DLMM_SDK.getLbPairs(connection);
   const secretKeyArray = [
     123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,
     235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224
   ];
-  const wallet = Keypair.fromSecretKey(Uint8Array.from(secretKeyArray));
-  console.log("publice key",wallet.publicKey.toBase58());
-
-  const connection = new Connection(POOL_CONFIG.rpcUrl);
-  const cpAmm = new CpAmm(connection);
-
-  const tokenAAccountInfo = await connection.getAccountInfo(
-    POOL_CONFIG.tokenAMint
-  );
-
-  let tokenAProgram = TOKEN_PROGRAM_ID;
-  let tokenAInfo: { mint: any; currentEpoch: number } | undefined = undefined;
-  if(tokenAAccountInfo==null){
+  const secretarray=new Uint8Array(secretKeyArray);
+ const  adminkeypair = Keypair.fromSecretKey(secretarray);
+  const targetPoolKey = new PublicKey("3RrtUag8F8aw6jAhTF4RxwvQmFX6KEXJUZ6zDL3eKaJE");
+  const matchingPair = allPairs.find(pair => pair.publicKey.toBase58() === targetPoolKey.toBase58());
+  const wallet = new anchor.Wallet(adminkeypair);
+const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
+const program = new Program<AlphaPods>(idl as AlphaPods, provider);
+  if (!matchingPair) {
+    console.log("⚠️  No matching pair found");
     return;
   }
-  if (tokenAAccountInfo.owner.equals(TOKEN_2022_PROGRAM_ID)) {
-    tokenAProgram = tokenAAccountInfo.owner;
-    const baseMint = await getMint(
-      connection,
-      POOL_CONFIG.tokenAMint,
-      connection.commitment,
-      tokenAProgram
+  console.log("mathc",matchingPair)
+  console.log("\n📊 Pool State:");
+  console.log("Pool Address:", matchingPair.publicKey.toString());
+  console.log("Active Bin ID:", matchingPair.account.activeId);
+  console.log("Bin Step:", matchingPair.account.binStep);
+  console.log("Token X Mint:", matchingPair.account.tokenXMint.toString());
+  console.log("Token Y Mint:", matchingPair.account.tokenYMint.toString());
+  console.log("Reserve X:", matchingPair.account.reserveX.toString());
+  console.log("Reserve Y:", matchingPair.account.reserveY.toString());
+  console.log("Oracle:", matchingPair.account.oracle.toString());
+  
+  // Wrap SOL to WSOL
+  console.log("\n🔄 Wrapping SOL to WSOL...");
+  const amountToWrap = 0.01 * anchor.web3.LAMPORTS_PER_SOL;
+  const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminkeypair.publicKey);
+  
+  const wrapTransaction = new Transaction();
+  const wsolAccountInfo = await connection.getAccountInfo(wsolAccount);
+  if (!wsolAccountInfo) {
+    wrapTransaction.add(
+      createAssociatedTokenAccountInstruction(
+        adminkeypair.publicKey,
+        wsolAccount,
+        adminkeypair.publicKey,
+        NATIVE_MINT
+      )
     );
-    const epochInfo = await connection.getEpochInfo();
-    tokenAInfo = {
-      mint: baseMint,
-      currentEpoch: epochInfo.epoch,
-    };
   }
-  const paramet= await DLMM.getAllPresetParameters(connection);
-console.log("paramet",paramet.presetParameter[0].account);
-console.log("parem2",paramet.presetParameter2);
-  const tokenAAmountInLamport = new BN(POOL_CONFIG.maxTokenAAmount).mul(
-    new BN(10 ** POOL_CONFIG.tokenADecimals)
+  const seed=646519
+ const escrow_pda=new PublicKey("4V8mS6doNMPCsfHzvm22HmTngA1dRGBPzBEjN134U6nY")
+  // console.log("pda",escrowPda);
+  
+const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
+  [
+    Buffer.from("vault"),
+    escrow_pda.toBuffer(),
+  ],
+  program.programId
+)
+  wrapTransaction.add(
+    SystemProgram.transfer({
+      fromPubkey: adminkeypair.publicKey,
+      toPubkey: wsolAccount,
+      lamports: amountToWrap,
+    })
   );
-  const tokenBAmountInLamport = new BN(POOL_CONFIG.maxTokenBAmount).mul(
-    new BN(10 ** POOL_CONFIG.tokenBDecimals)
+  
+  await executeSwapViaDLMM(connection,program,new PublicKey("4V8mS6doNMPCsfHzvm22HmTngA1dRGBPzBEjN134U6nY"),tokenXMint,tokenYMint,new anchor.BN(1_000_000),adminkeypair);
+  
+  wrapTransaction.add(
+    createSyncNativeInstruction(wsolAccount, TOKEN_PROGRAM_ID)
   );
-  const initSqrtPrice = getSqrtPriceFromPrice(
-    POOL_CONFIG.initialPrice.toString(),
-    POOL_CONFIG.tokenADecimals,
-    POOL_CONFIG.tokenBDecimals
-  );
-  const liquidityDelta = cpAmm.getLiquidityDelta({
-    maxAmountTokenA: tokenAAmountInLamport,
-    maxAmountTokenB: tokenBAmountInLamport,
-    sqrtPrice: initSqrtPrice,
-    sqrtMinPrice: MIN_SQRT_PRICE,
-    sqrtMaxPrice: MAX_SQRT_PRICE,
-    tokenAInfo,
-  });
+  
+  await sendAndConfirmTransaction(connection, wrapTransaction, [adminkeypair]);
+  console.log("✅ Wrapped SOL!");
 
-  const baseFeeParams = getBaseFeeParams(
-    {
-      baseFeeMode: POOL_CONFIG.baseFeeMode,
-      feeSchedulerParam: {
-        startingFeeBps: POOL_CONFIG.startingFeeBps,
-        endingFeeBps: POOL_CONFIG.endingFeeBps,
-        numberOfPeriod: POOL_CONFIG.numberOfPeriod,
-        totalDuration: POOL_CONFIG.totalDuration,
-      },
-    },
-    POOL_CONFIG.tokenBDecimals,
-    ActivationType.Timestamp
-  );
-  const dynamicFeeParams = POOL_CONFIG.useDynamicFee
-    ? getDynamicFeeParams(POOL_CONFIG.endingFeeBps)
-    : null;
+  
+  const userTokenX = await getAssociatedTokenAddress(tokenXMint, adminkeypair.publicKey);
+  const userTokenY = wsolAccount;
 
-  const poolFees: PoolFeesParams = {
-    baseFee: baseFeeParams,
-    padding: [],
-    dynamicFee: dynamicFeeParams,
+  console.log("\n👤 User Token Accounts:");
+  console.log("User Token X ATA:", userTokenX.toString());
+  console.log("User Token Y (WSOL) ATA:", userTokenY.toString());
+
+  // Create DLMM pool instance
+  // const dlmmPool = await DLMM.create(provider.connection, matchingPair.publicKey);
+  
+  // // Swap parameters
+  // await transfer(
+  //   connection,
+  //   adminkeypair,
+  //   userTokenY,
+  //   vaultb,
+  //   adminkeypair,
+  //   amountIn.toNumber()
+  // );
+  let pool=deriveBinArray(matchingPair.publicKey,binIdToBinArrayIndex(new anchor.BN(matchingPair.account.activeId)),METORA_PROGRAM_ID)
+  const amountIn = new anchor.BN(1_000_000); // 0.001 WSOL
+  const swapForY = true; // Swapping Y (WSOL) for X
+  const slippageBps = new anchor.BN(100); // 1% slippage
+ 
+
+  const activeBinArrayAccountMeta = {
+    pubkey:pool[0],
+    isSigner: false,
+    isWritable: true, 
   };
-  const positionNft = Keypair.generate();
-  const positionNftForPosition = Keypair.generate();
-  
-  const test = await cpAmm.createPosition({
-    owner: wallet.publicKey,
-    pool: new PublicKey("FX8AE4h26RNY5FvuxmZxwkQU1VyPDwtekFtVphgsv9Ci"),
-    positionNft: positionNftForPosition.publicKey,
-    payer: wallet.publicKey
-  });
+  const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
 
-  const allPairs = await DLMM.getLbPairs(connection);
+  console.log("\n🚀 Executing swap transaction...");
 
-for (const pair of allPairs) {
-  if (
-    pair.account.tokenYMint.toBase58() === "So11111111111111111111111111111111111111112" &&
-    pair.account.tokenXMint.toBase58() === "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
-  ) {
-    console.log("✅ Found matching pair!");
-    console.log("Pair Address:", pair.publicKey.toString());
-    console.log("Bin Step:", pair.account.binStep);
-    console.log("Active ID:", pair.account.activeId);
-    console.log(pair.account);
-  }
-}
-  // console.log(allPairs);
+  // const vaulta = await getAssociatedTokenAddress(tokenXMint, escrowPda, true);
+  // const vaultb = await getAssociatedTokenAddress(tokenYMint, escrowPda, true);
 
-  // Set blockhash and fee payer BEFORE signing
-  const { blockhash } = await connection.getLatestBlockhash();
-  test.recentBlockhash = blockhash;
-  test.feePayer = wallet.publicKey;
-  
-  // Sign with both wallet and position NFT keypair
-  test.partialSign(wallet, positionNftForPosition);
-  
-  // Send transaction
-  const signature3 = await connection.sendRawTransaction(test.serialize());
-  console.log("Transaction signature:", signature3);
 
-  const {
-    tx: initCustomizePoolTx,
-    pool,
-    position,
-  } = await cpAmm.createCustomPool({
-    payer: wallet.publicKey,
-    creator: wallet.publicKey,
-    positionNft: positionNft.publicKey,
-    tokenAMint: POOL_CONFIG.tokenAMint,
-    tokenBMint: POOL_CONFIG.tokenBMint,
-    tokenAAmount: tokenAAmountInLamport,
-    tokenBAmount: tokenBAmountInLamport,
-    sqrtMinPrice: MIN_SQRT_PRICE,
-    sqrtMaxPrice: MAX_SQRT_PRICE,
-    liquidityDelta: liquidityDelta,
-    initSqrtPrice: initSqrtPrice,
-    poolFees: poolFees,
-    hasAlphaVault: false,
-    activationType: ActivationType.Timestamp,
-    collectFeeMode: 0,
-    activationPoint: null,
-    tokenAProgram,
-    tokenBProgram: TOKEN_PROGRAM_ID,
-    isLockLiquidity: POOL_CONFIG.isLockLiquidity,
-  });
-
-  // initCustomizePoolTx.recentBlockhash = (
-  //   await connection.getLatestBlockhash()
-  // ).blockhash;
-  // initCustomizePoolTx.feePayer = wallet.publicKey;
-  // initCustomizePoolTx.partialSign(wallet);
-  // initCustomizePoolTx.partialSign(positionNft);
-
-  // console.log(await connection.simulateTransaction(initCustomizePoolTx));
-  //   const signature = await connection.sendRawTransaction(
-  //     initCustomizePoolTx.serialize()
+  // const vaultaInfo = await connection.getAccountInfo(vaulta);
+  // if (!vaultaInfo) {
+  //   console.log("Creating vaulta...");
+  //   const createVaultaTx = new Transaction().add(
+  //     createAssociatedTokenAccountInstruction(
+  //       adminkeypair.publicKey,
+  //       vaulta,
+  //       escrowPda,
+  //       tokenXMint
+  //     )
   //   );
-  //   console.log({
-  //     signature,
-  //     pool: pool.toString(),
-  //     position: position.toString(),
-  //   });
-})();
+  //   await sendAndConfirmTransaction(connection, createVaultaTx, [adminkeypair]);
+  // }
+
+  // const vaultbInfo = await connection.getAccountInfo(vaultb);
+  // if (!vaultbInfo) {
+  //   console.log("Creating vaultb...");
+  //   const createVaultbTx = new Transaction().add(
+  //     createAssociatedTokenAccountInstruction(
+  //       adminkeypair.publicKey,
+  //       vaultb,
+  //       escrowPda,
+  //       tokenYMint
+  //     )
+  //   );
+  //   await sendAndConfirmTransaction(connection, createVaultbTx, [adminkeypair]);
+  // }
+
+
+  console.log("Transferring WSOL to escrow vault...");
+  
+
+  // try {
+  //   const txSignature = await program.methods
+  //     .swap(amountIn, new anchor.BN(22))
+  //     .accountsStrict({
+  //       lbPair: matchingPair.publicKey,
+  //       binArrayBitmapExtension: null,
+  //       reserveX: matchingPair.account.reserveX,
+  //       reserveY: matchingPair.account.reserveY,
+  //       userTokenIn: userTokenY,
+  //       userTokenOut: userTokenX,
+  //       escrow: escrowPda,
+  //       vaulta: vaulta,
+  //       vaultb: vaultb,
+  //       tokenXMint: tokenXMint,
+  //       tokenYMint: tokenYMint,
+  //       oracle: matchingPair.account.oracle,
+  //       hostFeeIn: null,
+  //       dlmmProgram: METORA_PROGRAM_ID,
+  //       eventAuthority: eventAuthority,
+  //       tokenXProgram: TOKEN_PROGRAM_ID,
+  //       tokenYProgram: TOKEN_PROGRAM_ID,
+  //       tokenProgram: TOKEN_PROGRAM_ID,
+  //     }).remainingAccounts([activeBinArrayAccountMeta])
+      
+  //     .rpc();
+
+  //   console.log("✅ Swap successful!");
+  //   console.log("Transaction signature:", txSignature);
+
+
+  //   await connection.confirmTransaction(txSignature, "confirmed");
+  //   try {
+  //     const userTokenXAccount = await getAccount(connection, userTokenX);
+  //     const userTokenYAccount = await getAccount(connection, userTokenY);
+
+  //     console.log("\n💰 Final Balances:");
+  //     console.log("User Token X balance:", userTokenXAccount.amount.toString());
+  //     console.log("User Token Y balance:", userTokenYAccount.amount.toString());
+  //   } catch (accountError) {
+  //     console.log("Note: Could not fetch token account balances");
+  //   }
+
+  // } catch (error: any) {
+  //   console.error("\n❌ Swap failed:", error);
+    
+  //   if (error.logs) {
+  //     console.error("\n📋 Program Logs:");
+  //     error.logs.forEach((log: string) => console.error(log));
+  //   }
+    
+  //   throw error;
+  // }
+
+ 
+}
+temp()
+
+// bot.launch();
