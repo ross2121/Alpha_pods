@@ -6,28 +6,50 @@ import { PrismaClient } from "@prisma/client";
 import { checkfund, getminimumfund } from "./fund";
 import { getQuote } from "./swap";
 
-const getTokenInfo = async (mintAddress:any) => {
-    const url=process.env.HELIUS_RPC_URL;
-    console.log("url",url);
-    console.log("mint",mintAddress);
-    const response = await fetch(url||"", {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 'my-id',
-        method: 'getAsset',
-        params: {
-          id: mintAddress,
-        },
-      }),
-    });
+const getTokenInfo = async (mintAddress: any) => {
+    const url = process.env.HELIUS_RPC_URL || "https://devnet.helius-rpc.com/?api-key=1f13a790-f758-4d3e-8263-660d6b629709";
+    console.log("url", url);
+    console.log("mint", mintAddress);
     
-    const { result } = await response.json();
-    // console.log(result.token_info);
-    return result.token_info;
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'my-id',
+          method: 'getAsset',
+          params: {
+            id: mintAddress,
+          },
+        }),
+      });
+      
+      const { result } = await response.json();
+      
+      if (!result || !result.token_info) {
+        return {
+          symbol: "Unknown Token",
+          price_info: {
+            price_per_token: "N/A",
+            currency: "Unknown"
+          }
+        };
+      }
+      
+      return result.token_info;
+    } catch (error) {
+      console.error("Error fetching token info:", error);
+      return {
+        symbol: "Unknown Token",
+        price_info: {
+          price_per_token: "N/A",
+          currency: "Unknown"
+        }
+      };
+    }
   };
 interface MyWizardSession extends Scenes.WizardSessionData {
     state: {
@@ -146,23 +168,41 @@ export const createProposeWizard = (bot: any) => new Scenes.WizardScene<MyContex
                    }
                });
               
-               bot.telegram.editMessageText(
-                   Number(expiredproposal.chatId),
-                   Number(expiredproposal.messagId),
-                   undefined,
-                   expiredText,
-                   {parse_mode:"Markdown"}
-               );
+               try {
+                   await bot.telegram.editMessageText(
+                       Number(expiredproposal.chatId),
+                       Number(expiredproposal.messagId),
+                       undefined,
+                       expiredText,
+                       {parse_mode:"Markdown"}
+                   );
+               } catch (editError) {
+                   console.log("Failed to edit message (may be deleted or inaccessible):", editError);
+                   // Send new message instead
+                   try {
+                       await bot.telegram.sendMessage(
+                           Number(expiredproposal.chatId),
+                           expiredText,
+                           {parse_mode:"Markdown"}
+                       );
+                   } catch (sendError) {
+                       console.error("Failed to send expiration message:", sendError);
+                   }
+               }
 
                console.log("Voting period over.");
                if (expiredproposal.yes > 0) {
                    try {
                        await getminimumfund(expiredproposal.id, bot);
                        console.log(`Initial funding check requested for proposal ${expiredproposal.id}`);
-                       await bot.telegram.sendMessage(
-                           Number(expiredproposal.chatId),
-                           `Voting complete. Members who voted "Yes" now have 5 minutes to ensure their wallets are funded.`
-                       );
+                       try {
+                           await bot.telegram.sendMessage(
+                               Number(expiredproposal.chatId),
+                               `Voting complete. Members who voted "Yes" now have 5 minutes to ensure their wallets are funded.`
+                           );
+                       } catch (msgError) {
+                           console.error("Failed to send funding message:", msgError);
+                       }
 
                        console.log(`Waiting 5 minutes for funding...`);
                        setTimeout(async() => {
@@ -192,11 +232,15 @@ The system will search all Meteora DLMM pools to find the best rate for your swa
 Click the button below to get the best pool:
                           `;
                     
-                           await bot.telegram.sendMessage(
-                               Number(fundedProposal.chatId),
-                               confirmationMessage,
-                               { ...quoteButton, parse_mode: 'Markdown' }
-                           );
+                           try {
+                               await bot.telegram.sendMessage(
+                                   Number(fundedProposal.chatId),
+                                   confirmationMessage,
+                                   { ...quoteButton, parse_mode: 'Markdown' }
+                               );
+                           } catch (confirmError) {
+                               console.error("Failed to send confirmation message:", confirmError);
+                           }
 
                        }, FUNDING_PERIOD_MS);
                      

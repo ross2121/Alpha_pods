@@ -37,7 +37,7 @@ export async function getDLMMPools(
   try {
     const allPairs = await DLMM.getLbPairs(connection);
     
-    // Filter matching pairs (both directions)
+  
     const matchingPairs = allPairs.filter(pair => 
       (pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
        pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()) ||
@@ -45,7 +45,7 @@ export async function getDLMMPools(
        pair.account.tokenYMint.toBase58() === tokenXMint.toBase58())
     );
 
-    // Convert to PoolInfo
+    console.log("matching pairs",matchingPairs);
     const pools: PoolInfo[] = matchingPairs.map(pair => {
       const reserveX = pair.account.reserveX ? parseFloat(pair.account.reserveX.toString()) : 0;
       const reserveY = pair.account.reserveY ? parseFloat(pair.account.reserveY.toString()) : 0;
@@ -84,7 +84,7 @@ async function getPoolSwapQuote(
     const swapQuote = await dlmmPool.swapQuote(
       amountIn,
       swapForY,
-      new anchor.BN(100), // 1% slippage
+      new anchor.BN(100),
       []
     );
 
@@ -126,8 +126,6 @@ export async function getBestDLMMPool(
         return { pool, quote };
       })
     );
-
-    // Filter out failed quotes
     const validQuotes = poolQuotes.filter(pq => pq.quote !== null);
 
     if (validQuotes.length === 0) {
@@ -135,18 +133,13 @@ export async function getBestDLMMPool(
       return null;
     }
 
-    // Score each pool (higher is better)
     const scoredPools = validQuotes.map(({ pool, quote }) => {
       const outputAmount = parseFloat(quote!.minOutAmount.toString());
       const priceImpact = parseFloat(quote!.priceImpact);
       const liquidity = pool.liquidity;
       const feeBps = pool.feeBps;
 
-      // Scoring criteria:
-      // 1. Higher output amount (40%)
-      // 2. Lower price impact (30%)
-      // 3. Higher liquidity (20%)
-      // 4. Lower fees (10%)
+    
       const outputScore = outputAmount;
       const impactScore = Math.max(0, 100 - Math.abs(priceImpact * 100));
       const liquidityScore = liquidity / 1e9;
