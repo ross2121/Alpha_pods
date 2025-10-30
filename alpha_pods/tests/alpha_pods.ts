@@ -1356,7 +1356,8 @@ describe("alpha_pods", () => {
         rentReciver:adminkeypair.publicKey,
         escrow:escrowPda,
         dlmmProgram:METORA_PROGRAM_ID,
-        eventAuthority:eventAuthority
+        eventAuthority:eventAuthority,
+        vault:escrow_vault_pda
       }).rpc()
       console.log("txx",close);
       // Fetch position data
