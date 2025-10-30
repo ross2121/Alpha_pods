@@ -52,21 +52,24 @@ pub mod alpha_pods {
     pub fn add_postion(ctx:Context<InitializePostion>,lower_bin_id:i32,width:i32)->Result<()>{
         ctx.accounts.add_position(lower_bin_id, width, &ctx.bumps)
     }
+    pub fn withdraw(ctx:Context<Withdraw>,amount:u64)->Result<()>{
+        ctx.accounts.withdraw(amount, &ctx.bumps)
+    }
     pub fn add_liquidity<'a, 'b, 'c, 'info>(
         ctx: Context<'a, 'b, 'c, 'info, AddLiquidity<'info>>,
         liquidity_parameter:dlmm::types::LiquidityParameter
     ) -> Result<()> {
-        ctx.accounts.add_liquidity(ctx.remaining_accounts, liquidity_parameter)
+        ctx.accounts.add_liquidity(ctx.remaining_accounts,&ctx.bumps, liquidity_parameter)
     }
     pub fn add_bin(ctx:Context<InitializeBinArray>,index:i64)->Result<()>{
-        ctx.accounts.init_bin_array(index)
+        ctx.accounts.init_bin_array(index,&ctx.bumps)
         
     }
     pub fn close_position(ctx:Context<ClosePostion>)->Result<()>{
-         ctx.accounts.close_positiom()
+         ctx.accounts.close_positiom(&ctx.bumps)
     }
     pub fn remove_liqudity<'a,'b,'c,'info>(ctx:Context<'a,'b,'c,'info,Removeliquidity<'info>>, binreduction:Vec<dlmm::types::BinLiquidityReduction>)->Result<()>{
-        ctx.accounts.remove_liqudity(ctx.remaining_accounts,binreduction)
+        ctx.accounts.remove_liqudity(ctx.remaining_accounts,&ctx.bumps,binreduction)
     }
 }
 

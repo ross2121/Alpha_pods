@@ -7,6 +7,7 @@ pub struct AddLiquidity<'info> {
     #[account(mut)]
     /// CHECK: The pool account
     pub lb_pair: UncheckedAccount<'info>,
+
     #[account(mut)]
     ///CHECK:POSITION
     pub position:UncheckedAccount<'info>,
@@ -25,9 +26,18 @@ pub struct AddLiquidity<'info> {
     #[account(mut)]
     /// CHECK: Reserve account of token Y
     pub reserve_y: UncheckedAccount<'info>,
-    #[account(mut,associated_token::mint=token_x_mint,associated_token::authority=escrow,associated_token::token_program=token_program)]
+    #[account(mut)]
+    /// CHECK: Lower bin array account
+    pub bin_array_lower: UncheckedAccount<'info>,
+    #[account(mut)]
+    /// CHECK: Upper bin array account
+    pub bin_array_upper: UncheckedAccount<'info>,
+    #[account(mut,seeds=[b"vault",escrow.key().as_ref()],bump)]
+    /// CHECK: PDA that owns the position
+    pub vault: SystemAccount<'info>,
+    #[account(mut,associated_token::mint=token_x_mint,associated_token::authority=vault,associated_token::token_program=token_program)]
     pub vaulta:Account<'info,TokenAccount>,
-    #[account(mut,associated_token::mint=token_y_mint,associated_token::authority=escrow,associated_token::token_program=token_program)]
+    #[account(mut,associated_token::mint=token_y_mint,associated_token::authority=vault,associated_token::token_program=token_program)]
     pub vaultb:Account<'info,TokenAccount>,
 
     /// CHECK: Mint account of token X
@@ -48,6 +58,7 @@ pub struct AddLiquidity<'info> {
     /// CHECK: Token program of mint Y
     pub token_y_program: UncheckedAccount<'info>,
     pub token_program:Program<'info,Token>,
+    pub system_program:Program<'info,System>
     // Bin arrays need to be passed using remaining accounts via ctx.remaining_accounts
 }
 
@@ -55,17 +66,9 @@ impl<'info> AddLiquidity<'info>{
 pub fn add_liquidity(
       &mut self,
       remaining_accounts: &[AccountInfo<'info>],
+      bumps:&AddLiquidityBumps,
     liqudity_parameter:LiquidityParameter
 ) -> Result<()> {
-    // Extract bin arrays from remaining accounts
-    // Expected order: [binArrayLower, binArrayUpper (if different)]
-    let bin_array_lower = &remaining_accounts[0];
-    let bin_array_upper = if remaining_accounts.len() > 1 {
-        &remaining_accounts[1]
-    } else {
-        &remaining_accounts[0] // Use same if only one provided
-    };
-
     let accounts = dlmm::cpi::accounts::AddLiquidity{
         lb_pair: self.lb_pair.to_account_info(),
         bin_array_bitmap_extension: self
@@ -74,32 +77,30 @@ pub fn add_liquidity(
             .map(|account| account.to_account_info()),
         reserve_x: self.reserve_x.to_account_info(),
         reserve_y:self.reserve_y.to_account_info(),
-        user_token_x: self.vaultb.to_account_info(),
-        user_token_y: self.vaulta.to_account_info(),
+        user_token_x: self.vaulta.to_account_info(),
+        user_token_y: self.vaultb.to_account_info(),
         token_x_mint:self.token_x_mint.to_account_info(),
         token_y_mint: self.token_y_mint.to_account_info(),
-        bin_array_lower: bin_array_lower.clone(),
-        bin_array_upper: bin_array_upper.clone(),
+        bin_array_lower: self.bin_array_lower.to_account_info(),
+        bin_array_upper: self.bin_array_upper.to_account_info(),
         position:self.position.to_account_info(),
-        sender: self.escrow.to_account_info(),
+        sender: self.vault.to_account_info(),
         token_x_program:self.token_x_program.to_account_info(),
         token_y_program: self.token_y_program.to_account_info(),
         event_authority: self.event_authority.to_account_info(),
         program: self.dlmm_program.to_account_info(),
     };
-    let admin_key = self.escrow.admin.key();
-    let seed_bytes = self.escrow.seed.to_le_bytes();
-    let bump = &[self.escrow.bump];
+    let escrow_key = self.escrow.key();
     
     let signer_seeds: &[&[&[u8]]] = &[&[
-        b"escrow",
-        admin_key.as_ref(),
-        &seed_bytes,
-        bump,
+        b"vault",
+        escrow_key.as_ref(),
+        &[bumps.vault],
     ]];
 
 
-    let cpi_context = CpiContext::new_with_signer(self.dlmm_program.to_account_info(), accounts,signer_seeds);
+    let cpi_context = CpiContext::new_with_signer(self.dlmm_program.to_account_info(), accounts, signer_seeds)
+        .with_remaining_accounts(remaining_accounts.to_vec());
     dlmm::cpi::add_liquidity(cpi_context, liqudity_parameter)
 }
 }

@@ -8,7 +8,7 @@ pub struct InitializeBinArray<'info> {
         /// CHECK: This is the Meteora DLMM program ID
     pub lb_pair: UncheckedAccount<'info>,
 
-
+     
     #[account(mut)]
         /// CHECK: This is the Meteora DLMM program ID
     pub bin_array: UncheckedAccount<'info>,
@@ -20,9 +20,10 @@ pub struct InitializeBinArray<'info> {
         bump = escrow.bump
     )]
     pub escrow: Account<'info, InitializeAdmin>,
-
+    #[account(mut,seeds=[b"vault",escrow.key().as_ref()],bump)]
+    pub vault:SystemAccount<'info>,
         /// CHECK: This is the Meteora DLMM program ID
-    pub system_program:UncheckedAccount<'info>,
+    pub system_program:Program<'info,System>,
     
     /// The Meteora DLMM program
     /// CHECK: This is the Meteora DLMM program ID
@@ -30,7 +31,7 @@ pub struct InitializeBinArray<'info> {
 }
 
 impl<'info> InitializeBinArray<'info> {
-    pub fn init_bin_array(&mut self, index: i64) -> Result<()> {
+    pub fn init_bin_array(&mut self, index: i64,bumps:&InitializeBinArrayBumps) -> Result<()> {
         // Create the CPI accounts struct
         let accounts = dlmm::cpi::accounts::InitializeBinArray {
             lb_pair: self.lb_pair.to_account_info(),
@@ -38,15 +39,12 @@ impl<'info> InitializeBinArray<'info> {
             funder: self.escrow.to_account_info(),
             system_program: self.system_program.to_account_info(),
         };
-        let admin_key = self.escrow.admin.key();
-        let seed_bytes = self.escrow.seed.to_le_bytes();
-        let bump = &[self.escrow.bump];
-        
+        let escrow_key = self.escrow.key();
+    
         let signer_seeds: &[&[&[u8]]] = &[&[
-            b"escrow",
-            admin_key.as_ref(),
-            &seed_bytes,
-            bump,
+            b"vault",
+            escrow_key.as_ref(),
+            &[bumps.vault],
         ]];
         let cpi_context = CpiContext::new_with_signer(
             self.dlmm_program.to_account_info(),

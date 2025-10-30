@@ -25,6 +25,8 @@ pub struct ClosePostion<'info> {
         bump = escrow.bump
     )]
     pub escrow: Account<'info, InitializeAdmin>,
+    #[account(mut,seeds=[b"vault",escrow.key().as_ref()],bump)]
+    pub vault:SystemAccount<'info>,
 
     #[account(address = dlmm::ID)]
     /// CHECK: DLMM program
@@ -38,11 +40,11 @@ pub struct ClosePostion<'info> {
 impl<'info>  ClosePostion <'info>{
 pub fn close_positiom(
       &mut self,
-     
+     bumps:&ClosePostionBumps
 ) -> Result<()> {
     let accounts = dlmm::cpi::accounts::ClosePosition{
        lb_pair:self.lb_pair.to_account_info(),
-        sender:self.escrow.to_account_info(),
+        sender:self.vault.to_account_info(),
         event_authority:self.event_authority.to_account_info(),
         rent_receiver:self.rent_reciver.to_account_info(),
         position:self.position.to_account_info(),
@@ -50,15 +52,12 @@ pub fn close_positiom(
         bin_array_lower:self.bin_array_lower.to_account_info(),
         bin_array_upper:self.bin_array_upper.to_account_info()
     };
-    let admin_key = self.escrow.admin.key();
-    let seed_bytes = self.escrow.seed.to_le_bytes();
-    let bump = &[self.escrow.bump];
+    let escrow_key = self.escrow.key();
     
     let signer_seeds: &[&[&[u8]]] = &[&[
-        b"escrow",
-        admin_key.as_ref(),
-        &seed_bytes,
-        bump,
+        b"vault",
+        escrow_key.as_ref(),
+        &[bumps.vault],
     ]];
 
     let cpi_context = CpiContext::new_with_signer(self.dlmm_program.to_account_info(), accounts,signer_seeds);
