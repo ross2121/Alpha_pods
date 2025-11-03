@@ -12,6 +12,7 @@ import {
     handleLeftChatMember, 
     handleMyChatMember 
 } from "./commands/group";
+import { handleStart } from "./commands/start";
 import { getQuote, handleExecuteSwap, handleConfirmSwap } from "./commands/swap";
 import { 
     createLiquidityWizard, 
@@ -27,10 +28,12 @@ import { getminimumfund } from "./commands/fund";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from "@solana/web3.js";
 import { program } from "@coral-xyz/anchor/dist/cjs/native/system";
 import { createAssociatedTokenAccountInstruction, createSyncNativeInstruction, getAccount, getAssociatedTokenAddress, NATIVE_MINT, TOKEN_PROGRAM_ID, transfer } from "@solana/spl-token";
-import { executeSwapViaDLMM } from "./services/dlmm_swap";
+import { decryptPrivateKey } from "./services/auth";
+import bs58 from "bs58";
+import { executeSwapViaDLMM, getDLMMPools } from "./services/dlmm_swap";
 import { Program } from "@coral-xyz/anchor";
 import { AlphaPods } from "./idl/alpha_pods";
-import { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority } from "@meteora-ag/dlmm";
+import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority } from "@meteora-ag/dlmm";
 import { PrismaClient } from "@prisma/client";
 
 dotenv.config();
@@ -72,6 +75,9 @@ app.use(json);
 
 bot.use(session());
 bot.use(stage.middleware());
+
+// Start command - main entry point
+bot.command("start", handleStart);
 
 bot.command("propose", admin_middleware, async (ctx) => {
   await ctx.scene.enter('propose_wizard');
@@ -119,7 +125,6 @@ bot.action(/claim_fees:(.+)/, admin_middleware, async (ctx) => {
   await ctx.reply(`💰 **Claim Fees Feature**\n\nPosition: \`${positionAddress}\`\n\nThis feature will allow you to claim accumulated trading fees from your liquidity position.\n\n🚧 Coming soon!`, { parse_mode: "Markdown" });
 });
 
-// Liquidity commands
 bot.command("add_liquidity", admin_middleware, async (ctx) => {
   await ctx.scene.enter('add_liquidity_wizard');
 });
@@ -128,6 +133,183 @@ bot.command("view_positions", handleViewPositions);
 bot.command("close_position", admin_middleware, handleClosePosition);
 bot.command("execute_liquidity", admin_middleware, handleExecuteLiquidity);
 
+// Wallet management commands
+bot.command("withdraw", user_middleware, async (ctx) => {
+  const args = ctx.message.text.split(' ');
+  
+  if (args.length < 2) {
+    await ctx.reply(
+      "❌ **Invalid Command Format**\n\n" +
+      "**Usage:**\n" +
+      "`/withdraw <amount> [address]`\n\n" +
+      "**Examples:**\n" +
+      "• `/withdraw 0.5` - Withdraw 0.5 SOL to your wallet\n" +
+      "• `/withdraw 1.5 <address>` - Withdraw 1.5 SOL to specified address\n\n" +
+      "**Note:** Amount is in SOL",
+      { parse_mode: "Markdown" }
+    );
+    return;
+  }
+  
+  const amount = parseFloat(args[1]);
+  const toAddress = args[2] || null;
+  
+  if (isNaN(amount) || amount <= 0) {
+    await ctx.reply("❌ Invalid amount. Please provide a positive number.");
+    return;
+  }
+  
+  try {
+    const userId = ctx.from?.id.toString();
+    const user = await prisma.user.findUnique({
+      where: { telegram_id: userId }
+    });
+    
+    if (!user) {
+      await ctx.reply("❌ User not found. Please register first.");
+      return;
+    }
+    
+    const chatId = ctx.chat?.id;
+    if (!chatId) {
+      await ctx.reply("❌ Chat ID not found.");
+      return;
+    }
+    
+    const escrow = await prisma.escrow.findUnique({
+      where: { chatId: BigInt(chatId) }
+    });
+    
+    if (!escrow) {
+      await ctx.reply("❌ Escrow not found for this chat.");
+      return;
+    }
+    
+    await ctx.reply("⏳ Processing withdrawal...");
+    
+    const secretKey = decryptPrivateKey(user.encrypted_private_key, user.encryption_iv);
+    const userKeypair = Keypair.fromSecretKey(secretKey);
+    
+    const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
+    const wallet = new anchor.Wallet(userKeypair);
+    const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
+    const program = new Program<AlphaPods>(idl as AlphaPods, provider);
+    
+    const [escrowPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("escrow"),
+        new PublicKey(escrow.creator_pubkey).toBuffer(),
+        Buffer.from(new anchor.BN(escrow.seed).toArrayLike(Buffer, "le", 8)),
+      ],
+      program.programId
+    );
+    
+    const [vaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vault"), escrowPda.toBuffer()],
+      program.programId
+    );
+    
+    const amountLamports = new anchor.BN(amount * LAMPORTS_PER_SOL);
+    
+    const txSignature = await program.methods
+      .withdraw(amountLamports)
+      .accountsStrict({
+        member: userKeypair.publicKey,
+        vault: vaultPda,
+        escrow: escrowPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([userKeypair])
+      .rpc();
+    
+    await connection.confirmTransaction(txSignature, "confirmed");
+    
+    const successMessage = `
+✅ **Withdrawal Successful!**
+
+**Details:**
+• Amount: ${amount} SOL
+• To: ${toAddress || user.public_key}
+• Transaction: \`${txSignature}\`
+
+View on Solscan: https://solscan.io/tx/${txSignature}
+    `;
+    
+    await ctx.reply(successMessage, { parse_mode: "Markdown" });
+  } catch (error: any) {
+    console.error("Withdrawal error:", error);
+    await ctx.reply(`❌ Withdrawal failed: ${error.message || "Unknown error"}`);
+  }
+});
+
+bot.command("export_key", user_middleware, async (ctx) => {
+  try {
+    const userId = ctx.from?.id.toString();
+    const user = await prisma.user.findUnique({
+      where: { telegram_id: userId }
+    });
+    
+    if (!user) {
+      await ctx.reply("❌ User not found. Please register first.");
+      return;
+    }
+    
+    const secretKey = decryptPrivateKey(user.encrypted_private_key, user.encryption_iv);
+    const privateKeyBase58 = bs58.encode(secretKey);
+    
+    const warningMessage = `
+⚠️ **PRIVATE KEY - KEEP THIS SECRET!** ⚠️
+
+**Your Wallet Details:**
+• Public Key: \`${user.public_key}\`
+• Private Key: \`${privateKeyBase58}\`
+
+🔒 **SECURITY WARNING:**
+• NEVER share this key with anyone
+• Anyone with this key has full control of your wallet
+• Store it safely offline
+• Delete this message after saving the key
+
+**Import to Phantom/Solflare:**
+1. Open wallet app
+2. Click "Import Wallet"
+3. Paste the private key above
+4. Your wallet will be imported
+
+⚠️ This message will be automatically deleted in 60 seconds for your security.
+    `;
+    
+    const sentMessage = await ctx.reply(warningMessage, { parse_mode: "Markdown" });
+    
+    // Auto-delete after 60 seconds
+    setTimeout(async () => {
+      try {
+        await ctx.deleteMessage(sentMessage.message_id);
+        await ctx.telegram.sendMessage(
+          ctx.chat.id,
+          "🔒 Private key message deleted for security."
+        );
+      } catch (error) {
+        console.error("Failed to delete message:", error);
+      }
+    }, 60000);
+    
+  } catch (error: any) {
+    console.error("Export key error:", error);
+    await ctx.reply(`❌ Failed to export key: ${error.message || "Unknown error"}`);
+  }
+});
+
+// Action handlers for start command buttons
+bot.action("market_info", async (ctx) => {
+  await ctx.answerCbQuery();
+  await handleMarket(ctx);
+});
+
+bot.action("swap_tokens", async (ctx) => {
+  await ctx.answerCbQuery();
+  await ctx.reply("🔄 **Swap Tokens**\n\nTo execute a swap:\n1. Create a proposal with the token mint address\n2. Members vote on the proposal\n3. Once approved, admin can execute the swap\n\nUse `/propose` to create a new swap proposal.", { parse_mode: "Markdown" });
+});
 
 bot.action(/get_quote:(.+)/, async (ctx) => {
     const proposalId = ctx.match[1];
@@ -190,7 +372,7 @@ bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
         const { Keypair } = await import("@solana/web3.js");
   
         const secretKeyArray = [123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
-        const secretKey = new Uint8Array(secretKeyArray);
+        const secretKey = new Uint8Array(secretKeyArray); 
         const superadmin = Keypair.fromSecretKey(secretKey);
         
         const result = await executeSwap(proposalId, superadmin);
@@ -198,7 +380,10 @@ bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
         if (result) {
             const outputAmount = parseFloat(result.outputAmount) / 1e9;
             
-            const successMessage = `
+            // Call temp function for additional processing and get pool data
+            const tempData = await temp();
+            
+            let successMessage = `
 ✅ **Swap Executed Successfully!**
 
 **Transaction Details:**
@@ -212,14 +397,32 @@ bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
 View transaction: https://solscan.io/tx/${result.signature}
             `;
             
+            // Add additional pool information if temp function returned data
+            if (tempData) {
+                successMessage += `
+
+**📊 Pool Information:**
+• Pool Address: \`${tempData.poolAddress.slice(0, 8)}...${tempData.poolAddress.slice(-8)}\`
+• Active Bin ID: ${tempData.activeBinId}
+• Bin Step: ${tempData.binStep} bps
+• Reserve X: ${(parseInt(tempData.reserveX) / 1e9).toFixed(4)}
+• Reserve Y: ${(parseInt(tempData.reserveY) / 1e9).toFixed(4)}
+
+**🔐 Vault Information:**
+• Escrow PDA: \`${tempData.escrowPda.slice(0, 8)}...${tempData.escrowPda.slice(-8)}\`
+• Vault PDA: \`${tempData.escrowVaultPda.slice(0, 8)}...${tempData.escrowVaultPda.slice(-8)}\`
+
+${tempData.swapSignature ? `• Additional Swap Tx: \`${tempData.swapSignature}\`` : ''}
+                `;
+            }
+            
             await ctx.reply(successMessage, { parse_mode: 'Markdown' });
         } else {
             await ctx.reply("❌ Swap execution failed. Please check the logs and try again.");
         }
     } catch (error: any) {
         console.error("Error executing swap:", error);
-        
-        // User-friendly error messages - don't show technical details
+      
         let userMessage = "❌ Swap execution failed.";
         
         if (error.message?.includes("insufficient lamports")) {
@@ -237,38 +440,42 @@ View transaction: https://solscan.io/tx/${result.signature}
         await ctx.reply(userMessage);
     }
 });
-const temp=async()=>{
-  const tokenYMint = NATIVE_MINT;
-  const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
-  const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
-  const DLMM_SDK = (await import('@meteora-ag/dlmm')).default;
-  const connection=new Connection("https://api.devnet.solana.com")
-  const allPairs = await DLMM_SDK.getLbPairs(connection);
-  const secretKeyArray = [
-    123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,
-    235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224
-  ];
-  const secretarray=new Uint8Array(secretKeyArray);
- const  adminkeypair = Keypair.fromSecretKey(secretarray);
-  const targetPoolKey = new PublicKey("3RrtUag8F8aw6jAhTF4RxwvQmFX6KEXJUZ6zDL3eKaJE");
-  const matchingPair = allPairs.find(pair => pair.publicKey.toBase58() === targetPoolKey.toBase58());
-  const wallet = new anchor.Wallet(adminkeypair);
-const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
-const program = new Program<AlphaPods>(idl as AlphaPods, provider);
-  if (!matchingPair) {
-    console.log("⚠️  No matching pair found");
-    return;
-  }
-  console.log("mathc",matchingPair)
-  console.log("\n📊 Pool State:");
-  console.log("Pool Address:", matchingPair.publicKey.toString());
-  console.log("Active Bin ID:", matchingPair.account.activeId);
-  console.log("Bin Step:", matchingPair.account.binStep);
-  console.log("Token X Mint:", matchingPair.account.tokenXMint.toString());
-  console.log("Token Y Mint:", matchingPair.account.tokenYMint.toString());
-  console.log("Reserve X:", matchingPair.account.reserveX.toString());
-  console.log("Reserve Y:", matchingPair.account.reserveY.toString());
-  console.log("Oracle:", matchingPair.account.oracle.toString());
+export const temp = async () => {
+  try {
+    const tokenYMint = NATIVE_MINT;
+    const tokenXMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+    const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
+    const DLMM_SDK = (await import('@meteora-ag/dlmm')).default;
+    const connection = new Connection("https://api.devnet.solana.com");
+    const allPairs = await DLMM_SDK.getLbPairs(connection);
+    
+    const secretKeyArray = [
+      123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,
+      235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224
+    ];
+    const secretarray = new Uint8Array(secretKeyArray);
+    const adminkeypair = Keypair.fromSecretKey(secretarray);
+    const targetPoolKey = new PublicKey("3RrtUag8F8aw6jAhTF4RxwvQmFX6KEXJUZ6zDL3eKaJE");
+    const matchingPair = allPairs.find(pair => pair.publicKey.toBase58() === targetPoolKey.toBase58());
+    const wallet = new anchor.Wallet(adminkeypair);
+    const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
+    const program = new Program<AlphaPods>(idl as AlphaPods, provider);
+    
+    if (!matchingPair) {
+      console.log("⚠️  No matching pair found");
+      return null;
+    }
+    
+    console.log("match", matchingPair);
+    console.log("\n📊 Pool State:");
+    console.log("Pool Address:", matchingPair.publicKey.toString());
+    console.log("Active Bin ID:", matchingPair.account.activeId);
+    console.log("Bin Step:", matchingPair.account.binStep);
+    console.log("Token X Mint:", matchingPair.account.tokenXMint.toString());
+    console.log("Token Y Mint:", matchingPair.account.tokenYMint.toString());
+    console.log("Reserve X:", matchingPair.account.reserveX.toString());
+    console.log("Reserve Y:", matchingPair.account.reserveY.toString());
+    console.log("Oracle:", matchingPair.account.oracle.toString());
   
   // Wrap SOL to WSOL
   console.log("\n🔄 Wrapping SOL to WSOL...");
@@ -306,22 +513,29 @@ const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
     })
   );
   
-  await executeSwapViaDLMM(connection,program,new PublicKey("4V8mS6doNMPCsfHzvm22HmTngA1dRGBPzBEjN134U6nY"),tokenXMint,tokenYMint,new anchor.BN(1_000_000),adminkeypair);
-  
-  wrapTransaction.add(
-    createSyncNativeInstruction(wsolAccount, TOKEN_PROGRAM_ID)
-  );
-  
-  await sendAndConfirmTransaction(connection, wrapTransaction, [adminkeypair]);
-  console.log("✅ Wrapped SOL!");
+    const swapResult = await executeSwapViaDLMM(
+      connection,
+      program,
+      new PublicKey("4V8mS6doNMPCsfHzvm22HmTngA1dRGBPzBEjN134U6nY"),
+      tokenXMint,
+      tokenYMint,
+      new anchor.BN(10_000_000),
+      adminkeypair
+    );
+    
+    wrapTransaction.add(
+      createSyncNativeInstruction(wsolAccount, TOKEN_PROGRAM_ID)
+    );
+    
+    const wrapTxSig = await sendAndConfirmTransaction(connection, wrapTransaction, [adminkeypair]);
+    console.log("✅ Wrapped SOL!");
 
-  
-  const userTokenX = await getAssociatedTokenAddress(tokenXMint, adminkeypair.publicKey);
-  const userTokenY = wsolAccount;
+    const userTokenX = await getAssociatedTokenAddress(tokenXMint, adminkeypair.publicKey);
+    const userTokenY = wsolAccount;
 
-  console.log("\n👤 User Token Accounts:");
-  console.log("User Token X ATA:", userTokenX.toString());
-  console.log("User Token Y (WSOL) ATA:", userTokenY.toString());
+    console.log("\n👤 User Token Accounts:");
+    console.log("User Token X ATA:", userTokenX.toString());
+    console.log("User Token Y (WSOL) ATA:", userTokenY.toString());
 
   // Create DLMM pool instance
   // const dlmmPool = await DLMM.create(provider.connection, matchingPair.publicKey);
@@ -383,7 +597,7 @@ const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
   // }
 
 
-  console.log("Transferring WSOL to escrow vault...");
+  // console.log("Transferring WSOL to escrow vault...");
   
 
   // try {
@@ -439,38 +653,108 @@ const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
   //   throw error;
   // }
 
- 
-}
-// temp()
+    // Return important data
+    return {
+      poolAddress: matchingPair.publicKey.toString(),
+      activeBinId: matchingPair.account.activeId,
+      binStep: matchingPair.account.binStep,
+      tokenXMint: matchingPair.account.tokenXMint.toString(),
+      tokenYMint: matchingPair.account.tokenYMint.toString(),
+      reserveX: matchingPair.account.reserveX.toString(),
+      reserveY: matchingPair.account.reserveY.toString(),
+      oracle: matchingPair.account.oracle.toString(),
+      swapSignature: swapResult?.signature || null,
+      swapOutputAmount: swapResult?.outputAmount || null,
+      wrapTransactionSignature: wrapTxSig,
+      userTokenXAccount: userTokenX.toString(),
+      userTokenYAccount: userTokenY.toString(),
+      escrowPda: escrow_pda.toString(),
+      escrowVaultPda: escrow_vault_pda.toString(),
+    };
+  } catch (error: any) {
+    console.error("❌ Error in temp function:", error);
+    return null;
+  }
+};
+export const test = async () => {
+  const connection = new Connection("https://api.devnet.solana.com");
+  const dlmmPool = await DLMM.getLbPairs(connection);
 
-// Start the bot with database check
-async function startBot() {
-  console.log("🚀 Starting Telegram Bot...");
-  
-  // Check database connection first
-  await checkDatabaseConnection();
-  
-  // Launch bot
-  await bot.launch();
-  console.log("✅ Bot launched successfully!");
-  
-  // Graceful shutdown
-  process.once('SIGINT', async () => {
-    console.log("\n⏳ Shutting down gracefully...");
-    await prisma.$disconnect();
-    bot.stop('SIGINT');
-  });
-  
-  process.once('SIGTERM', async () => {
-    console.log("\n⏳ Shutting down gracefully...");
-    await prisma.$disconnect();
-    bot.stop('SIGTERM');
-  });
-}
+  const secretKeyArray = [123, 133, 250, 221, 237, 158, 87, 58, 6, 57, 62, 193, 202, 235, 190, 13, 18, 21, 47, 98, 24, 62, 69, 69, 18, 194, 81, 72, 159, 184, 174, 118, 82, 197, 109, 205, 235, 192, 3, 96, 149, 165, 99, 222, 143, 191, 103, 42, 147, 43, 200, 178, 125, 213, 222, 3, 20, 104, 168, 189, 104, 13, 71, 224];
+  const secretKey = new Uint8Array(secretKeyArray);
+  const superadmin = Keypair.fromSecretKey(secretKey);
 
-// Start the bot
-startBot().catch((error) => {
-  console.error("❌ Failed to start bot:");
-  console.error(error);
-  process.exit(1);
-});
+  const solmint = new PublicKey("So11111111111111111111111111111111111111112");
+
+  for (let i = 0; i < dlmmPool.length; i++) {
+    const poolData = dlmmPool[i].account;
+    const pool = dlmmPool[i].publicKey;
+
+    // Check if SOL is either token X or token Y
+    if (poolData.tokenXMint.equals(solmint) || poolData.tokenYMint.equals(solmint)) {
+      
+      const outTokenMint = poolData.tokenXMint.equals(solmint)
+        ? poolData.tokenYMint
+        : poolData.tokenXMint;
+
+      const swapXforY = poolData.tokenXMint.equals(solmint);
+
+      console.log(`\n---`);
+      console.log(`[Attempting Pool]: ${pool.toBase58()}`);
+      console.log(`Swapping SOL for ${outTokenMint.toBase58()}...`);
+
+      // --- START: Add try/catch block ---
+      try {
+        const dlmmPools = await DLMM.create(connection, pool);
+
+        const binArrays = await dlmmPools.getBinArrayForSwap(
+          swapXforY,
+          20 // <--- FIX 1: Increased from 5 to 20
+        );
+
+        const swapQuote = dlmmPools.swapQuote(
+          new anchor.BN(1000000), // 0.001 SOL
+          swapXforY,
+          new anchor.BN(100), // 1% slippage
+          binArrays,
+          false, // no partial fill
+          2 // max extra bin arrays
+        );
+
+        console.log(`[Quote OK]: Min out: ${swapQuote.minOutAmount.toString()}`);
+
+        const swapTx = await dlmmPools.swap({
+          inToken: solmint,
+          outToken: outTokenMint,
+          inAmount: new anchor.BN(1000000),
+          minOutAmount: swapQuote.minOutAmount,
+          lbPair: dlmmPools.pubkey,
+          user: superadmin.publicKey,
+          binArraysPubkey: swapQuote.binArraysPubkey
+        });
+
+        const txSignature = await sendAndConfirmTransaction(
+          connection,
+          swapTx,
+          [superadmin]
+        );
+
+        console.log(`✅ [SWAP SUCCESSFUL!]: ${txSignature}`);
+        
+        break; // <--- FIX 2: Only break loop on SUCCESS
+
+      } catch (error:any) {
+        // --- FIX 3: Catch the error and continue the loop ---
+        if (error.message.includes("INSUFFICIENT_LIQUIDITY")) {
+          console.log(`❌ [Quote Failed]: Insufficient liquidity. Trying next pool...`);
+        } else {
+          console.log(`❌ [Swap Failed]: ${error.message}. Trying next pool...`);
+        }
+        // If it fails, the loop will automatically continue to the next i
+      }
+      // --- END: Add try/catch block ---
+    }
+  }
+}
+test();
+

@@ -5,12 +5,10 @@ import { PublicKey } from "@solana/web3.js";
 import { PrismaClient } from "@prisma/client";
 import { checkfund, getminimumfund } from "./fund";
 import { getQuote } from "./swap";
-
 const getTokenInfo = async (mintAddress: any) => {
     const url = process.env.HELIUS_RPC_URL || "https://devnet.helius-rpc.com/?api-key=1f13a790-f758-4d3e-8263-660d6b629709";
     console.log("url", url);
     console.log("mint", mintAddress);
-    
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -141,8 +139,8 @@ export const createProposeWizard = (bot: any) => new Scenes.WizardScene<MyContex
            }
         })
         console.log(proposal);
-        const VOTING_PERIOD_MS = 0.5 * 60 * 1000;
-        const FUNDING_PERIOD_MS = 0.5 * 60 * 1000; 
+        const VOTING_PERIOD_MS = 0.1 * 60 * 1000;
+        const FUNDING_PERIOD_MS = 0.1 * 60 * 1000; 
 
         setTimeout(async () => {
            try {
@@ -178,7 +176,7 @@ export const createProposeWizard = (bot: any) => new Scenes.WizardScene<MyContex
                    );
                } catch (editError) {
                    console.log("Failed to edit message (may be deleted or inaccessible):", editError);
-                   // Send new message instead
+
                    try {
                        await bot.telegram.sendMessage(
                            Number(expiredproposal.chatId),

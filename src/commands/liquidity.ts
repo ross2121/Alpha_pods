@@ -38,7 +38,6 @@ function getProgram(connection: Connection, adminKeypair: Keypair): Program<Alph
   return new Program<AlphaPods>(idl as AlphaPods, provider);
 }
 
-// Step 1: Ask for mint address
 const askMintStep = async (ctx: LiquidityContext) => {
   await ctx.reply(
     "🏊 **Propose Liquidity Addition**\n\n" +
@@ -50,7 +49,7 @@ const askMintStep = async (ctx: LiquidityContext) => {
   return ctx.wizard.next();
 };
 
-// Step 2: Find pools and ask for amount
+
 const findPoolsStep = async (ctx: LiquidityContext) => {
   if (!ctx.message || !("text" in ctx.message)) {
     await ctx.reply("❌ Please provide a valid mint address.");
@@ -80,7 +79,7 @@ const findPoolsStep = async (ctx: LiquidityContext) => {
       return ctx.scene.leave();
     }
 
-    // Show pool details
+ 
     let poolMessage = `✅ Found ${matchingPairs.length} pool(s):\n\n`;
     matchingPairs.forEach((pair, index) => {
       const reserveX = parseFloat(pair.account.reserveX.toString()) / 1e9;
@@ -104,7 +103,6 @@ const findPoolsStep = async (ctx: LiquidityContext) => {
   }
 };
 
-// Step 3: Create proposal for voting
 const createProposalStep = async (ctx: LiquidityContext) => {
   if (!ctx.message || !("text" in ctx.message)) {
     await ctx.reply("❌ Please provide a valid amount.");
@@ -157,8 +155,8 @@ const createProposalStep = async (ctx: LiquidityContext) => {
         createdAt: BigInt(Date.now()),
         Votestatus: "Running",
         ProposalStatus: "Running",
-        Members: [creatorTelegramId], // Admin automatically added
-        mintb: "LIQUIDITY_PROPOSAL" // Special marker for liquidity proposals
+        Members: [creatorTelegramId],
+        mintb: "LIQUIDITY_PROPOSAL"
       }
     });
 
@@ -232,7 +230,7 @@ Members can now vote! Those who vote YES will contribute ${amount} SOL to the li
           console.error("Error checking funds:", error);
         }
       }
-    }, 0.5 * 60 * 1000); // 5 minutes
+    }, 0.1 * 60 * 1000); // 5 minutes
 
     return ctx.scene.leave();
 
@@ -484,19 +482,19 @@ const executeLiquidityOLD = async (tokenXMint: PublicKey, amount: number, chatId
     // Wrap SOL: withdraw from vault → admin wraps it → transfer to vaultb
     console.log("💧 Wrapping SOL from vault...");
     
-    // Step 1: Withdraw SOL from vault to admin
-    const withdrawTx = await program.methods
-      .withdraw(new anchor.BN(amountInLamports))
-      .accountsStrict({
-        vault: escrow_vault_pda,
-        member: adminKeypair.publicKey,
-        systemProgram: SystemProgram.programId,
-        escrow: escrowPda
-      })
-      .signers([adminKeypair])
-      .rpc();
-    await connection.confirmTransaction(withdrawTx, "confirmed");
-    console.log("✅ Withdrawn from vault:", withdrawTx);
+    // // Step 1: Withdraw SOL from vault to admin
+    // const withdrawTx = await program.methods
+    //   .withdraw(new anchor.BN(amountInLamports))
+    //   .accountsStrict({
+    //     vault: escrow_vault_pda,
+    //     member: adminKeypair.publicKey,
+    //     systemProgram: SystemProgram.programId,
+    //     escrow: escrowPda
+    //   })
+    //   .signers([adminKeypair])
+    //   .rpc();
+    // await connection.confirmTransaction(withdrawTx, "confirmed");
+    // console.log("✅ Withdrawn from vault:", withdrawTx);
     
     // Step 2: Wrap admin's SOL to WSOL
     const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminKeypair.publicKey);

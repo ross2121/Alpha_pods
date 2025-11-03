@@ -46,13 +46,13 @@ impl<'info> LPPOOl<'info>{
         let cpi_context = CpiContext::new(
             self.meteora_program.to_account_info(), 
             InitializeLbPair { 
-                lb_pair: self.lp_account.to_account_info(), // Use .to_account_info()
-                token_mint_x: self.minta.to_account_info(), // Use .to_account_info()
-                token_mint_y: self.mintb.to_account_info(), // Use .to_account_info()
-                reserve_x: self.vaulta.to_account_info(), // Use .to_account_info()
-                reserve_y: self.vaultb.to_account_info(), // Use .to_account_info()
+                lb_pair: self.lp_account.to_account_info(),
+                token_mint_x: self.minta.to_account_info(), 
+                token_mint_y: self.mintb.to_account_info(), 
+                reserve_x: self.vaulta.to_account_info(), 
+                reserve_y: self.vaultb.to_account_info(), 
                 oracle: self.oracle.to_account_info(), // Use .to_account_info()
-                preset_parameter: self.preset_parameter.to_account_info(), // Use .to_account_info()
+                preset_parameter: self.preset_parameter.to_account_info(),  
                 funder: self.member.to_account_info(), // Use .to_account_info()
                 token_program: self.token_program.to_account_info(), // Use .to_account_info()
                 system_program: self.system_program.to_account_info(), // Use .to_account_info()

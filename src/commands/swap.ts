@@ -7,12 +7,10 @@ import { AlphaPods } from "../idl/alpha_pods";
 import * as idl from "../idl/alpha_pods.json";
 import { getBestDLMMPool, executeSwapViaDLMM, getAllPoolsInfo } from "../services/dlmm_swap";
 import dotenv from "dotenv";
-
+import { temp } from "..";
 dotenv.config();
-
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
 
-// Admin keypair for signing transactions
 const secretKeyArray = [123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
 const secretKey = new Uint8Array(secretKeyArray);
 const superadmin = Keypair.fromSecretKey(secretKey);
@@ -71,10 +69,8 @@ export const getQuote = async (proposal_id: string) => {
     throw error;
   }
 };
-/**
- * Execute swap via DLMM
- */
-export const executeSwap = async (proposal_id: string, adminKeypair: Keypair): Promise<{ signature: string; outputAmount: string } | null> => {
+
+export const executeSwap = async (proposal_id: string, adminKeypair: Keypair) => {
   const prisma = new PrismaClient();
   const proposal = await prisma.proposal.findUnique({
     where: { id: proposal_id }
@@ -114,10 +110,23 @@ const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
   const amount = proposal.Members.length * proposal.amount;
   const amountInLamports = new anchor.BN(Math.floor(amount * 1e9));
 
+
+  const MIN_SWAP_AMOUNT = 1_000_000; // 0.001 SOL
+  if (amountInLamports.toNumber() < MIN_SWAP_AMOUNT) {
+    throw new Error(`Swap amount too small. Minimum: ${MIN_SWAP_AMOUNT / 1e9} SOL (${MIN_SWAP_AMOUNT} lamports), got: ${amountInLamports.toNumber()} lamports`);
+  }
+
+  console.log("🔄 Executing swap with derived PDA:", escrowPda.toString());
+  console.log("📊 Swap parameters:");
+  console.log("  - Escrow Vault PDA:", escrow_vault_pda.toString());
+  console.log("  - Token X (output):", tokenXMint.toString());
+  console.log("  - Token Y (input):", tokenYMint.toString());
+  console.log("  - Amount:", amountInLamports.toString(), "lamports", `(${amountInLamports.toNumber() / 1e9} SOL)`);
+
   const result = await executeSwapViaDLMM(
     connection,
     program,
-    new PublicKey(escrow.escrow_pda),
+    new PublicKey(escrow.escrow_pda), 
     tokenXMint,
     tokenYMint,
     amountInLamports,
@@ -127,9 +136,7 @@ const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
   return result;
 };
 
-/**
- * Handle get quote command
- */
+
 export const handleExecuteSwap = async (ctx: any) => {
   const message = ctx.message?.text;
   
@@ -192,9 +199,7 @@ Ready to execute the swap!
   }
 };
 
-/**
- * Handle actual swap execution
- */
+
 export const handleConfirmSwap = async (ctx: any) => {
   const message = ctx.message?.text;
   

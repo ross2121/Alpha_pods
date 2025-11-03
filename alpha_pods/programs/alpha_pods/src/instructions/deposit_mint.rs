@@ -4,7 +4,6 @@ use crate::{ InitializeAdmin};
 #[derive(Accounts)]
 //
 pub struct DepositMint<'info> {
-  
     #[account(mut)]
     pub member:Signer<'info>,
     #[account(mut)]

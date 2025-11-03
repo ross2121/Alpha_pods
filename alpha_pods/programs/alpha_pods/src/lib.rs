@@ -49,6 +49,7 @@ pub mod alpha_pods {
             ctx.remaining_accounts, 
             amount_in,
             min_amount_out,
+            &ctx.bumps
         )
     }
     pub fn add_postion(ctx:Context<InitializePostion>,lower_bin_id:i32,width:i32)->Result<()>{

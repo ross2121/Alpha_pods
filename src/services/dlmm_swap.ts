@@ -193,16 +193,40 @@ export async function executeSwapViaDLMM(
   adminKeypair: Keypair
 ): Promise<{ signature: string; outputAmount: string } | null> {
   try {
-      console.log("addmin",adminKeypair.publicKey);
+    console.log("🔑 Admin:", adminKeypair.publicKey.toString());
+    console.log("💰 Amount:", amountIn.toString(), "lamports");
+    console.log("🎯 Escrow PDA:", escrowPda.toString());
+    
     const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
     const DLMM_SDK = (await import('@meteora-ag/dlmm')).default;
+    
+    // Find the best pool dynamically instead of using hardcoded pool
+    console.log("🔍 Finding best DLMM pool for token pair...");
+    console.log("  Token X (want to get):", tokenXMint.toString());
+    console.log("  Token Y (paying with):", tokenYMint.toString());
+    
+    const bestPoolResult = await getBestDLMMPool(
+      connection,
+      tokenXMint,
+      tokenYMint,
+      amountIn,
+      false 
+    );
+    
+    if (!bestPoolResult) {
+      console.log("⚠️  No suitable pool found for this token pair");
+      return null;
+    }
+    
+    console.log("✅ Best pool found:", bestPoolResult.pool.publicKey.toString());
+    
     const allPairs = await DLMM_SDK.getLbPairs(connection);
-    
-    const targetPoolKey = new PublicKey("3RrtUag8F8aw6jAhTF4RxwvQmFX6KEXJUZ6zDL3eKaJE");
-    const matchingPair = allPairs.find(pair => pair.publicKey.toBase58() === targetPoolKey.toBase58());
-    
+    const matchingPair = allPairs.find(pair => 
+      pair.publicKey.toBase58() === bestPoolResult.pool.publicKey.toBase58()
+    );
+     
     if (!matchingPair) {
-      console.log("⚠️  No matching pair found");
+      console.log("⚠️  Could not fetch pool data");
       return null;
     }
     console.log("mathc",matchingPair)
@@ -246,11 +270,10 @@ export async function executeSwapViaDLMM(
       );
       await sendAndConfirmTransaction(connection, createVaultbTx, [adminKeypair]);
     }
-
-    // Wrap SOL to WSOL and transfer to appropriate vault
     console.log("\n🔄 Wrapping SOL to WSOL...");
+    console.log("soool",adminKeypair.publicKey);
     const wsolAccount = await getAssociatedTokenAddress(NATIVE_MINT, adminKeypair.publicKey);
-    
+     
     const wrapTransaction = new Transaction();
     const wsolAccountInfo = await connection.getAccountInfo(wsolAccount);
     if (!wsolAccountInfo) {
@@ -288,28 +311,84 @@ export async function executeSwapViaDLMM(
       wsolAccount,
       targetVault,
       adminKeypair,
-      1
+      amountIn.toNumber()
     );
 
-    let pool = deriveBinArray(matchingPair.publicKey, binIdToBinArrayIndex(new anchor.BN(matchingPair.account.activeId)), METORA_PROGRAM_ID);
+    // Get bin arrays needed for the swap using DLMM SDK
+    console.log("\n🔍 Getting bin arrays for swap...");
+    const swapYtoX = tokenYMint.equals(NATIVE_MINT);
+    
+    // Create DLMM instance
+    const dlmmPool = await DLMM_SDK.create(connection, matchingPair.publicKey);
+    
+    // Get active bin arrays from the pool state
+    const activeBinId = matchingPair.account.activeId;
+    console.log("Active Bin ID:", activeBinId);
+    
+    // Fetch bin arrays - we need to provide bin arrays that have liquidity
+    // The DLMM swap traverses bins, so we need to check which bin arrays exist
+    const activeBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(activeBinId));
+    const baseIndex = typeof activeBinArrayIndex === 'number' ? activeBinArrayIndex : activeBinArrayIndex.toNumber();
+    
+    // Query multiple bin arrays and check which ones exist
+    const binArrayIndicesToCheck = [];
+    for (let i = -5; i <= 5; i++) {
+      binArrayIndicesToCheck.push(baseIndex + i);
+    }
+    
+    const binArrayPubkeys: PublicKey[] = [];
+    for (const index of binArrayIndicesToCheck) {
+      const [binArrayPda] = deriveBinArray(
+        matchingPair.publicKey,
+        new anchor.BN(index),
+        METORA_PROGRAM_ID
+      );
+      
+      // Check if this bin array exists on-chain
+      try {
+        const accountInfo = await connection.getAccountInfo(binArrayPda);
+        if (accountInfo) {
+          binArrayPubkeys.push(binArrayPda);
+          console.log(`✓ Bin Array Index ${index} exists`);
+        }
+      } catch (e) {
+        // Bin array doesn't exist, skip it
+      }
+    }
 
-    const activeBinArrayAccountMeta = {
-      pubkey: pool[0],
+    console.log(`📊 Found ${binArrayPubkeys.length} initialized bin arrays`);
+    
+    const binArrayAccounts = binArrayPubkeys.map((pubkey: PublicKey) => ({
+      pubkey,
       isSigner: false,
-      isWritable: true, 
-    };
+      isWritable: true,
+    }));
+
+    console.log("Bin Array Addresses:", binArrayAccounts.map((a: any) => a.pubkey.toString()));
+
     const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
 
+    // Derive the bitmap extension account
+    const [bitmapExtension] = PublicKey.findProgramAddressSync(
+      [Buffer.from("bitmap"), matchingPair.publicKey.toBuffer()],
+      METORA_PROGRAM_ID
+    );
+
     console.log("\n🚀 Executing swap transaction...");
+    console.log("Bitmap Extension:", bitmapExtension.toString());
+    console.log("Bin Arrays:", binArrayAccounts.map(a => a.pubkey.toString()));
     console.log("vai",vaulta);
     console.log("dasd",vaulta);
     console.log("dasdd",escrowPda);
 
+    // Calculate minimum output with 1% slippage tolerance
+    const minOutAmount = new anchor.BN(0); // Set to 0 for now, can calculate based on reserves
+
     const txSignature = await program.methods
-      .swap(amountIn, new anchor.BN(0))
+      .swap(amountIn, minOutAmount)
       .accountsStrict({
         lbPair: matchingPair.publicKey,
-        binArrayBitmapExtension: null,
+        binArrayBitmapExtension:null,
         reserveX: matchingPair.account.reserveX,
         reserveY: matchingPair.account.reserveY,
         userTokenIn: vaultb,
@@ -327,7 +406,7 @@ export async function executeSwapViaDLMM(
         tokenYProgram: TOKEN_PROGRAM_ID,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .remainingAccounts([activeBinArrayAccountMeta])
+      .remainingAccounts(binArrayAccounts)
       .rpc();
 
     console.log("✅ Swap successful!");
