@@ -7,6 +7,7 @@ import * as idl from "../idl/alpha_pods.json";
 import { PrismaClient } from "@prisma/client";
 import { AlphaPods } from "../idl/alpha_pods";
 import { keyboard } from "telegraf/typings/markup";
+import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 dotenv.config();
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
 const secretKeyArray=[123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
@@ -143,6 +144,71 @@ console.log("check1");
   return sig;
 };
 
+export const withdraw=async(userid:string,escrow_id:string)=>{
+  const prisma=new PrismaClient();
+  const Deposit=await prisma.deposit.findMany({
+      where:{
+          id:userid
+      }
+  })
+  const escrow=await prisma.escrow.findUnique({
+    where:{
+      id:escrow_id
+    }
+  });
+  if(!escrow){
+    return;
+  }
+  const  escrow_pda=new PublicKey(escrow.escrow_pda);
+  const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("vault"),
+      escrow_pda.toBuffer()
+    ],
+    program.programId
+  )
+const user=await prisma.user.findUnique({
+  where:{
+    id:userid
+  }
+})
+if(!user){
+  return;
+}
+  for(let i=0;i<Deposit.length;i++){
+     const mint=Deposit[i].mint;
+     if(mint==""){
+       const tx=await program.methods.withdraw(new anchor.BN(Deposit[i].amount)).accountsStrict({
+        member:user.public_key,
+        escrow:escrow.escrow_pda,
+        vault:escrow_vault_pda,
+        systemProgram:SystemProgram.programId
+       }).rpc();
+       await prisma.deposit.update({
+        where:{
+          id:Deposit[i].id
+        },data:{
+          amount:0
+        }
+       })
+       console.log("txn",tx)
+     }else{
+      const mint=new PublicKey(Deposit[i].mint||"");
+      const vault_mint=await getAssociatedTokenAddress(mint,escrow_pda,false);
+      const user_mint=await getAssociatedTokenAddress(mint,new PublicKey(user.public_key));
+        const tx=await program.methods.withdrawMint(new anchor.BN(Deposit[i].amount)).accountsStrict({
+          member:user.public_key,
+          escrow:escrow.escrow_pda,
+          vault:vault_mint,
+          tokenProgram:TOKEN_PROGRAM_ID,
+          systemProgram:SystemProgram.programId,
+          mint:Deposit[i].mint || "",
+          memberAta:user_mint
+        }).rpc();
+        console.log("tsx mint",tx)
+      }
+  }
+}
 // export const withdraw = async (amount: anchor.BN, member: Keypair, chatid: BigInt) => {
 //   const escrowRow = await prisma.escrow.findUnique({
 //     where: {
