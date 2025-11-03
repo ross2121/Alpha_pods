@@ -14,6 +14,7 @@ import {
 } from "./commands/group";
 import { handleStart } from "./commands/start";
 import { executedSwapProposal, getQuote, handlswap } from "./commands/swap";
+import { handleWallet, handleWithdrawWallet, handleExportKeyWallet } from "./commands/wallet";
 import { 
     createLiquidityWizard, 
     handleViewPositions, 
@@ -62,7 +63,7 @@ const mainKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback("Swap", "Swap")],
     [Markup.button.callback("Propose", "propose")],
     [Markup.button.callback("🔄 Swap Tokens", "swap_tokens")],
-    [Markup.button.callback("💼 Manage Wallet", "manage_wallet")],
+    [Markup.button.callback("💼 Wallet", "wallet_button")],
     [Markup.button.callback("🏊 Add Liquidity", "add_liquidity")],
     [Markup.button.callback("📊 View Positions", "view_positions")],
     [Markup.button.callback("🔒 Close Position", "close_position")]
@@ -298,6 +299,17 @@ bot.command("export_key", user_middleware, async (ctx) => {
     await ctx.reply(`❌ Failed to export key: ${error.message || "Unknown error"}`);
   }
 });
+
+// Wallet command and actions
+bot.command("wallet", user_middleware, handleWallet);
+bot.action(/withdraw_wallet:(.+)/, user_middleware, handleWithdrawWallet);
+bot.action(/export_key_wallet:(.+)/, user_middleware, handleExportKeyWallet);
+
+bot.action("wallet_button", user_middleware, async (ctx) => {
+  await ctx.answerCbQuery();
+  await handleWallet(ctx);
+});
+
 bot.action("market_info", async (ctx) => {
   await ctx.answerCbQuery();
   await handleMarket(ctx);

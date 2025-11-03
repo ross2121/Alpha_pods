@@ -118,6 +118,8 @@ export const deposit = async (amountInSol: number, member: Keypair, chatid: BigI
     },
   });
 console.log("check1");
+
+
   if (!deposit) {
     await prisma.deposit.create({
       data: {
@@ -226,18 +228,23 @@ const userdeposit=await prisma.deposit.findMany({
 if(!userdeposit){
   return;
 }
-const map=new Map();
+const map=new Map<string, number>();
 for(let i=0;i<userdeposit.length;i++){
   const mint=userdeposit[i].mint;
-  if(mint==""){
-    map.set("SOl",userdeposit[i].amount)
+  const amount=userdeposit[i].amount;
+  if(!mint || mint==""){
+    // Accumulate SOL amounts
+    const currentSol = map.get("SOL") || 0;
+    map.set("SOL", currentSol + amount);
   }else{
-    map.set(userdeposit[i].mint,userdeposit[i].amount)
+    // Accumulate token amounts
+    const currentAmount = map.get(mint) || 0;
+    map.set(mint, currentAmount + amount);
   }
 }
 return map;
-
 }
+
 // export const withdraw = async (amount: anchor.BN, member: Keypair, chatid: BigInt) => {
 //   const escrowRow = await prisma.escrow.findUnique({
 //     where: {

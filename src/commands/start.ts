@@ -28,6 +28,7 @@ Your decentralized group treasury management solution on Solana.
 • \`/execute_liquidity\` - Execute liquidity operations (Admin only)
 
 **💰 Treasury & Wallet:**
+• \`/wallet\` - View your wallet balance and manage funds
 • \`/fund\` - View minimum funding requirements
 • \`/withdraw <amount>\` - Withdraw SOL from escrow vault
 • \`/export_key\` - Export your private key (secure)
