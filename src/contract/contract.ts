@@ -78,6 +78,7 @@ export const deposit = async (amountInSol: number, member: Keypair, chatid: BigI
       chatId: Number(chatid),
     },
   });
+  console.log("eccsadass");
   const user=await prisma.user.findUnique({
     where:{
       id:userid
@@ -105,7 +106,7 @@ export const deposit = async (amountInSol: number, member: Keypair, chatid: BigI
     })
     .signers([member])
     .rpc();
-  
+  console.log("tx",sig);
   const deposit = await prisma.deposit.findUnique({
     where: {
      telegram_id_escrowId_mint:{
@@ -115,7 +116,7 @@ export const deposit = async (amountInSol: number, member: Keypair, chatid: BigI
      }
     },
   });
-
+console.log("check1");
   if (!deposit) {
     await prisma.deposit.create({
       data: {

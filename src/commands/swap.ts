@@ -252,52 +252,70 @@ export const getQuote = async (proposal_id: string) => {
 //     await ctx.reply("❌ Swap execution failed. Error: " + (error as Error).message);
 //   }
 // };
-export const getfund=async(proposalid:string)=>{
-const prisma=new PrismaClient();
-const proposal=await prisma.proposal.findUnique({
-  where:{
-    id:proposalid
-  }
-});
-if(!proposal){
-  return;
-}
-const escrow=await prisma.escrow.findFirst({
-  where:{
-     chatId:Number(proposal.chatId)
-  }
-})
-if(!escrow){
-  return;
-}
-for(let i=0;i<proposal.Members.length;i++){
-  const deposits = await prisma.deposit.findFirst({
+export const getfund = async (proposalid: string) => {
+  const prisma = new PrismaClient();
+  const proposal = await prisma.proposal.findUnique({
     where: {
-      telegram_id: proposal.Members[i],
-      escrowId: escrow.id,
-      mint: ""
+      id: proposalid
     }
-  })
-  if(!deposits){
+  });
+  
+  if (!proposal) {
     return;
   }
-  if(deposits?.amount>proposal.amount){
-     return;
-  }
-  const amount=proposal.amount-deposits.amount;
-  const user=await prisma.user.findUnique({
-    where:{
-      telegram_id:proposal.Members[i]
+  
+  const escrow = await prisma.escrow.findFirst({
+    where: {
+      chatId: Number(proposal.chatId)
     }
-  })
- if(!user){
-  return;
- }
-  const private_key=decryptPrivateKey(user?.encrypted_private_key,user?.encryption_iv)
-  const keypair=Keypair.fromSecretKey(private_key)
-  await deposit(amount,keypair,proposal.chatId,user.id);
-}
-}
+  });
+  
+  if (!escrow) {
+    return;
+  }
+  
+  for (let i = 0; i < proposal.Members.length; i++) {
+    const deposits = await prisma.deposit.findFirst({
+      where: {
+        telegram_id: proposal.Members[i],
+        escrowId: escrow.id,
+        mint: ""
+      }
+    });
+  
+    let amount: number;
+    
+    if (!deposits) {
+      amount = proposal.amount;
+    } else if (deposits.amount >= proposal.amount) {
+
+      continue;
+    } else {
+      amount = proposal.amount - deposits.amount;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: {
+        telegram_id: proposal.Members[i]
+      }
+    });
+    
+    if (!user) {
+      console.log(`User not found for telegram_id: ${proposal.Members[i]}`);
+      continue;
+    }
+    
+    try {
+      const private_key = decryptPrivateKey(user.encrypted_private_key, user.encryption_iv);
+      const keypair = Keypair.fromSecretKey(private_key);
+      await deposit(amount, keypair, proposal.chatId, user.id);
+      console.log(`✓ Deposited ${amount} SOL for user ${user.telegram_id}`);
+    } catch (e) {
+      console.log(`❌ Error depositing for user ${user.telegram_id}:`, e);
+      // Continue to next user even if this one fails
+    }
+  }
+};
 export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=>{
    const tokenxmint=NATIVE_MINT;
    const connection=new Connection("https://api.devnet.solana.com");
@@ -312,7 +330,6 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
      program.programId
    );
    console.log("escorw vault",escrow_vault_pda);
-   
    let poolsAttempted = 0;
    let poolsChecked = 0;
    const MIN_POOLS_TO_CHECK = 30;
@@ -321,16 +338,14 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
    console.log(`\n🔍 Searching through ${dlmm.length} total pools...`);
    
   for(let i=0;i<dlmm.length;i++){
-   
+    
     if((dlmm[i].account.tokenXMint.equals(tokenxmint) && dlmm[i].account.tokenYMint.equals(token_y)) || (dlmm[i].account.tokenYMint.equals(NATIVE_MINT) && dlmm[i].account.tokenXMint.equals(token_y))){
       console.log("2");
       poolsChecked++;
       poolsAttempted++;
       const istokenx=dlmm[i].account.tokenXMint.equals(NATIVE_MINT);
       const swapXforY=istokenx;
-      
       console.log(`\n[Pool ${poolsChecked}/${MIN_POOLS_TO_CHECK}] Checking: ${dlmm[i].publicKey.toBase58()}`);
-      
       try{
          const pool=await DLMM.create(connection,dlmm[i].publicKey);
          const binArrays=await pool.getBinArrayForSwap(swapXforY, 20);
@@ -387,10 +402,15 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
         .remainingAccounts(binArrayAccounts)
         .rpc();
         
-     console.log(`\n✅ SWAP SUCCESSFUL!`);
+     console.log(`\n SWAP SUCCESSFUL!`);
      console.log(`Transaction: ${swapTx}`);
+      const amount_out=(swapQuote.outAmount.toNumber() / 1e9).toFixed(6);
      console.log(`Pool: ${dlmm[i].publicKey.toBase58()}`);
-     return swapTx;
+     return {
+      txn:swapTx,
+      amount_out:Number(amount_out)*1000,
+      amount_in:amount
+     }
      
       }catch(e: any){
         const errorMsg = e?.message || e?.toString() || "Unknown error";
@@ -430,6 +450,7 @@ export const executedSwapProposal=async(proposal_id:string)=>{
       if(!escrow){
         return;
       }
+     
       await getfund(proposal_id);
       const totalamount=proposal.Members.length*proposal.amount;
       const swapResult=await handlswap(
@@ -437,13 +458,19 @@ export const executedSwapProposal=async(proposal_id:string)=>{
         totalamount*LAMPORTS_PER_SOL,
         escrow.escrow_pda
       );
+
+      for (const memberId of proposal.Members) {
+        await updatebalance(swapResult.amount_out, swapResult.amount_in, proposal_id, memberId);
+      }
+      
+      console.log("swapresd",swapResult)
       await prisma.proposal.delete({where:{
         id:proposal.id
       }});
       return {
         success: true,
         message: "Swap executed successfully!",
-        transaction: swapResult
+        transaction: swapResult.txn,
       };
   }catch(error:any){
      console.log("Execute Swap error");
@@ -454,14 +481,92 @@ export const executedSwapProposal=async(proposal_id:string)=>{
     message: "Not found"
   };
 }
-export const updatebalance=async(mint:string,amount:string,proposal_id:string)=>{
+export const updatebalance=async(amount_out:number,amount_in:number,proposal_id:string,telegram_id:string)=>{
 const prisma=new PrismaClient();
 const proposal=await prisma.proposal.findUnique({
   where:{
     id:proposal_id
   }
 })
+
 if(!proposal){
-  return;''
+  return;
 }
+const escrow=await prisma.escrow.findUnique({
+  where:{
+    chatId:proposal.chatId
+  }
+})
+if(!escrow){
+  return;
+}
+
+const user=await prisma.user.findUnique({
+  where:{
+    telegram_id:telegram_id
+  }
+})
+if(!user){
+  return;
+}
+const solSpentPerMember = amount_in / (proposal.Members.length * LAMPORTS_PER_SOL); 
+const tokensReceivedPerMember = amount_out / proposal.Members.length;
+
+
+const deposit=await prisma.deposit.findUnique({
+  where:{
+    telegram_id_escrowId_mint:{
+       telegram_id:telegram_id,
+       escrowId:escrow.id,
+       mint:""
+    }
+  }
+})
+if(deposit){
+  await prisma.deposit.update({
+    where:{
+     id:deposit.id
+    },
+    data:{
+      amount:{
+        decrement: solSpentPerMember
+      }
+    }
+  })
+}
+
+const token_deposit=await prisma.deposit.findUnique({
+  where:{
+    telegram_id_escrowId_mint:{
+      telegram_id:telegram_id,
+      mint:proposal.mint,
+      escrowId:escrow.id
+    }
+  }
+})
+
+if(token_deposit){
+  await prisma.deposit.update({
+    where:{
+      id:token_deposit.id
+    },
+    data:{
+      amount:{
+        increment: tokensReceivedPerMember
+      }
+    }
+  })
+} else {
+
+  await prisma.deposit.create({
+    data:{
+      telegram_id:telegram_id,
+      escrowId:escrow.id,
+      mint:proposal.mint,
+      amount: tokensReceivedPerMember,
+      userId:user.id
+    }
+  })
+}
+
 }
