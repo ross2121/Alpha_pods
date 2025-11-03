@@ -217,6 +217,15 @@ export const createProposeWizard = (bot: any) => new Scenes.WizardScene<MyContex
                           const quoteButton = Markup.inlineKeyboard([
                               Markup.button.callback('🚀 Get Best DLMM Pool', `get_quote:${fundedProposal.id}`)
                           ]);
+                          if(fundedProposal.Members.length==0){
+                             const message="0 members have appropiate funds";
+                            await bot.telegram.sendMessage(
+                                Number(fundedProposal.chatId),
+                                message,
+                                // { ...quoteButton, parse_mode: 'Markdown' }
+                            );
+                            return;
+                          }
 
                           const confirmationMessage = `
 📊 **Funding Period Complete!**

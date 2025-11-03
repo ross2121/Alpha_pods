@@ -21,6 +21,7 @@ model User {
   role                  Role
   encrypted_private_key String
   encryption_iv         String
+  deposits     Deposit[] 
 }
 
 model Proposal {
@@ -38,7 +39,6 @@ model Proposal {
   Votestatus     Status
   ProposalStatus Status
   Members        String[]
-
   @@unique([chatId, messagId])
 }
 
@@ -59,13 +59,15 @@ model Escrow {
 
 model Deposit {
   id        String @id @unique @default(uuid())
-  publicKey String
+  telegram_id String
   amount    Float
   mint      String?
   escrowId  String
+    userId      String
   escrow    Escrow @relation(fields: [escrowId], references: [id])
-  
-  @@unique([publicKey, escrowId, mint])
+  user        User    @relation(fields: [userId], references: [id])
+ 
+  @@unique([telegram_id, escrowId, mint])
 }
 
 model LiquidityPosition {

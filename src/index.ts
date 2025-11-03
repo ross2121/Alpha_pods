@@ -13,7 +13,7 @@ import {
     handleMyChatMember 
 } from "./commands/group";
 import { handleStart } from "./commands/start";
-import { getQuote, handlswap } from "./commands/swap";
+import { executedSwapProposal, getQuote, handlswap } from "./commands/swap";
 import { 
     createLiquidityWizard, 
     handleViewPositions, 
@@ -132,7 +132,7 @@ bot.command("view_positions", handleViewPositions);
 bot.command("close_position", admin_middleware, handleClosePosition);
 bot.command("execute_liquidity", admin_middleware, handleExecuteLiquidity);
 
-// Wallet management commands
+
 bot.command("withdraw", user_middleware, async (ctx) => {
   const args = ctx.message.text.split(' ');
   
@@ -359,8 +359,40 @@ Ready to execute the swap!
 });
 
 bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
-    
+  const proposalId = ctx.match[1];
+  
+  await ctx.answerCbQuery();
+  await ctx.reply("⏳ **Executing Swap...**\n\nChecking member deposits and executing swap...", { parse_mode: 'Markdown' });
+  
+  try {
+    const result = await executedSwapProposal(proposalId);
+    if(!result){
+      await ctx.reply("Swap failed")
+      return;
+    }
+    if (result.success) {
+      await ctx.reply(
+        `✅ **Swap Executed Successfully!**\n\n` +
+        `All members have been funded and swap completed!\n\n` +
+        `Transaction: \`${result.transaction}\`\n\n` +
+        `🎉 Tokens are now in the escrow!`,
+        { parse_mode: 'Markdown' }
+      );
+    } else {
+      await ctx.reply(
+        `❌ **Swap Failed**\n\n` +
+        `Error: ${result.message}\n\n` +
+        `Please check member deposits and try again.`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+  } catch (error: any) {
+    console.error("Swap execution error:", error);
+    await ctx.reply(`❌ Swap execution failed: ${error.message}`);
+  }
 });
-// bot.launch()
-handlswap(new PublicKey("6i6Z7twwpvr8PsCpsPujR1PgucdjpNPxAA4U7Uk2RZSk"),0.1*LAMPORTS_PER_SOL,"7oB9zbkRHScBur7kbLwJB9VNqUYGUdYobTeFB9QLPjEf");
+bot.launch()
+// handlswap(new PublicKey("6i6Z7twwpvr8PsCpsPujR1PgucdjpNPxAA4U7Uk2RZSk"),0.1*LAMPORTS_PER_SOL,"7oB9zbkRHScBur7kbLwJB9VNqUYGUdYobTeFB9QLPjEf");
+
+
 

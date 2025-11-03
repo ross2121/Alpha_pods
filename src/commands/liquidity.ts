@@ -741,8 +741,8 @@ export const handleExecuteLiquidity = async (ctx: Context) => {
         const keypair = Keypair.fromSecretKey(privatekey);
         
         // deposit() now accepts SOL directly
-        const sig = await deposit(updatedProposal.amount, keypair, updatedProposal.chatId);
-        console.log(`✅ Collected ${updatedProposal.amount} SOL from member ${memberTelegramId}, tx: ${sig}`);
+        const sig = await deposit(updatedProposal.amount, keypair, updatedProposal.chatId,user.id);
+        // console.log(`✅ Collected ${updatedProposal.amount} SOL from member ${memberTelegramId}, tx: ${sig}`);
         successfulDeposits++;
         
       } catch (error: any) {

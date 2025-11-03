@@ -72,25 +72,29 @@ const lamportsToSol = (lamports: anchor.BN): number => {
   return lamports.toNumber() / LAMPORTS_PER_SOL;
 };
 
-export const deposit = async (amountInSol: number, member: Keypair, chatid: BigInt) => {
+export const deposit = async (amountInSol: number, member: Keypair, chatid: BigInt,userid:string) => {
   const escrowRow = await prisma.escrow.findUnique({
     where: {
       chatId: Number(chatid),
     },
   });
+  const user=await prisma.user.findUnique({
+    where:{
+      id:userid
+    }
+  })
+  if(!user){
+    return;
+  }
   if (!escrowRow) {
     throw new Error("Escrow not found for chatId");
   }
-
   const escrowPda = new PublicKey(escrowRow.escrow_pda);
   const [escrowVaultPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("vault"), escrowPda.toBuffer()],
     program.programId
   );
-  
-  // Convert SOL to lamports for the contract call
   const amountInLamports = new anchor.BN(Math.floor(amountInSol * anchor.web3.LAMPORTS_PER_SOL));
-  
   const sig = await program.methods
     .deposit(amountInLamports)
     .accountsStrict({
@@ -104,21 +108,22 @@ export const deposit = async (amountInSol: number, member: Keypair, chatid: BigI
   
   const deposit = await prisma.deposit.findUnique({
     where: {
-      publicKey_escrowId_mint: {
-        publicKey: member.publicKey.toString(),
-        escrowId: escrowRow.id,
-        mint: "", 
-      },
+     telegram_id_escrowId_mint:{
+      telegram_id:user.telegram_id,
+      escrowId:escrowRow.id,
+      mint:""
+     }
     },
   });
 
   if (!deposit) {
     await prisma.deposit.create({
       data: {
-        publicKey: member.publicKey.toString(),
+        telegram_id:user.telegram_id,
         amount: parseFloat(amountInSol.toFixed(9)),
         mint: "",
         escrowId: escrowRow.id,
+        userId:user.id
       },
     });
   } else {
@@ -137,67 +142,67 @@ export const deposit = async (amountInSol: number, member: Keypair, chatid: BigI
   return sig;
 };
 
-export const withdraw = async (amount: anchor.BN, member: Keypair, chatid: BigInt) => {
-  const escrowRow = await prisma.escrow.findUnique({
-    where: {
-      chatId: Number(chatid),
-    },
-  });
-  if (!escrowRow) {
-    throw new Error("Escrow not found for chatId");
-  }
+// export const withdraw = async (amount: anchor.BN, member: Keypair, chatid: BigInt) => {
+//   const escrowRow = await prisma.escrow.findUnique({
+//     where: {
+//       chatId: Number(chatid),
+//     },
+//   });
+//   if (!escrowRow) {
+//     throw new Error("Escrow not found for chatId");
+//   }
 
-  const escrowPda = new PublicKey(escrowRow.escrow_pda);
-  const [escrowVaultPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("vault"), escrowPda.toBuffer()],
-    program.programId
-  );
-  const sig = await program.methods
-    .withdraw(amount)
-    .accountsStrict({
-      member: member.publicKey,
-      vault: escrowVaultPda,
-      escrow: escrowPda,
-      systemProgram: SystemProgram.programId,
-    })
-    .signers([member])
-    .rpc();
+//   const escrowPda = new PublicKey(escrowRow.escrow_pda);
+//   const [escrowVaultPda] = PublicKey.findProgramAddressSync(
+//     [Buffer.from("vault"), escrowPda.toBuffer()],
+//     program.programId
+//   );
+//   const sig = await program.methods
+//     .withdraw(amount)
+//     .accountsStrict({
+//       member: member.publicKey,
+//       vault: escrowVaultPda,
+//       escrow: escrowPda,
+//       systemProgram: SystemProgram.programId,
+//     })
+//     .signers([member])
+//     .rpc();
 
-  const amountInSol = lamportsToSol(amount);
+//   const amountInSol = lamportsToSol(amount);
 
-  const deposit = await prisma.deposit.findUnique({
-    where: {
-      publicKey_escrowId_mint: {
-        publicKey: member.publicKey.toString(),
-        escrowId: escrowRow.id,
-        mint: "",
-      },
-    },
-  });
+//   const deposit = await prisma.deposit.findUnique({
+//     where: {
+//       telegram_id_escrowId_mint: {
+//         publicKey: member.publicKey.toString(),
+//         escrowId: escrowRow.id,
+//         mint: "",
+//       },
+//     },
+//   });
 
-  if (!deposit) {
-    throw new Error("Withdrawal succeeded but no deposit record found in DB.");
-  }
+//   if (!deposit) {
+//     throw new Error("Withdrawal succeeded but no deposit record found in DB.");
+//   }
 
-  if (deposit.amount < amountInSol) {
+//   if (deposit.amount < amountInSol) {
 
-    throw new Error(
-      `DB sync error: Withdrawal amount (${amountInSol}) is greater than DB balance (${deposit.amount})`
-    );
-  }
+//     throw new Error(
+//       `DB sync error: Withdrawal amount (${amountInSol}) is greater than DB balance (${deposit.amount})`
+//     );
+//   }
 
 
-  await prisma.deposit.update({
-    where: {
-      id: deposit.id,
-    },
-    data: {
-      amount: {
-        decrement: amountInSol, 
-      },
-    },
-  });
+//   await prisma.deposit.update({
+//     where: {
+//       id: deposit.id,
+//     },
+//     data: {
+//       amount: {
+//         decrement: amountInSol, 
+//       },
+//     },
+//   });
 
-  return sig;
-};
+//   return sig;
+// };
 

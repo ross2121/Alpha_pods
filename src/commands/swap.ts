@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import * as anchor from "@coral-xyz/anchor";
-import { Connection, PublicKey, Keypair, SystemProgram } from "@solana/web3.js";
+import { Connection, PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { getAssociatedTokenAddress, NATIVE_MINT, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Program, AnchorProvider } from "@coral-xyz/anchor";
 import { AlphaPods } from "../idl/alpha_pods";
@@ -8,6 +8,9 @@ import * as idl from "../idl/alpha_pods.json";
 import { getBestDLMMPool, getAllPoolsInfo } from "../services/dlmm_swap";
 import dotenv from "dotenv";
 import DLMM, { deriveEventAuthority } from "@meteora-ag/dlmm";
+import { deposit } from "../contract/contract";
+import { decryptPrivateKey } from "../services/auth";
+import { transaction } from "./txn";
 dotenv.config();
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
 
@@ -249,6 +252,52 @@ export const getQuote = async (proposal_id: string) => {
 //     await ctx.reply("❌ Swap execution failed. Error: " + (error as Error).message);
 //   }
 // };
+export const getfund=async(proposalid:string)=>{
+const prisma=new PrismaClient();
+const proposal=await prisma.proposal.findUnique({
+  where:{
+    id:proposalid
+  }
+});
+if(!proposal){
+  return;
+}
+const escrow=await prisma.escrow.findFirst({
+  where:{
+     chatId:Number(proposal.chatId)
+  }
+})
+if(!escrow){
+  return;
+}
+for(let i=0;i<proposal.Members.length;i++){
+  const deposits = await prisma.deposit.findFirst({
+    where: {
+      telegram_id: proposal.Members[i],
+      escrowId: escrow.id,
+      mint: ""
+    }
+  })
+  if(!deposits){
+    return;
+  }
+  if(deposits?.amount>proposal.amount){
+     return;
+  }
+  const amount=proposal.amount-deposits.amount;
+  const user=await prisma.user.findUnique({
+    where:{
+      telegram_id:proposal.Members[i]
+    }
+  })
+ if(!user){
+  return;
+ }
+  const private_key=decryptPrivateKey(user?.encrypted_private_key,user?.encryption_iv)
+  const keypair=Keypair.fromSecretKey(private_key)
+  await deposit(amount,keypair,proposal.chatId,user.id);
+}
+}
 export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=>{
    const tokenxmint=NATIVE_MINT;
    const connection=new Connection("https://api.devnet.solana.com");
@@ -262,14 +311,30 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
      ],
      program.programId
    );
+   console.log("escorw vault",escrow_vault_pda);
+   
+   let poolsAttempted = 0;
+   let poolsChecked = 0;
+   const MIN_POOLS_TO_CHECK = 30;
+   const errors: string[] = [];
+   
+   console.log(`\n🔍 Searching through ${dlmm.length} total pools...`);
+   
   for(let i=0;i<dlmm.length;i++){
+   
     if((dlmm[i].account.tokenXMint.equals(tokenxmint) && dlmm[i].account.tokenYMint.equals(token_y)) || (dlmm[i].account.tokenYMint.equals(NATIVE_MINT) && dlmm[i].account.tokenXMint.equals(token_y))){
+      console.log("2");
+      poolsChecked++;
+      poolsAttempted++;
       const istokenx=dlmm[i].account.tokenXMint.equals(NATIVE_MINT);
       const swapXforY=istokenx;
+      
+      console.log(`\n[Pool ${poolsChecked}/${MIN_POOLS_TO_CHECK}] Checking: ${dlmm[i].publicKey.toBase58()}`);
+      
       try{
          const pool=await DLMM.create(connection,dlmm[i].publicKey);
          const binArrays=await pool.getBinArrayForSwap(swapXforY, 20);
-         const swapQuote = await pool.swapQuote(
+         const swapQuote =pool.swapQuote(
           new anchor.BN(amount),
           swapXforY,
           new anchor.BN(100),
@@ -277,7 +342,9 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
           false,
           2
          );
-         console.log("swapquote",swapQuote); 
+         
+         console.log(`✓ Quote successful: ${(swapQuote.minOutAmount.toNumber() / 1e9).toFixed(6)} tokens`); 
+         
          const vaulta = await getAssociatedTokenAddress(dlmm[i].account.tokenXMint, escrowPda, true);
          const vaultb = await getAssociatedTokenAddress(dlmm[i].account.tokenYMint, escrowPda, true);
          const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
@@ -289,6 +356,9 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
         const userTokenIn = swapXforY ? vaulta : vaultb;
         const userTokenOut = swapXforY ? vaultb : vaulta;
         const bitmapExtensionToUse = null;
+        
+        console.log(`🔄 Executing swap transaction...`);
+        
         const swapTx = await program.methods
         .swap(new anchor.BN(amount), swapQuote.minOutAmount)
         .accountsStrict({
@@ -317,11 +387,81 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
         .remainingAccounts(binArrayAccounts)
         .rpc();
         
-     console.log("tx",swapTx);
-      }catch(e){
-        console.error("Swap error:", e);
+     console.log(`\n✅ SWAP SUCCESSFUL!`);
+     console.log(`Transaction: ${swapTx}`);
+     console.log(`Pool: ${dlmm[i].publicKey.toBase58()}`);
+     return swapTx;
+     
+      }catch(e: any){
+        const errorMsg = e?.message || e?.toString() || "Unknown error";
+        console.error(`❌ Pool ${poolsChecked} failed: ${errorMsg.slice(0, 80)}`);
+        errors.push(`Pool ${poolsChecked}: ${errorMsg.slice(0, 100)}`);
+        continue;
       }
     }
   }
+  
+  console.error(`\n❌ SWAP FAILED after checking ${poolsAttempted} pools`);
+  console.error(`\nErrors encountered:`);
+  errors.forEach(err => console.error(`  - ${err}`));
+  
+  throw new Error(
+    `No suitable pool found after checking ${poolsAttempted} pools. ` +
+    `Common issues: insufficient liquidity, pool requires bitmap extension, or token not supported on devnet. ` +
+    `Try with a different token or on mainnet.`
+  );
 }
-
+export const executedSwapProposal=async(proposal_id:string)=>{
+  const prisma=new PrismaClient();
+  try{
+      const proposal=await prisma.proposal.findUnique({
+        where:{
+          id:proposal_id
+        }
+      });
+      if(!proposal){
+        return;
+      }
+      const escrow=await prisma.escrow.findUnique({
+        where:{
+          chatId:proposal.chatId
+        }
+      });
+      if(!escrow){
+        return;
+      }
+      await getfund(proposal_id);
+      const totalamount=proposal.Members.length*proposal.amount;
+      const swapResult=await handlswap(
+        new PublicKey(proposal.mint),
+        totalamount*LAMPORTS_PER_SOL,
+        escrow.escrow_pda
+      );
+      await prisma.proposal.delete({where:{
+        id:proposal.id
+      }});
+      return {
+        success: true,
+        message: "Swap executed successfully!",
+        transaction: swapResult
+      };
+  }catch(error:any){
+     console.log("Execute Swap error");
+    
+  }
+  return {
+    success: false,
+    message: "Not found"
+  };
+}
+export const updatebalance=async(mint:string,amount:string,proposal_id:string)=>{
+const prisma=new PrismaClient();
+const proposal=await prisma.proposal.findUnique({
+  where:{
+    id:proposal_id
+  }
+})
+if(!proposal){
+  return;''
+}
+}
