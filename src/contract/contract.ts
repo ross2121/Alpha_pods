@@ -205,9 +205,38 @@ if(!user){
           mint:Deposit[i].mint || "",
           memberAta:user_mint
         }).rpc();
+        await prisma.deposit.update({
+          where:{
+            id:Deposit[i].id
+          },data:{
+            amount:0
+          }
+        })
         console.log("tsx mint",tx)
       }
   }
+}
+export const wallet_funds=async(userid:string)=>{
+const prisma=new  PrismaClient();
+const userdeposit=await prisma.deposit.findMany({
+  where:{
+    id:userid
+  }
+})
+if(!userdeposit){
+  return;
+}
+const map=new Map();
+for(let i=0;i<userdeposit.length;i++){
+  const mint=userdeposit[i].mint;
+  if(mint==""){
+    map.set("SOl",userdeposit[i].amount)
+  }else{
+    map.set(userdeposit[i].mint,userdeposit[i].amount)
+  }
+}
+return map;
+
 }
 // export const withdraw = async (amount: anchor.BN, member: Keypair, chatid: BigInt) => {
 //   const escrowRow = await prisma.escrow.findUnique({
