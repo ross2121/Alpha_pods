@@ -72,7 +72,10 @@ const app=express();
 const proposeWizard = createProposeWizard(bot);
 const stage = new Scenes.Stage<MyContext>([proposeWizard, createLiquidityWizard as any]);
 app.use(json);
-
+const port = process.env.PORT || 4000 
+app.listen(port,()=>{
+  console.log("port",port);
+})
 bot.use(session());
 bot.use(stage.middleware());
 
