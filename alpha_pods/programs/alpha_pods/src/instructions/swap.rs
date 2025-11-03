@@ -1,17 +1,17 @@
 use crate::{InitializeAdmin, dlmm};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
-use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::associated_token::{AssociatedToken, Create, create};
 
 #[derive(Accounts)]
 pub struct DlmmSwap<'info> {
     #[account(mut)]
     /// CHECK: The pool account
     pub lb_pair: UncheckedAccount<'info>,
-    #[account(mut,associated_token::mint=token_x_mint,associated_token::authority=escrow,associated_token::token_program=token_program)]
-    pub vaulta:Account<'info,TokenAccount>,
-    #[account(mut,associated_token::mint=token_y_mint,associated_token::authority=escrow,associated_token::token_program=token_program)]
-    pub vaultb:Account<'info,TokenAccount>,
+         /// CHECK: The pool account
+    pub vaulta:UncheckedAccount<'info>,
+    /// CHECK: The pool account
+    pub vaultb:UncheckedAccount<'info>,
     #[account(mut,seeds=[b"vault",escrow.key().as_ref()],bump)]
     pub vault:SystemAccount<'info>,
     #[account(mut,seeds=[b"escrow",escrow.admin.key().as_ref(),&escrow.seed.to_le_bytes()],bump=escrow.bump)]
@@ -58,6 +58,7 @@ pub struct DlmmSwap<'info> {
     pub token_y_program: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+    pub associated_token_program:Program<'info,AssociatedToken>
     // Bin arrays need to be passed using remaining accounts via ctx.remaining_accounts
 }
 
@@ -71,10 +72,42 @@ impl<'info> DlmmSwap<'info> {
         bumps:&DlmmSwapBumps
     ) -> Result<()> {
         let native_mint = anchor_spl::token::spl_token::native_mint::ID;
+        let escrow_key=self.escrow.to_account_info().key();
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            b"vault",
+            escrow_key.as_ref(),
+            &[bumps.vault],
+        ]];
+    
     
         let is_token_x_sol = self.token_x_mint.key() == native_mint;
         let is_token_y_sol = self.token_y_mint.key() == native_mint;
-        
+        if self.vaulta.to_account_info().data_is_empty(){
+            let account=Create{
+                payer:self.vault.to_account_info(),
+                authority:self.escrow.to_account_info(),
+                mint:self.token_x_mint.to_account_info(),
+                associated_token:self.vaulta.to_account_info(),
+                system_program:self.system_program.to_account_info(),
+                token_program:self.token_program.to_account_info()
+            };
+
+             let cpi_ctx=CpiContext::new_with_signer(self.associated_token_program.to_account_info(), account, signer_seeds);
+             create(cpi_ctx)?;
+        }
+        if self.vaultb.to_account_info().data_is_empty(){
+            let account=Create{
+                payer:self.vault.to_account_info(),
+                authority:self.escrow.to_account_info(),
+                mint:self.token_y_mint.to_account_info(),
+                associated_token:self.vaultb.to_account_info(),
+                system_program:self.system_program.to_account_info(),
+                token_program:self.token_program.to_account_info()
+            };
+
+             let cpi_ctx=CpiContext::new_with_signer(self.associated_token_program.to_account_info(), account, signer_seeds);
+             create(cpi_ctx)?;
+        }
         let needs_wrapping = (is_token_x_sol && self.user_token_in.key() == self.vaulta.key()) 
                           || (is_token_y_sol && self.user_token_in.key() == self.vaultb.key());
         

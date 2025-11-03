@@ -43,7 +43,7 @@ describe("alpha_pods", () => {
     member2 = Keypair.generate();
     member3 = Keypair.generate();
 
-    seed =59
+    seed =60
    const secretKeyArray2 = [174,70,95,178,70,166,25,216,124,162,189,78,48,118,32,164,207,194,42,216,57,126,67,186,232,204,104,173,172,247,41,136,26,0,127,191,26,115,1,50,172,196,82,192,124,190,83,122,116,127,96,102,198,66,197,81,67,94,196,203,151,16,230,130]; 
     const secretarray2=new Uint8Array(secretKeyArray2); 
     adminkeypair= Keypair.fromSecretKey(secretarray2);
@@ -68,22 +68,22 @@ describe("alpha_pods", () => {
   });
   
 
-  // it("Initialize escrow", async () => {
-  //   const tx = await program.methods
-  //     .initialize(new anchor.BN(seed))
-  //     .accountsStrict({
-  //       admin: adminkeypair.publicKey,
-  //       creator:admin.publicKey,
-  //       escrow: escrowPda,
-  //       // escrowVault:escrow_vault_pda,
-  //       systemProgram: SystemProgram.programId,
-  //     })
-  //     .signers([admin,adminkeypair])
-  //     .rpc();
-  //   console.log("Initialize transaction signature:", tx);
-  //   const escrowAccount = await program.account.initializeAdmin.fetch(escrowPda);
+  it("Initialize escrow", async () => {
+    const tx = await program.methods
+      .initialize(new anchor.BN(seed))
+      .accountsStrict({
+        admin: adminkeypair.publicKey,
+        creator:admin.publicKey,
+        escrow: escrowPda,
+        // escrowVault:escrow_vault_pda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([admin,adminkeypair])
+      .rpc();
+    console.log("Initialize transaction signature:", tx);
+    const escrowAccount = await program.account.initializeAdmin.fetch(escrowPda);
    
-  // });
+  });
 
   // it("Deposit SOL to escrow", async () => {
   //   const depositAmount = 0.5;
@@ -1028,15 +1028,10 @@ it("Swap test",async()=>{
   const tokenXMInt = NATIVE_MINT;
   const connection = new Connection("https://api.devnet.solana.com");
   const dlmmPool = await DLMM.getLbPairs(connection);
-  const secretKeyArray = [123, 133, 250, 221, 237, 158, 87, 58, 6, 57, 62, 193, 202, 235, 190, 13, 18, 21, 47, 98, 24, 62, 69, 69, 18, 194, 81, 72, 159, 184, 174, 118, 82, 197, 109, 205, 235, 192, 3, 96, 149, 165, 99, 222, 143, 191, 103, 42, 147, 43, 200, 178, 125, 213, 222, 3, 20, 104, 168, 189, 104, 13, 71, 224];
-  const secretKey = new Uint8Array(secretKeyArray);
-  const superadmin = Keypair.fromSecretKey(secretKey);
   const solmint = new PublicKey("So11111111111111111111111111111111111111112")
   const vaultBalance = await connection.getBalance(escrow_vault_pda);
   console.log(`\n💰 Vault balance: ${(vaultBalance / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
-  
-  const amount = 0.0001 * LAMPORTS_PER_SOL;
-  
+   const amount = 0.5 * LAMPORTS_PER_SOL;
   if (vaultBalance < amount) {
     console.log(`\n WARNING: Vault has insufficient SOL!`);
     console.log(`   Need: ${(amount / LAMPORTS_PER_SOL).toFixed(3)} SOL`);
@@ -1052,18 +1047,13 @@ it("Swap test",async()=>{
   for (let i = 0; i < dlmmPool.length; i++) {
     const poolData = dlmmPool[i].account;
     const pool = dlmmPool[i].publicKey;
-  
     if (poolData.tokenXMint.equals(solmint) || poolData.tokenYMint.equals(solmint)) {
-    
       const isTokenXSol = poolData.tokenXMint.equals(solmint);
       const swapXforY = isTokenXSol; 
-      
       const outTokenMint = isTokenXSol ? poolData.tokenYMint : poolData.tokenXMint;
-  
       console.log(`\n${'='.repeat(60)}`);
       console.log(`[Pool ${++poolsAttempted}]: ${pool.toBase58()}`);
       console.log(`Target: SOL → ${outTokenMint.toBase58().slice(0, 12)}...`);
-  
       try {
         const dlmmPools = await DLMM.create(connection, pool);
   
@@ -1090,36 +1080,34 @@ it("Swap test",async()=>{
         let bitmapExtensionToUse = null;
         
       
-        const vaultaInfo = await provider.connection.getAccountInfo(vaulta);
-        if (!vaultaInfo) {
-          console.log("Creating vaulta...");
-          const createVaultaTx = new Transaction().add(
-            createAssociatedTokenAccountInstruction(
-              adminkeypair.publicKey,
-              vaulta,
-              escrowPda,
-              poolData.tokenXMint
-            )
-          );
-          
-          
-          await sendAndConfirmTransaction(provider.connection, createVaultaTx, [adminkeypair]);
-          console.log("✓ Vaulta created");
-        }
-        const vaultbInfo = await provider.connection.getAccountInfo(vaultb);
-        if (!vaultbInfo) {
-          console.log("Creating vaultb...");
-          const createVaultbTx = new Transaction().add(
-            createAssociatedTokenAccountInstruction(
-              adminkeypair.publicKey,
-              vaultb,
-              escrowPda,
-              poolData.tokenYMint
-            )
-          );
-          await sendAndConfirmTransaction(provider.connection, createVaultbTx, [adminkeypair]);
-          console.log("✓ Vaultb created");
-        }
+        // const vaultaInfo = await provider.connection.getAccountInfo(vaulta);
+        // if (!vaultaInfo) {
+        //   console.log("Creating vaulta...");
+        //   const createVaultaTx = new Transaction().add(
+        //     createAssociatedTokenAccountInstruction(
+        //       adminkeypair.publicKey,
+        //       vaulta,
+        //       escrowPda,
+        //       poolData.tokenXMint
+        //     )
+        //   );
+        //   await sendAndConfirmTransaction(provider.connection, createVaultaTx, [adminkeypair]);
+        //   console.log("✓ Vaulta created");
+        // }
+        // const vaultbInfo = await provider.connection.getAccountInfo(vaultb);
+        // if (!vaultbInfo) {
+        //   console.log("Creating vaultb...");
+        //   const createVaultbTx = new Transaction().add(
+        //     createAssociatedTokenAccountInstruction(
+        //       adminkeypair.publicKey,
+        //       vaultb,
+        //       escrowPda,
+        //       poolData.tokenYMint
+        //     )
+        //   );
+        //   await sendAndConfirmTransaction(provider.connection, createVaultbTx, [adminkeypair]);
+        //   console.log("✓ Vaultb created");
+        // }
         
         const userTokenIn = swapXforY ? vaulta : vaultb;
         const userTokenOut = swapXforY ? vaultb : vaulta;
@@ -1157,36 +1145,51 @@ it("Swap test",async()=>{
             eventAuthority: eventAuthority,
             vault: escrow_vault_pda,
             systemProgram: SystemProgram.programId,
+          associatedTokenProgram:ASSOCIATED_TOKEN_PROGRAM_ID
           })
           .remainingAccounts(binArrayAccounts)
           .rpc();
           
-        console.log(`\n${'🎉'.repeat(30)}`);
-        console.log("✅ SWAP SUCCESSFUL!");
-        console.log(`Transaction: https://solscan.io/tx/${swapTx}?cluster=devnet`);
-        console.log(`Pool: ${pool.toBase58()}`);
-        console.log(`Amount in: ${(amount / LAMPORTS_PER_SOL).toFixed(3)} SOL`);
-        console.log(`Min out: ${(swapQuote.minOutAmount.toNumber() / 1e9).toFixed(6)} tokens`);
-        console.log(`${'🎉'.repeat(30)}\n`);
+       console.log("tx",swapTx);
         break;
   
       } catch (error: any) {
         const errorMsg = error.message || error.toString() || "Unknown error";
         
+        console.error("\n❌ Full Error Details:");
+        console.error("Error:", error);
+        console.error("Error Message:", errorMsg);
+        
+        if (error.logs) {
+          console.error("\n📋 Program Logs:");
+          error.logs.forEach((log: string) => console.error(log));
+        }
+        if (error.programErrorStack) {
+          console.error("\n🔍 Program Error Stack:");
+          console.error(JSON.stringify(error.programErrorStack, null, 2));
+        }
+        if (error.error) {
+          console.error("\n⚠️ Error Object:");
+          console.error(JSON.stringify(error.error, null, 2));
+        }
+        if (error.transactionLogs) {
+          console.error("\n📝 Transaction Logs:");
+          error.transactionLogs.forEach((log: string) => console.error(log));
+        }
+        
+        // Categorized error messages
         if (errorMsg.includes("INSUFFICIENT_LIQUIDITY") || errorMsg.includes("insufficient liquidity")) {
           console.log(`❌ No liquidity`);
         } else if (errorMsg.includes("Cross-program")) {
           console.log(`❌ CPI error (likely SOL wrapping issue)`);
-          if (error.logs) {
-            console.log(`Last log:`, error.logs[error.logs.length - 1]);
-          }
         } else if (errorMsg.includes("BitmapExtensionAccountIsNotProvided") || errorMsg.includes("0x1794")) {
           console.log(`❌ Requires bitmap extension`);
         } else if (errorMsg.includes("incorrect program id")) {
           console.log(`❌ Token2022 mint (not supported)`);
         } else {
-          console.log(`❌ ${errorMsg.slice(0, 60)}`);
+          console.log(`❌ ${errorMsg.slice(0, 100)}`);
         }
+        console.error("\n");
       }
       
       // Stop after 30 attempts
