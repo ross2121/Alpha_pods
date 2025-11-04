@@ -36,7 +36,7 @@ impl<'info> InitializeBinArray<'info> {
         let accounts = dlmm::cpi::accounts::InitializeBinArray {
             lb_pair: self.lb_pair.to_account_info(),
             bin_array: self.bin_array.to_account_info(),
-            funder: self.escrow.to_account_info(),
+            funder: self.vault.to_account_info(),
             system_program: self.system_program.to_account_info(),
         };
         let escrow_key = self.escrow.key();

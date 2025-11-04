@@ -1,13 +1,12 @@
 use crate::{InitializeAdmin, dlmm::{self, types::LiquidityParameter}};
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount};
+use anchor_spl::{associated_token::{AssociatedToken, Create, create}, token::{Token, TokenAccount}};
 
 #[derive(Accounts)]
 pub struct AddLiquidity<'info> {
     #[account(mut)]
     /// CHECK: The pool account
     pub lb_pair: UncheckedAccount<'info>,
-
     #[account(mut)]
     ///CHECK:POSITION
     pub position:UncheckedAccount<'info>,
@@ -19,7 +18,6 @@ pub struct AddLiquidity<'info> {
         bump = escrow.bump
     )]
     pub escrow: Account<'info, InitializeAdmin>,
-
     #[account(mut)]
     /// CHECK: Reserve account of token X
     pub reserve_x: UncheckedAccount<'info>,
@@ -35,16 +33,16 @@ pub struct AddLiquidity<'info> {
     #[account(mut,seeds=[b"vault",escrow.key().as_ref()],bump)]
     /// CHECK: PDA that owns the position
     pub vault: SystemAccount<'info>,
-    #[account(mut,associated_token::mint=token_x_mint,associated_token::authority=vault,associated_token::token_program=token_program)]
-    pub vaulta:Account<'info,TokenAccount>,
-    #[account(mut,associated_token::mint=token_y_mint,associated_token::authority=vault,associated_token::token_program=token_program)]
-    pub vaultb:Account<'info,TokenAccount>,
-
+    #[account(mut)]
+    /// CHECK: PDA that owns the position
+    pub vaulta:UncheckedAccount<'info>,
+#[account(mut)]
+    /// CHECK: PDA that owns the position
+    pub vaultb:UncheckedAccount<'info>,
     /// CHECK: Mint account of token X
     pub token_x_mint: UncheckedAccount<'info>,
     /// CHECK: Mint account of token Y
     pub token_y_mint: UncheckedAccount<'info>,
-
 
     #[account(address = dlmm::ID)]
     /// CHECK: DLMM program
@@ -58,7 +56,8 @@ pub struct AddLiquidity<'info> {
     /// CHECK: Token program of mint Y
     pub token_y_program: UncheckedAccount<'info>,
     pub token_program:Program<'info,Token>,
-    pub system_program:Program<'info,System>
+    pub system_program:Program<'info,System>,
+    pub associated_token_program:Program<'info,AssociatedToken>
     // Bin arrays need to be passed using remaining accounts via ctx.remaining_accounts
 }
 
@@ -69,6 +68,65 @@ pub fn add_liquidity(
       bumps:&AddLiquidityBumps,
     liqudity_parameter:LiquidityParameter
 ) -> Result<()> {
+    let native_mint = anchor_spl::token::spl_token::native_mint::ID;
+    let escrow_key=self.escrow.to_account_info().key();
+    let signer_seeds: &[&[&[u8]]] = &[&[
+        b"vault",
+        escrow_key.as_ref(),
+        &[bumps.vault],
+    ]];
+    let is_token_x_sol = self.token_x_mint.key() == native_mint;
+    let is_token_y_sol = self.token_y_mint.key() == native_mint;
+    // Do NOT create reserve accounts here. These must be the existing pool reserve token accounts
+    // owned by the DLMM program. Creating them locally will lead to mint/account mismatches.
+    let amount_in = if is_token_x_sol { 
+        liqudity_parameter.amount_x 
+    } else { 
+        liqudity_parameter.amount_y 
+    };
+    
+    let needs_wrapping = is_token_x_sol || is_token_y_sol;
+    
+    if needs_wrapping {
+        msg!("Wrapping {} lamports of SOL to WSOL", amount_in);
+        let wsol_vault = if is_token_x_sol {
+            &self.vaulta
+        } else {
+            &self.vaultb
+        };
+        let token_program_for_wsol = if is_token_x_sol {
+            &self.token_x_program  // Use token_x_program for X mint
+        } else {
+            &self.token_y_program  // Use token_y_program for Y mint
+        };
+        let key=self.escrow.key();
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            b"vault",
+            key.as_ref(),
+            &[bumps.vault],
+        ]];
+
+        anchor_lang::system_program::transfer(
+            CpiContext::new_with_signer(
+                self.system_program.to_account_info(),
+                anchor_lang::system_program::Transfer {
+                    from: self.vault.to_account_info(),
+                    to: wsol_vault.to_account_info(),
+                },
+                signer_seeds
+            ),
+            amount_in,
+        )?;
+        
+        anchor_spl::token::sync_native(CpiContext::new(
+            token_program_for_wsol.to_account_info(),
+            anchor_spl::token::SyncNative {
+                account: wsol_vault.to_account_info(),
+            },
+        ))?;
+        
+        msg!("Successfully wrapped {} lamports to WSOL", amount_in);
+    }
     let accounts = dlmm::cpi::accounts::AddLiquidity{
         lb_pair: self.lb_pair.to_account_info(),
         bin_array_bitmap_extension: self
@@ -97,8 +155,6 @@ pub fn add_liquidity(
         escrow_key.as_ref(),
         &[bumps.vault],
     ]];
-
-
     let cpi_context = CpiContext::new_with_signer(self.dlmm_program.to_account_info(), accounts, signer_seeds)
         .with_remaining_accounts(remaining_accounts.to_vec());
     dlmm::cpi::add_liquidity(cpi_context, liqudity_parameter)

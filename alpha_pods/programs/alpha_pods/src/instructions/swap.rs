@@ -24,7 +24,6 @@ pub struct DlmmSwap<'info> {
     #[account(mut)]
     /// CHECK: Reserve account of token Y
     pub reserve_y: UncheckedAccount<'info>,
-
     #[account(mut)]
     /// CHECK: User token account to sell token
     pub user_token_in: UncheckedAccount<'info>,
@@ -78,8 +77,6 @@ impl<'info> DlmmSwap<'info> {
             escrow_key.as_ref(),
             &[bumps.vault],
         ]];
-    
-    
         let is_token_x_sol = self.token_x_mint.key() == native_mint;
         let is_token_y_sol = self.token_y_mint.key() == native_mint;
         if self.vaulta.to_account_info().data_is_empty(){
@@ -113,7 +110,11 @@ impl<'info> DlmmSwap<'info> {
         
         if needs_wrapping {
             msg!("Wrapping {} lamports of SOL to WSOL", amount_in);
-            
+            let token_program_for_wsol = if is_token_x_sol {
+                &self.token_x_program  // Use token_x_program for X mint
+            } else {
+                &self.token_y_program  // Use token_y_program for Y mint
+            };
             let wsol_vault = if is_token_x_sol && self.user_token_in.key() == self.vaulta.key() {
                 &self.vaulta
             } else {
@@ -140,7 +141,7 @@ impl<'info> DlmmSwap<'info> {
             )?;
 
             anchor_spl::token::sync_native(CpiContext::new(
-                self.token_program.to_account_info(),
+                token_program_for_wsol.to_account_info(),
                 anchor_spl::token::SyncNative {
                     account: wsol_vault.to_account_info(),
                 },
