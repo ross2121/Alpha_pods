@@ -387,7 +387,8 @@ bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
     if(!result){
       await ctx.reply("Swap failed")
       return;
-    }
+      ctx.answerCbQuery("swap")
+    } 
     if (result.success) {
       await ctx.reply(
         `✅ **Swap Executed Successfully!**\n\n` +

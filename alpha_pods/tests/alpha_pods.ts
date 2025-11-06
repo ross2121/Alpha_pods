@@ -1021,193 +1021,195 @@ describe("alpha_pods", () => {
   //   console.log("\n✅ All positions created successfully!");
   //   console.log(`Created ${positionStrategies.length} positions with different strategies`);
   // });
-// it("Swap test",async()=>{
-//   console.log("escrow", escrowPda.toString());
-//   console.log("vault", escrow_vault_pda.toString());
+it("Swap test",async()=>{
+  const escrowPda=new PublicKey("8G2A1vuFjYaRnVu8WwHu7o2RC4iBzrEdUAacshJRCQde");
+  const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync([Buffer.from("vault"),escrowPda.toBuffer()],program.programId);
+  console.log("escrow", escrowPda.toString());
+  console.log("vault", escrow_vault_pda.toString());
   
-//   const tokenXMInt = NATIVE_MINT;
-//   const connection = new Connection("https://api.devnet.solana.com");
-//   const ymint=new PublicKey("6i6Z7twwpvr8PsCpsPujR1PgucdjpNPxAA4U7Uk2RZSk");
-//   const dlmmPool = await DLMM.getLbPairs(connection);
-//   const solmint = new PublicKey("So11111111111111111111111111111111111111112")
-//   const vaultBalance = await connection.getBalance(escrow_vault_pda);
-//   console.log(`\n💰 Vault balance: ${(vaultBalance / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
-//    const amount = 0.5 * LAMPORTS_PER_SOL;
-//   if (vaultBalance < amount) {
-//     console.log(`\n WARNING: Vault has insufficient SOL!`);
-//     console.log(`   Need: ${(amount / LAMPORTS_PER_SOL).toFixed(3)} SOL`);
-//     console.log(`   Have: ${(vaultBalance / LAMPORTS_PER_SOL).toFixed(3)} SOL`);
-//     console.log(`\n   Please fund the vault first using your deposit instruction.`);
-//     process.exit(0);
-//   }
-//   console.log(`✓ Vault has sufficient balance\n`);
+  const tokenXMInt = NATIVE_MINT;
+  const connection = new Connection("https://api.devnet.solana.com");
+  const ymint=new PublicKey("6i6Z7twwpvr8PsCpsPujR1PgucdjpNPxAA4U7Uk2RZSk");
+  const dlmmPool = await DLMM.getLbPairs(connection);
+  const solmint = new PublicKey("So11111111111111111111111111111111111111112")
+  const vaultBalance = await connection.getBalance(escrow_vault_pda);
+  console.log(`\n💰 Vault balance: ${(vaultBalance / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
+   const amount = 0.5 * LAMPORTS_PER_SOL;
+  if (vaultBalance < amount) {
+    console.log(`\n WARNING: Vault has insufficient SOL!`);
+    console.log(`   Need: ${(amount / LAMPORTS_PER_SOL).toFixed(3)} SOL`);
+    console.log(`   Have: ${(vaultBalance / LAMPORTS_PER_SOL).toFixed(3)} SOL`);
+    console.log(`\n   Please fund the vault first using your deposit instruction.`);
+    process.exit(0);
+  }
+  console.log(`✓ Vault has sufficient balance\n`);
   
-//   let poolsAttempted = 0;
-//   let poolsWithQuotes = 0;
+  let poolsAttempted = 0;
+  let poolsWithQuotes = 0;
   
-//   for (let i = 0; i < dlmmPool.length; i++) {
-//     const poolData = dlmmPool[i].account;
-//     const pool = dlmmPool[i].publicKey;
-//     if (poolData.tokenXMint.equals(solmint) && poolData.tokenYMint.equals(ymint) ||poolData.tokenXMint.equals(ymint)&& poolData.tokenYMint.equals(solmint)) {
-//       const isTokenXSol = poolData.tokenXMint.equals(solmint);
-//       const swapXforY = isTokenXSol; 
-//       const outTokenMint = isTokenXSol ? poolData.tokenYMint : poolData.tokenXMint;
-//       console.log(`\n${'='.repeat(60)}`);
-//       console.log(`[Pool ${++poolsAttempted}]: ${pool.toBase58()}`);
-//       console.log(`Target: SOL → ${outTokenMint.toBase58().slice(0, 12)}...`);
-//       try {
-//         const dlmmPools = await DLMM.create(connection, pool);
+  for (let i = 0; i < dlmmPool.length; i++) {
+    const poolData = dlmmPool[i].account;
+    const pool = dlmmPool[i].publicKey;
+    if (poolData.tokenXMint.equals(solmint) && poolData.tokenYMint.equals(ymint) ||poolData.tokenXMint.equals(ymint)&& poolData.tokenYMint.equals(solmint)) {
+      const isTokenXSol = poolData.tokenXMint.equals(solmint);
+      const swapXforY = isTokenXSol; 
+      const outTokenMint = isTokenXSol ? poolData.tokenYMint : poolData.tokenXMint;
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`[Pool ${++poolsAttempted}]: ${pool.toBase58()}`);
+      console.log(`Target: SOL → ${outTokenMint.toBase58().slice(0, 12)}...`);
+      try {
+        const dlmmPools = await DLMM.create(connection, pool);
   
-//         const binArrays = await dlmmPools.getBinArrayForSwap(swapXforY, 20);
+        const binArrays = await dlmmPools.getBinArrayForSwap(swapXforY, 20);
         
-//         const swapQuote = dlmmPools.swapQuote(
-//           new anchor.BN(amount),
-//           swapXforY,
-//           new anchor.BN(100),
-//           binArrays,
-//           false,
-//           2
-//         );
+        const swapQuote = dlmmPools.swapQuote(
+          new anchor.BN(amount),
+          swapXforY,
+          new anchor.BN(100),
+          binArrays,
+          false,
+          2
+        );
   
-//         poolsWithQuotes++;
-//         console.log(`✓ Quote: ${(swapQuote.minOutAmount.toNumber() / 1e9).toFixed(6)} tokens`);
+        poolsWithQuotes++;
+        console.log(`✓ Quote: ${(swapQuote.minOutAmount.toNumber() / 1e9).toFixed(6)} tokens`);
         
-//            const vaulta = await getAssociatedTokenAddress(poolData.tokenXMint, escrowPda, true);
-//         const vaultb = await getAssociatedTokenAddress(poolData.tokenYMint, escrowPda, true);
+           const vaulta = await getAssociatedTokenAddress(poolData.tokenXMint, escrowPda, true);
+        const vaultb = await getAssociatedTokenAddress(poolData.tokenYMint, escrowPda, true);
         
-//         const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+        const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
   
-//         const poolAccountInfo = await connection.getAccountInfo(pool);
-//         let bitmapExtensionToUse = null;
+        const poolAccountInfo = await connection.getAccountInfo(pool);
+        let bitmapExtensionToUse = null;
         
       
-//         // const vaultaInfo = await provider.connection.getAccountInfo(vaulta);
-//         // if (!vaultaInfo) {
-//         //   console.log("Creating vaulta...");
-//         //   const createVaultaTx = new Transaction().add(
-//         //     createAssociatedTokenAccountInstruction(
-//         //       adminkeypair.publicKey,
-//         //       vaulta,
-//         //       escrowPda,
-//         //       poolData.tokenXMint
-//         //     )
-//         //   );
-//         //   await sendAndConfirmTransaction(provider.connection, createVaultaTx, [adminkeypair]);
-//         //   console.log("✓ Vaulta created");
-//         // }
-//         // const vaultbInfo = await provider.connection.getAccountInfo(vaultb);
-//         // if (!vaultbInfo) {
-//         //   console.log("Creating vaultb...");
-//         //   const createVaultbTx = new Transaction().add(
-//         //     createAssociatedTokenAccountInstruction(
-//         //       adminkeypair.publicKey,
-//         //       vaultb,
-//         //       escrowPda,
-//         //       poolData.tokenYMint
-//         //     )
-//         //   );
-//         //   await sendAndConfirmTransaction(provider.connection, createVaultbTx, [adminkeypair]);
-//         //   console.log("✓ Vaultb created");
-//         // }
+        // const vaultaInfo = await provider.connection.getAccountInfo(vaulta);
+        // if (!vaultaInfo) {
+        //   console.log("Creating vaulta...");
+        //   const createVaultaTx = new Transaction().add(
+        //     createAssociatedTokenAccountInstruction(
+        //       adminkeypair.publicKey,
+        //       vaulta,
+        //       escrowPda,
+        //       poolData.tokenXMint
+        //     )
+        //   );
+        //   await sendAndConfirmTransaction(provider.connection, createVaultaTx, [adminkeypair]);
+        //   console.log("✓ Vaulta created");
+        // }
+        // const vaultbInfo = await provider.connection.getAccountInfo(vaultb);
+        // if (!vaultbInfo) {
+        //   console.log("Creating vaultb...");
+        //   const createVaultbTx = new Transaction().add(
+        //     createAssociatedTokenAccountInstruction(
+        //       adminkeypair.publicKey,
+        //       vaultb,
+        //       escrowPda,
+        //       poolData.tokenYMint
+        //     )
+        //   );
+        //   await sendAndConfirmTransaction(provider.connection, createVaultbTx, [adminkeypair]);
+        //   console.log("✓ Vaultb created");
+        // }
         
-//         const userTokenIn = swapXforY ? vaulta : vaultb;
-//         const userTokenOut = swapXforY ? vaultb : vaulta;
+        const userTokenIn = swapXforY ? vaulta : vaultb;
+        const userTokenOut = swapXforY ? vaultb : vaulta;
         
-//         console.log(`Using: ${swapXforY ? 'vaulta → vaultb' : 'vaultb → vaulta'}`);
+        console.log(`Using: ${swapXforY ? 'vaulta → vaultb' : 'vaultb → vaulta'}`);
         
-//         const binArrayAccounts = binArrays.map(binArray => ({
-//           pubkey: binArray.publicKey,
-//           isSigner: false,
-//           isWritable: true,
-//         }));
+        const binArrayAccounts = binArrays.map(binArray => ({
+          pubkey: binArray.publicKey,
+          isSigner: false,
+          isWritable: true,
+        }));
         
-//         console.log(`🔄 Submitting swap transaction...`);
+        console.log(`🔄 Submitting swap transaction...`);
     
-  //         const swapTx = await program.methods
-  //           .swap(new anchor.BN(amount), swapQuote.minOutAmount)
-  //           .accountsStrict({
-  //             lbPair: dlmmPools.pubkey,
-  //             userTokenIn: userTokenIn,
-  //             userTokenOut: userTokenOut,
-  //             tokenProgram: TOKEN_PROGRAM_ID,
-  //             tokenXMint: poolData.tokenXMint,
-  //             tokenXProgram: TOKEN_PROGRAM_ID,
-  //             tokenYMint: poolData.tokenYMint,
-  //             tokenYProgram: TOKEN_PROGRAM_ID,
-  //             hostFeeIn: null,
-  //             binArrayBitmapExtension: bitmapExtensionToUse,
-  //             escrow: escrowPda,
-  //             vaulta: vaulta,
-  //             vaultb: vaultb,
-  //             reserveX: poolData.reserveX,
-  //             reserveY: poolData.reserveY,
-  //             oracle: poolData.oracle,
-  //             dlmmProgram: METORA_PROGRAM_ID,
-  //             eventAuthority: eventAuthority,
-  //             vault: escrow_vault_pda,
-  //             systemProgram: SystemProgram.programId,
-  //           associatedTokenProgram:ASSOCIATED_TOKEN_PROGRAM_ID
-  //           })
-  //           .remainingAccounts(binArrayAccounts)
-  //           .rpc();
+          const swapTx = await program.methods
+            .swap(new anchor.BN(amount), swapQuote.minOutAmount)
+            .accountsStrict({
+              lbPair: dlmmPools.pubkey,
+              userTokenIn: userTokenIn,
+              userTokenOut: userTokenOut,
+              tokenProgram: TOKEN_PROGRAM_ID,
+              tokenXMint: poolData.tokenXMint,
+              tokenXProgram: TOKEN_PROGRAM_ID,
+              tokenYMint: poolData.tokenYMint,
+              tokenYProgram: TOKEN_PROGRAM_ID,
+              hostFeeIn: null,
+              binArrayBitmapExtension: bitmapExtensionToUse,
+              escrow: escrowPda,
+              vaulta: vaulta,
+              vaultb: vaultb,
+              reserveX: poolData.reserveX,
+              reserveY: poolData.reserveY,
+              oracle: poolData.oracle,
+              dlmmProgram: METORA_PROGRAM_ID,
+              eventAuthority: eventAuthority,
+              vault: escrow_vault_pda,
+              systemProgram: SystemProgram.programId,
+            associatedTokenProgram:ASSOCIATED_TOKEN_PROGRAM_ID
+            })
+            .remainingAccounts(binArrayAccounts)
+            .rpc();
           
-//        console.log("tx",swapTx);
-//         break;
+       console.log("tx",swapTx);
+        break;
   
-//       } catch (error: any) {
-//         const errorMsg = error.message || error.toString() || "Unknown error";
+      } catch (error: any) {
+        const errorMsg = error.message || error.toString() || "Unknown error";
         
-//         console.error("\n❌ Full Error Details:");
-//         console.error("Error:", error);
-//         console.error("Error Message:", errorMsg);
+        console.error("\n❌ Full Error Details:");
+        console.error("Error:", error);
+        console.error("Error Message:", errorMsg);
         
-//         if (error.logs) {
-//           console.error("\n📋 Program Logs:");
-//           error.logs.forEach((log: string) => console.error(log));
-//         }
-//         if (error.programErrorStack) {
-//           console.error("\n🔍 Program Error Stack:");
-//           console.error(JSON.stringify(error.programErrorStack, null, 2));
-//         }
-//         if (error.error) {
-//           console.error("\n⚠️ Error Object:");
-//           console.error(JSON.stringify(error.error, null, 2));
-//         }
-//         if (error.transactionLogs) {
-//           console.error("\n📝 Transaction Logs:");
-//           error.transactionLogs.forEach((log: string) => console.error(log));
-//         }
+        if (error.logs) {
+          console.error("\n📋 Program Logs:");
+          error.logs.forEach((log: string) => console.error(log));
+        }
+        if (error.programErrorStack) {
+          console.error("\n🔍 Program Error Stack:");
+          console.error(JSON.stringify(error.programErrorStack, null, 2));
+        }
+        if (error.error) {
+          console.error("\n⚠️ Error Object:");
+          console.error(JSON.stringify(error.error, null, 2));
+        }
+        if (error.transactionLogs) {
+          console.error("\n📝 Transaction Logs:");
+          error.transactionLogs.forEach((log: string) => console.error(log));
+        }
         
-//         // Categorized error messages
-//         if (errorMsg.includes("INSUFFICIENT_LIQUIDITY") || errorMsg.includes("insufficient liquidity")) {
-//           console.log(`❌ No liquidity`);
-//         } else if (errorMsg.includes("Cross-program")) {
-//           console.log(`❌ CPI error (likely SOL wrapping issue)`);
-//         } else if (errorMsg.includes("BitmapExtensionAccountIsNotProvided") || errorMsg.includes("0x1794")) {
-//           console.log(`❌ Requires bitmap extension`);
-//         } else if (errorMsg.includes("incorrect program id")) {
-//           console.log(`❌ Token2022 mint (not supported)`);
-//         } else {
-//           console.log(`❌ ${errorMsg.slice(0, 100)}`);
-//         }
-//         console.error("\n");
-//       }
+        // Categorized error messages
+        if (errorMsg.includes("INSUFFICIENT_LIQUIDITY") || errorMsg.includes("insufficient liquidity")) {
+          console.log(`❌ No liquidity`);
+        } else if (errorMsg.includes("Cross-program")) {
+          console.log(`❌ CPI error (likely SOL wrapping issue)`);
+        } else if (errorMsg.includes("BitmapExtensionAccountIsNotProvided") || errorMsg.includes("0x1794")) {
+          console.log(`❌ Requires bitmap extension`);
+        } else if (errorMsg.includes("incorrect program id")) {
+          console.log(`❌ Token2022 mint (not supported)`);
+        } else {
+          console.log(`❌ ${errorMsg.slice(0, 100)}`);
+        }
+        console.error("\n");
+      }
       
-//       // Stop after 30 attempts
-//       if (poolsAttempted >= 30) {
-//         console.log(`\n⚠️  Stopped after checking 30 pools`);
-//         break;
-//       }
-//     }
-//   }
+      // Stop after 30 attempts
+      if (poolsAttempted >= 30) {
+        console.log(`\n⚠️  Stopped after checking 30 pools`);
+        break;
+      }
+    }
+  }
   
-//   console.log(`\n${'='.repeat(60)}`);
-//   console.log(`📊 Summary:`);
-//   console.log(`   Total pools checked: ${poolsAttempted}`);
-//   console.log(`   Pools with quotes: ${poolsWithQuotes}`);
-//   console.log(`\n💡 Most devnet pools require bitmap extensions or have low liquidity.`);
-//   console.log(`   Try on mainnet for better results, or find specific pools with liquidity.`);
-// })
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`📊 Summary:`);
+  console.log(`   Total pools checked: ${poolsAttempted}`);
+  console.log(`   Pools with quotes: ${poolsWithQuotes}`);
+  console.log(`\n💡 Most devnet pools require bitmap extensions or have low liquidity.`);
+  console.log(`   Try on mainnet for better results, or find specific pools with liquidity.`);
+})
 
 // it("Add Liquidity test", async () => {
 //   console.log("escrow", escrowPda.toString());
@@ -1495,9 +1497,18 @@ it("Add Liquidity with Bin Array Management", async () => {
   const amount=new anchor.BN(100_000_000);
 const connection=new Connection("https://api.devnet.solana.com");
   const pool=await DLMM.getLbPairs(connection);
+  console.log("length of pool",pool.length);
   for(let i=0;i< pool.length;i++){
-      if(pool[i].account.tokenXMint==tokenXMint && pool[i].account.tokenYMint==tokenYMint  || pool[i].account.tokenXMint==tokenYMint&& pool[i].account.tokenYMint==tokenYMint){
+    
+    if (
+      (pool[i].account.tokenXMint.equals(tokenXMint) && 
+       pool[i].account.tokenYMint.equals(tokenYMint)) ||
+      (pool[i].account.tokenXMint.equals(tokenYMint) && 
+       pool[i].account.tokenYMint.equals(tokenXMint))
+    ){
+        console.log("checc");
          try{
+          console.log("chek2");
           const dlmmPools = await DLMM.create(connection, pool[i].publicKey);
           const isTokenXSol = pool[i].account.tokenXMint.equals(tokenXMint);
                 const swapXforY = isTokenXSol; 
@@ -1511,8 +1522,8 @@ const connection=new Connection("https://api.devnet.solana.com");
                       2
                     );
                     const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
-             const vaultx=await getAssociatedTokenAddress(pool[i].account.tokenXMint,escrowPda,false);
-             const vaulty=await getAssociatedTokenAddress(pool[i].account.tokenYMint,escrowPda,false);
+             const vaultx=await getAssociatedTokenAddress(pool[i].account.tokenXMint,escrowPda,true);
+             const vaulty=await getAssociatedTokenAddress(pool[i].account.tokenYMint,escrowPda,true);
              const userTokenIn = swapXforY ? vaultx : vaulty;
                      const userTokenOut = swapXforY ? vaultx : vaulty;
              const binArrayAccounts = binArrays.map(binArray => ({
@@ -1602,36 +1613,36 @@ const connection=new Connection("https://api.devnet.solana.com");
     // The Rust program will create these ATAs if they don't exist
     // No need to create them here
     
-    const txSignature = await program.methods
-      .addLiquidity(liquidityParameter)
-      .accountsStrict({
-        lbPair: matchingPair.publicKey,
-        position: positionKeypair.publicKey,
-        binArrayBitmapExtension: null,
-        reserveX: matchingPair.account.reserveX,
-        reserveY: matchingPair.account.reserveY,
-        binArrayLower: binArrayLower,
-        binArrayUpper: sameBinArray ? binArrayLower : binArrayUpper,
-        vaulta: vaulta,
-        vaultb: vaultb,
-        tokenXMint: tokenXMint,
-        tokenYMint: tokenYMint,
-        vault: escrow_vault_pda,
-        escrow: escrowPda,
-        dlmmProgram: METORA_PROGRAM_ID,
-        eventAuthority: eventAuthority,
-        tokenXProgram: tokenXProgramId,
-        tokenYProgram: tokenYProgramId,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
-      })
-      .rpc();
+    // const txSignature = await program.methods
+    //   .addLiquidity(liquidityParameter)
+    //   .accountsStrict({
+    //     lbPair: matchingPair.publicKey,
+    //     position: positionKeypair.publicKey,
+    //     binArrayBitmapExtension: null,
+    //     reserveX: matchingPair.account.reserveX,
+    //     reserveY: matchingPair.account.reserveY,
+    //     binArrayLower: binArrayLower,
+    //     binArrayUpper: sameBinArray ? binArrayLower : binArrayUpper,
+    //     vaulta: vaulta,
+    //     vaultb: vaultb,
+    //     tokenXMint: tokenXMint,
+    //     tokenYMint: tokenYMint,
+    //     vault: escrow_vault_pda,
+    //     escrow: escrowPda,
+    //     dlmmProgram: METORA_PROGRAM_ID,
+    //     eventAuthority: eventAuthority,
+    //     tokenXProgram: tokenXProgramId,
+    //     tokenYProgram: tokenYProgramId,
+    //     tokenProgram: TOKEN_PROGRAM_ID,
+    //     systemProgram: SystemProgram.programId,
+    //     associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+    //   })
+    //   .rpc();
       
-    console.log("✅ Liquidity added successfully!");
-    console.log("Transaction signature:", txSignature);
+    // console.log("✅ Liquidity added successfully!");
+    // console.log("Transaction signature:", txSignature);
     
-    await provider.connection.confirmTransaction(txSignature, "confirmed");
+    // await provider.connection.confirmTransaction(txSignature, "confirmed");
     
     console.log("\n🔄 Removing liquidity...");
     

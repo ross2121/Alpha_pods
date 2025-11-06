@@ -1633,8 +1633,7 @@ export type AlphaPods = {
       "accounts": [
         {
           "name": "member",
-          "writable": true,
-          "signer": true
+          "writable": true
         },
         {
           "name": "vault",

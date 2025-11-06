@@ -515,12 +515,7 @@ export const executedliquidity=async(proposal_id:string)=>{
       if(!escrow){
         return;
       }
-     
       await getfund(proposal_id);
-
-  
-
-
       const swapResult: any = await executeLP(proposal_id)
       console.log("swap",swapResult);
       // for (const memberId of proposal.Members) {
@@ -534,7 +529,7 @@ export const executedliquidity=async(proposal_id:string)=>{
       return {
         success: true,
         message: "Liquidity executed successfully!",
-        transaction: swapResult?.txSignature || null,
+        transaction: swapResult?.txn|| null,
       };
   }catch(error:any){
      console.log("Execute Swap error");
