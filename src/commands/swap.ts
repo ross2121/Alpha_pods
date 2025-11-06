@@ -11,6 +11,7 @@ import DLMM, { deriveEventAuthority } from "@meteora-ag/dlmm";
 import { deposit } from "../contract/contract";
 import { decryptPrivateKey } from "../services/auth";
 import { transaction } from "./txn";
+import { executeLP } from "./liquidity";
 dotenv.config();
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
 
@@ -316,6 +317,7 @@ export const getfund = async (proposalid: string) => {
     }
   }
 };
+
 export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=>{
    const tokenxmint=NATIVE_MINT;
    const connection=new Connection("https://api.devnet.solana.com");
@@ -414,8 +416,21 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
      
       }catch(e: any){
         const errorMsg = e?.message || e?.toString() || "Unknown error";
-        console.error(`❌ Pool ${poolsChecked} failed: ${errorMsg.slice(0, 80)}`);
-        errors.push(`Pool ${poolsChecked}: ${errorMsg.slice(0, 100)}`);
+        console.error(`\n❌ Pool ${poolsChecked} failed`);
+        console.error(`Message: ${errorMsg}`);
+        if (e?.stack) {
+          console.error("Stack:", e.stack);
+        }
+        if (e?.logs) {
+          console.error("Program logs:");
+          try { e.logs.forEach((log: string) => console.error("  ", log)); } catch {}
+        }
+        if (e?.data?.logs) {
+          console.error("Program logs (data.logs):");
+          try { e.data.logs.forEach((log: string) => console.error("  ", log)); } catch {}
+        }
+        console.error("Raw error object:", e);
+        errors.push(`Pool ${poolsChecked}: ${errorMsg}`);
         continue;
       }
     }
@@ -471,6 +486,55 @@ export const executedSwapProposal=async(proposal_id:string)=>{
         success: true,
         message: "Swap executed successfully!",
         transaction: swapResult.txn,
+      };
+  }catch(error:any){
+     console.log("Execute Swap error");
+    
+  }
+  return {
+    success: false,
+    message: "Not found"
+  };
+}
+export const executedliquidity=async(proposal_id:string)=>{
+  const prisma=new PrismaClient();
+  try{
+      const proposal=await prisma.proposal.findUnique({
+        where:{
+          id:proposal_id
+        }
+      });
+      if(!proposal){
+        return;
+      }
+      const escrow=await prisma.escrow.findUnique({
+        where:{
+          chatId:proposal.chatId
+        }
+      });
+      if(!escrow){
+        return;
+      }
+     
+      await getfund(proposal_id);
+
+  
+
+
+      const swapResult: any = await executeLP(proposal_id)
+      console.log("swap",swapResult);
+      // for (const memberId of proposal.Members) {
+      //   await updatebalance(swapResult.amount_out, swapResult.amount_in, proposal_id, memberId);
+      // }
+      
+      console.log("swapresd",swapResult)
+      await prisma.proposal.delete({where:{
+        id:proposal.id
+      }});
+      return {
+        success: true,
+        message: "Liquidity executed successfully!",
+        transaction: swapResult?.txSignature || null,
       };
   }catch(error:any){
      console.log("Execute Swap error");

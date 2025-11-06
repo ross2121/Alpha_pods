@@ -40,6 +40,7 @@ pub fn add_position(
     width: i32,
     bumps: &InitializePostionBumps
 ) -> Result<()> {
+    
     let accounts = dlmm::cpi::accounts::InitializePosition{
        lb_pair:self.lb_pair.to_account_info(),
         owner:self.vault.to_account_info(),

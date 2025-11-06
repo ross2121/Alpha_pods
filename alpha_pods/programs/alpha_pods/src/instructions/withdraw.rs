@@ -4,7 +4,8 @@ use crate::InitializeAdmin;
 //
 pub struct Withdraw<'info> {
     #[account(mut)]
-    pub member:Signer<'info>,
+    ///CHECK:IT IS THE MEMBER ACCOUNT
+    pub member:UncheckedAccount<'info>,
     #[account(mut,seeds=[b"vault",escrow.key().as_ref()],bump)]
     pub vault:SystemAccount<'info>,
     #[account(mut,seeds=[b"escrow",escrow.admin.key().as_ref(),&escrow.seed.to_le_bytes()],bump)]
@@ -30,7 +31,6 @@ impl <'info> Withdraw<'info>{
            account,
            signer_seeds
        );
-      // Amount is already in lamports from JavaScript
       transfer(cpi_ctx, amount)?;
       Ok(())
     }

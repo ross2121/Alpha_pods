@@ -29,8 +29,8 @@ import { BN } from "@coral-xyz/anchor";
     tokenADecimals: 9,
     tokenBDecimals: 9,
     tokenAAmount: 1_000_000,
-    tokenBAmount: 1, // SOL
-    initialPrice: 1, // 1 base token = 1 quote token
+    tokenBAmount: 1,
+    initialPrice: 1, 
   };
 
   const secretKeyArray = [

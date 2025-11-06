@@ -26,46 +26,46 @@ describe("alpha_pods", () => {
   let member1: Keypair;
   let member2: Keypair;
   let member3: Keypair;
-  let escrowPda: PublicKey;
+  // let escrowPda: PublicKey;
   let escrowBump: number;
   let seed: number;
   let adminkeypair:Keypair
-  let escrow_vault_pda:PublicKey
+  // let escrow_vault_pda:PublicKey
 
-  before(async () => {
-    const secretKeyArray = [
-      123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,
-      235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224
-    ];
-    const secretarray=new Uint8Array(secretKeyArray);
-    admin = Keypair.fromSecretKey(secretarray);
-    member1 = Keypair.generate();
-    member2 = Keypair.generate();
-    member3 = Keypair.generate();
+  // before(async () => {
+  //   const secretKeyArray = [
+  //     123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,
+  //     235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224
+  //   ];
+  //   const secretarray=new Uint8Array(secretKeyArray);
+  //   admin = Keypair.fromSecretKey(secretarray);
+  //   member1 = Keypair.generate();
+  //   member2 = Keypair.generate();
+  //   member3 = Keypair.generate();
 
-    seed =61
-   const secretKeyArray2 = [174,70,95,178,70,166,25,216,124,162,189,78,48,118,32,164,207,194,42,216,57,126,67,186,232,204,104,173,172,247,41,136,26,0,127,191,26,115,1,50,172,196,82,192,124,190,83,122,116,127,96,102,198,66,197,81,67,94,196,203,151,16,230,130]; 
-    const secretarray2=new Uint8Array(secretKeyArray2); 
-    adminkeypair= Keypair.fromSecretKey(secretarray2);
-    console.log("admin",adminkeypair.publicKey.toString());
-    [escrowPda, escrowBump] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("escrow"),
-        adminkeypair.publicKey.toBuffer(),
-        Buffer.from(new anchor.BN(seed).toArrayLike(Buffer, "le", 8)),
-      ],
-      program.programId
-    );
-    console.log("pda",escrowPda);
-    let bump;
-  [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("vault"),
-      escrowPda.toBuffer(),
-    ],
-    program.programId
-  )
-  });
+  //   seed =61
+  //  const secretKeyArray2 = [174,70,95,178,70,166,25,216,124,162,189,78,48,118,32,164,207,194,42,216,57,126,67,186,232,204,104,173,172,247,41,136,26,0,127,191,26,115,1,50,172,196,82,192,124,190,83,122,116,127,96,102,198,66,197,81,67,94,196,203,151,16,230,130]; 
+  //   const secretarray2=new Uint8Array(secretKeyArray2); 
+  //   adminkeypair= Keypair.fromSecretKey(secretarray2);
+  //   console.log("admin",adminkeypair.publicKey.toString());
+  //   [escrowPda, escrowBump] = PublicKey.findProgramAddressSync(
+  //     [
+  //       Buffer.from("escrow"),
+  //       adminkeypair.publicKey.toBuffer(),
+  //       Buffer.from(new anchor.BN(seed).toArrayLike(Buffer, "le", 8)),
+  //     ],
+  //     program.programId
+  //   );
+  //   console.log("pda",escrowPda);
+  //   let bump;
+  // [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
+  //   [
+  //     Buffer.from("vault"),
+  //     escrowPda.toBuffer(),
+  //   ],
+  //   program.programId
+  // )
+  // });
   
 
   // it("Initialize escrow", async () => {
@@ -1123,33 +1123,33 @@ describe("alpha_pods", () => {
         
 //         console.log(`🔄 Submitting swap transaction...`);
     
-//         const swapTx = await program.methods
-//           .swap(new anchor.BN(amount), swapQuote.minOutAmount)
-//           .accountsStrict({
-//             lbPair: dlmmPools.pubkey,
-//             userTokenIn: userTokenIn,
-//             userTokenOut: userTokenOut,
-//             tokenProgram: TOKEN_PROGRAM_ID,
-//             tokenXMint: poolData.tokenXMint,
-//             tokenXProgram: TOKEN_PROGRAM_ID,
-//             tokenYMint: poolData.tokenYMint,
-//             tokenYProgram: TOKEN_PROGRAM_ID,
-//             hostFeeIn: null,
-//             binArrayBitmapExtension: bitmapExtensionToUse,
-//             escrow: escrowPda,
-//             vaulta: vaulta,
-//             vaultb: vaultb,
-//             reserveX: poolData.reserveX,
-//             reserveY: poolData.reserveY,
-//             oracle: poolData.oracle,
-//             dlmmProgram: METORA_PROGRAM_ID,
-//             eventAuthority: eventAuthority,
-//             vault: escrow_vault_pda,
-//             systemProgram: SystemProgram.programId,
-//           associatedTokenProgram:ASSOCIATED_TOKEN_PROGRAM_ID
-//           })
-//           .remainingAccounts(binArrayAccounts)
-//           .rpc();
+  //         const swapTx = await program.methods
+  //           .swap(new anchor.BN(amount), swapQuote.minOutAmount)
+  //           .accountsStrict({
+  //             lbPair: dlmmPools.pubkey,
+  //             userTokenIn: userTokenIn,
+  //             userTokenOut: userTokenOut,
+  //             tokenProgram: TOKEN_PROGRAM_ID,
+  //             tokenXMint: poolData.tokenXMint,
+  //             tokenXProgram: TOKEN_PROGRAM_ID,
+  //             tokenYMint: poolData.tokenYMint,
+  //             tokenYProgram: TOKEN_PROGRAM_ID,
+  //             hostFeeIn: null,
+  //             binArrayBitmapExtension: bitmapExtensionToUse,
+  //             escrow: escrowPda,
+  //             vaulta: vaulta,
+  //             vaultb: vaultb,
+  //             reserveX: poolData.reserveX,
+  //             reserveY: poolData.reserveY,
+  //             oracle: poolData.oracle,
+  //             dlmmProgram: METORA_PROGRAM_ID,
+  //             eventAuthority: eventAuthority,
+  //             vault: escrow_vault_pda,
+  //             systemProgram: SystemProgram.programId,
+  //           associatedTokenProgram:ASSOCIATED_TOKEN_PROGRAM_ID
+  //           })
+  //           .remainingAccounts(binArrayAccounts)
+  //           .rpc();
           
 //        console.log("tx",swapTx);
 //         break;
@@ -1369,11 +1369,12 @@ describe("alpha_pods", () => {
 //   console.log(`\n💡 Most devnet pools require bitmap extensions or have low liquidity.`);
 //   console.log(`   Try on mainnet for better results, or find specific pools with liquidity.`);
 // });
-
 it("Add Liquidity with Bin Array Management", async () => {    
   const tokenYMint = new PublicKey("6i6Z7twwpvr8PsCpsPujR1PgucdjpNPxAA4U7Uk2RZSk");
   const tokenXMint = NATIVE_MINT; 
   console.log("🔍 Finding LP Pair...");
+  const escrowPda=new PublicKey("8G2A1vuFjYaRnVu8WwHu7o2RC4iBzrEdUAacshJRCQde");
+  const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync([Buffer.from("vault"),escrowPda.toBuffer()],program.programId);
   console.log("pdavault", escrow_vault_pda);  
   const allPairs = await DLMM.getLbPairs(provider.connection);
   const matchingPair = allPairs.find(pair => 
@@ -1446,12 +1447,9 @@ it("Add Liquidity with Bin Array Management", async () => {
     upperBinArrayIndex,
     METORA_PROGRAM_ID
   );
-  
   console.log("\n📦 Bin Arrays:");
   console.log("Lower Bin Array:", binArrayLower.toString());
   console.log("Upper Bin Array:", binArrayUpper.toString());
-  
-  // Create bin arrays if needed
   const lowerBinArrayInfo = await provider.connection.getAccountInfo(binArrayLower);
   if (!lowerBinArrayInfo) {
     console.log("⚠️  Lower bin array doesn't exist, creating...");
@@ -1473,8 +1471,7 @@ it("Add Liquidity with Bin Array Management", async () => {
       console.log("Note: Bin array creation error (may already exist):", err.message);
     }
   }
-  
-  const upperBinArrayInfo = await provider.connection.getAccountInfo(binArrayUpper);
+    const upperBinArrayInfo = await provider.connection.getAccountInfo(binArrayUpper);
   if (!upperBinArrayInfo && binArrayUpper.toString() !== binArrayLower.toString()) {
     console.log("⚠️  Upper bin array doesn't exist, creating...");
     try {
@@ -1495,6 +1492,67 @@ it("Add Liquidity with Bin Array Management", async () => {
       console.log("Note: Bin array creation error (may already exist):", err.message);
     }
   }
+  const amount=new anchor.BN(100_000_000);
+const connection=new Connection("https://api.devnet.solana.com");
+  const pool=await DLMM.getLbPairs(connection);
+  for(let i=0;i< pool.length;i++){
+      if(pool[i].account.tokenXMint==tokenXMint && pool[i].account.tokenYMint==tokenYMint  || pool[i].account.tokenXMint==tokenYMint&& pool[i].account.tokenYMint==tokenYMint){
+         try{
+          const dlmmPools = await DLMM.create(connection, pool[i].publicKey);
+          const isTokenXSol = pool[i].account.tokenXMint.equals(tokenXMint);
+                const swapXforY = isTokenXSol; 
+        const binArrays = await dlmmPools.getBinArrayForSwap(swapXforY, 20);
+          const swapQuote = dlmmPools.swapQuote(
+                      new anchor.BN(amount),
+                      swapXforY,
+                      new anchor.BN(100),
+                      binArrays,
+                      false,
+                      2
+                    );
+                    const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+             const vaultx=await getAssociatedTokenAddress(pool[i].account.tokenXMint,escrowPda,false);
+             const vaulty=await getAssociatedTokenAddress(pool[i].account.tokenYMint,escrowPda,false);
+             const userTokenIn = swapXforY ? vaultx : vaulty;
+                     const userTokenOut = swapXforY ? vaultx : vaulty;
+             const binArrayAccounts = binArrays.map(binArray => ({
+                        pubkey: binArray.publicKey,
+                        isSigner: false,
+                        isWritable: true,
+                      }));
+            const swap=await program.methods.swap(new anchor.BN(amount),swapQuote.minOutAmount).accountsStrict({
+                lbPair:pool[i].publicKey,
+                associatedTokenProgram:ASSOCIATED_TOKEN_PROGRAM_ID,
+                binArrayBitmapExtension:null,
+                hostFeeIn:null,
+                eventAuthority:eventAuthority,
+                escrow:escrowPda,
+                vault:escrow_vault_pda,
+                vaulta:vaultx,
+                vaultb:vaulty,
+                systemProgram:SystemProgram.programId,
+                tokenProgram:TOKEN_PROGRAM_ID,
+                reserveX:pool[i].account.reserveX,
+                reserveY:pool[i].account.reserveY,
+                tokenXMint:pool[i].account.tokenXMint,
+                tokenYMint:pool[i].account.tokenYMint,
+                tokenXProgram:tokenXProgramId,
+                tokenYProgram:tokenYMint,
+                userTokenIn:userTokenIn,
+                userTokenOut:userTokenOut,
+                oracle:pool[i].account.oracle,
+                dlmmProgram:METORA_PROGRAM_ID
+            }).remainingAccounts(binArrayAccounts).rpc();
+            console.log(swap);
+            break;
+         }
+         catch(e){
+                console.log(e);
+                continue;
+         }
+      }
+  }
+
   const amountX = new anchor.BN(100_000_000);
   const amountY = new anchor.BN(0); 
   
@@ -1508,8 +1566,8 @@ it("Add Liquidity with Bin Array Management", async () => {
     binLiquidityDist: [
       {
         binId: activeBinId,
-        distributionX: 10000,  // 100% of X (WSOL)
-        distributionY: 0,      // 0% of Y
+        distributionX: 5000,  // 100% of X (WSOL)
+        distributionY:5000,      // 0% of Y
       }
     ],
   };

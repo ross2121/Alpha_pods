@@ -30,9 +30,8 @@ export const handleVote = async (ctx: Context<Update.CallbackQueryUpdate> & { ma
     if (!proposal) {
         return ctx.answerCbQuery('This proposal is no longer valid.');
     }
-    const newvote = (action === 'yes') ? Vote.Yes : Vote.NO;
-    
-    // Create unique key for this user + proposal combination
+    const newvote = (action === 'yes') ? Vote.Yes  : Vote.NO;
+
     const voteKey = `${userId}_${ctx.callbackQuery.message?.chat.id}_${ctx.callbackQuery.message?.message_id}`;
     const existingVote = proposevotes.get(voteKey);
     if (existingVote && existingVote.vote === newvote) {

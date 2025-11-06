@@ -2,7 +2,7 @@ import express, { json } from "express";
 import { Telegraf, Markup, Scenes, session } from "telegraf";
 import dotenv from "dotenv";
 import { admin_middleware, user_middleware } from "./middleware/admin";
-import { MyContext, createProposeWizard} from "./commands/Proposal";
+import { MyContext, createProposeWizard, createliqudityWizards} from "./commands/Proposal";
 import { handleVote, Vote } from "./commands/vote";
 import { 
     handleMemberCount, 
@@ -13,7 +13,8 @@ import {
     handleMyChatMember 
 } from "./commands/group";
 import { handleStart } from "./commands/start";
-import { executedSwapProposal, getQuote, handlswap } from "./commands/swap";
+import { executedliquidity, executedSwapProposal, getQuote, handlswap } from "./commands/swap";
+import { executeLP } from "./commands/liquidity";
 import { handleWallet, handleWithdrawWallet, handleExportKeyWallet } from "./commands/wallet";
 import { 
     createLiquidityWizard, 
@@ -37,26 +38,8 @@ import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority } from
 import { PrismaClient } from "@prisma/client";
 
 dotenv.config();
-
-// Initialize Prisma Client and check database connection
 const prisma = new PrismaClient();
 
-// Database connection check
-async function checkDatabaseConnection() {
-  try {
-    await prisma.$connect();
-    console.log("✅ Database connected successfully!");
-  } catch (error) {
-    console.error("❌ Failed to connect to database:");
-    console.error(error);
-    console.error("\n🔴 Database connection error. Please check:");
-    console.error("1. Your DATABASE_URL in .env file");
-    console.error("2. Database server is running");
-    console.error("3. Network connectivity");
-    console.error("\nExiting...");
-    process.exit(1);
-  }
-}
 
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
 const mainKeyboard = Markup.inlineKeyboard([
@@ -70,7 +53,9 @@ const mainKeyboard = Markup.inlineKeyboard([
 ]);
 const app=express();
 const proposeWizard = createProposeWizard(bot);
-const stage = new Scenes.Stage<MyContext>([proposeWizard, createLiquidityWizard as any]);
+const liquidtywizard=createliqudityWizards(bot);
+const stage = new Scenes.Stage<MyContext>([proposeWizard, liquidtywizard as any]);
+
 app.use(json);
 const port = process.env.PORT || 4000 
 app.listen(port,()=>{
@@ -78,13 +63,33 @@ app.listen(port,()=>{
 })
 bot.use(session());
 bot.use(stage.middleware());
-
-// Start command - main entry point
 bot.command("start", handleStart);
 
 bot.command("propose", admin_middleware, async (ctx) => {
   await ctx.scene.enter('propose_wizard');
 });
+
+// bot.action(/execute_liquidity:(.+)/, admin_middleware, async (ctx) => {
+//   try {
+//     const proposalId = ctx.match[1];
+//     await ctx.reply("⏳ Executing Liquidity...\n\nThis may take a moment.", { parse_mode: 'Markdown' });
+//     const res: any = await executeLP(proposalId);
+//     if (res) {
+//       await ctx.reply(
+//         `✅ Liquidity added!\n\n` +
+//         `• Position: \`${res.positionAddress}\`\n` +
+//         `• Pool: \`${res.poolAddress}\`\n` +
+//         `• Tx: \`${res.txSignature}\``,
+//         { parse_mode: 'Markdown' }
+//       );
+//     } else {
+//       await ctx.reply("⚠️ Liquidity execution returned no result. Check logs.");
+//     }
+//   } catch (error: any) {
+//     console.error("execute_liquidity error:", error);
+//     await ctx.reply(`❌ Liquidity execution failed: ${error.message || error}`);
+//   }
+// });
 bot.command('membercount', handleMemberCount);
 bot.command('myinfo', handleMyInfo);
 bot.command("market", handleMarket);
@@ -96,10 +101,14 @@ bot.on('new_chat_members', handleNewChatMembers);
 bot.action(/vote:(yes|no):(.+)/, user_middleware,handleVote);
 bot.action(/vote_liquidity:(yes|no):(.+)/, user_middleware, handleLiquidityVote);
 
-// Liquidity management actions
+
 bot.action("add_liquidity", admin_middleware, async (ctx) => {
   await ctx.answerCbQuery();
-  await ctx.scene.enter('add_liquidity_wizard');
+  await ctx.scene.enter('liquidity_wizard');
+});
+
+bot.command("add_liquidity", admin_middleware, async (ctx) => {
+  await ctx.scene.enter('liquidity_wizard');
 });
 
 bot.action("view_positions", async (ctx) => {
@@ -113,7 +122,7 @@ bot.action("close_position", admin_middleware, async (ctx) => {
 });
 
 bot.action(/close_position:(.+)/, admin_middleware, async (ctx) => {
-  const positionId = ctx.match[1]; // UUID string
+  const positionId = ctx.match[1]; 
   await executeClosePosition(ctx, positionId);
 });
 
@@ -128,9 +137,7 @@ bot.action(/claim_fees:(.+)/, admin_middleware, async (ctx) => {
   await ctx.reply(`💰 **Claim Fees Feature**\n\nPosition: \`${positionAddress}\`\n\nThis feature will allow you to claim accumulated trading fees from your liquidity position.\n\n🚧 Coming soon!`, { parse_mode: "Markdown" });
 });
 
-bot.command("add_liquidity", admin_middleware, async (ctx) => {
-  await ctx.scene.enter('add_liquidity_wizard');
-});
+
 
 bot.command("view_positions", handleViewPositions);
 bot.command("close_position", admin_middleware, handleClosePosition);
@@ -197,7 +204,7 @@ bot.command("withdraw", user_middleware, async (ctx) => {
     const wallet = new anchor.Wallet(userKeypair);
     const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
     const program = new Program<AlphaPods>(idl as AlphaPods, provider);
-    
+
     const [escrowPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("escrow"),
@@ -303,7 +310,6 @@ bot.command("export_key", user_middleware, async (ctx) => {
   }
 });
 
-// Wallet command and actions
 bot.command("wallet", user_middleware, handleWallet);
 bot.action(/withdraw_wallet:(.+)/, user_middleware, handleWithdrawWallet);
 bot.action(/export_key_wallet:(.+)/, user_middleware, handleExportKeyWallet);
@@ -372,13 +378,10 @@ Ready to execute the swap!
         await ctx.reply("❌ **Pool Search Failed**\n\nUnable to find pools at this time. Please try again later.", { parse_mode: 'Markdown' });
     }
 });
-
 bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
   const proposalId = ctx.match[1];
-  
   await ctx.answerCbQuery();
   await ctx.reply("⏳ **Executing Swap...**\n\nChecking member deposits and executing swap...", { parse_mode: 'Markdown' });
-  
   try {
     const result = await executedSwapProposal(proposalId);
     if(!result){
@@ -395,7 +398,7 @@ bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
       );
     } else {
       await ctx.reply(
-        `❌ **Swap Failed**\n\n` +
+        ` **Swap Failed**\n\n` +
         `Error: ${result.message}\n\n` +
         `Please check member deposits and try again.`,
         { parse_mode: 'Markdown' }
@@ -406,6 +409,38 @@ bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
     await ctx.reply(`❌ Swap execution failed: ${error.message}`);
   }
 });
+bot.action(/execute_liquidity:(.+)/, admin_middleware, async (ctx) => {
+  const proposalId = ctx.match[1];
+  await ctx.answerCbQuery();
+  await ctx.reply("⏳ **Executing Liquidity...**\n\nChecking member deposits and executing liquidity...", { parse_mode: 'Markdown' });
+  try {
+    const result = await  executedliquidity(proposalId);
+    if(!result){
+      await ctx.reply("Swap failed")
+      return;
+    }
+    if (result.success) {
+      await ctx.reply(
+        `✅ **Swap Executed Successfully!**\n\n` +
+        `All members have been funded and swap completed!\n\n` +
+        `Transaction: \`${result.transaction}\`\n\n` +
+        `🎉 Tokens are now in the escrow!`,
+        { parse_mode: 'Markdown' }
+      );
+    } else {
+      await ctx.reply(
+        ` **Swap Failed**\n\n` +
+        `Error: ${result.message}\n\n` +
+        `Please check member deposits and try again.`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+  } catch (error: any) {
+    console.error("Swap execution error:", error);
+    await ctx.reply(`❌ Swap execution failed: ${error.message}`);
+  }
+});
+
 bot.launch()
 // handlswap(new PublicKey("6i6Z7twwpvr8PsCpsPujR1PgucdjpNPxAA4U7Uk2RZSk"),0.1*LAMPORTS_PER_SOL,"7oB9zbkRHScBur7kbLwJB9VNqUYGUdYobTeFB9QLPjEf");
 
