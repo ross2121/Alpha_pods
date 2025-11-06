@@ -368,10 +368,6 @@
           "writable": true
         },
         {
-          "name": "rent_reciver",
-          "writable": true
-        },
-        {
           "name": "bin_array_upper",
           "writable": true
         },
@@ -1305,117 +1301,11 @@
         },
         {
           "name": "vaulta",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "vault"
-              },
-              {
-                "kind": "account",
-                "path": "token_program"
-              },
-              {
-                "kind": "account",
-                "path": "token_x_mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
+          "writable": true
         },
         {
           "name": "vaultb",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "vault"
-              },
-              {
-                "kind": "account",
-                "path": "token_program"
-              },
-              {
-                "kind": "account",
-                "path": "token_y_mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
+          "writable": true
         },
         {
           "name": "token_x_mint"
@@ -1430,10 +1320,6 @@
         {
           "name": "bin_array_upper",
           "writable": true
-        },
-        {
-          "name": "user",
-          "signer": true
         },
         {
           "name": "dlmm_program",

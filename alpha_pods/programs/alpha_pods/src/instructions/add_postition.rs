@@ -43,7 +43,7 @@ pub fn add_position(
     
     let accounts = dlmm::cpi::accounts::InitializePosition{
        lb_pair:self.lb_pair.to_account_info(),
-        owner:self.vault.to_account_info(),
+        owner:self.escrow.to_account_info(),
         event_authority:self.event_authority.to_account_info(),
         payer:self.vault.to_account_info(),
         position:self.position.to_account_info(),
@@ -53,12 +53,19 @@ pub fn add_position(
     };
  
     let escrow_key = self.escrow.key();
-    
-    let signer_seeds: &[&[&[u8]]] = &[&[
-        b"vault",
-        escrow_key.as_ref(),
-        &[bumps.vault],
-    ]];
+    let signer_seeds: &[&[&[u8]]] = &[
+        &[
+            b"vault",
+            escrow_key.as_ref(),
+            &[bumps.vault],
+        ],
+        &[
+            b"escrow",
+            self.escrow.admin.as_ref(),
+            &self.escrow.seed.to_le_bytes(),
+            &[self.escrow.bump],
+        ],
+    ];
 
 
     let cpi_context = CpiContext::new_with_signer(self.dlmm_program.to_account_info(), accounts,signer_seeds);

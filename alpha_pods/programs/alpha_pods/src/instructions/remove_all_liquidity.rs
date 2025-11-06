@@ -28,11 +28,12 @@ pub struct Removeliquidity<'info> {
     #[account(mut,seeds=[b"vault",escrow.key().as_ref()],bump)]
     /// CHECK: PDA that owns the position
     pub vault: SystemAccount<'info>,
-    #[account(mut,associated_token::mint=token_x_mint,associated_token::authority=vault,associated_token::token_program=token_program)]
-    pub vaulta:Account<'info,TokenAccount>,
-    #[account(mut,associated_token::mint=token_y_mint,associated_token::authority=vault,associated_token::token_program=token_program)]
-    pub vaultb:Account<'info,TokenAccount>,
-
+    #[account(mut)]
+  /// CHECK: Reserve account of token Y
+    pub vaulta:UncheckedAccount<'info>,
+    #[account(mut)]
+   /// CHECK: Reserve account of token Y
+    pub vaultb:UncheckedAccount<'info>,
     /// CHECK: Mint account of token X
     pub token_x_mint: UncheckedAccount<'info>,
     /// CHECK: Mint account of token Y
@@ -45,10 +46,6 @@ pub struct Removeliquidity<'info> {
     #[account(mut)]
     /// CHECK: Referral fee account
     pub bin_array_upper: UncheckedAccount<'info>,
-
-    /// CHECK: User who's executing the swap
-    pub user: Signer<'info>,
-
     #[account(address = dlmm::ID)]
     /// CHECK: DLMM program
     pub dlmm_program: UncheckedAccount<'info>,
@@ -83,7 +80,7 @@ pub fn remove_liqudity(
         user_token_y: self.vaultb.to_account_info(),
         token_x_mint:self.token_x_mint.to_account_info(),
         token_y_mint: self.token_y_mint.to_account_info(),
-        sender: self.vault.to_account_info(),
+        sender: self.escrow.to_account_info(),
         token_x_program:self.token_x_program.to_account_info(),
         token_y_program: self.token_y_program.to_account_info(),
         event_authority: self.event_authority.to_account_info(),
@@ -92,12 +89,15 @@ pub fn remove_liqudity(
         bin_array_upper:self.bin_array_upper.to_account_info(),
         position:self.position.to_account_info()
     };
-    let escrow_key = self.escrow.key();
+    let admin_key = self.escrow.admin.key();
+    let seed_bytes = self.escrow.seed.to_le_bytes();
+    let bump = &[self.escrow.bump];
     
     let signer_seeds: &[&[&[u8]]] = &[&[
-        b"vault",
-        escrow_key.as_ref(),
-        &[bumps.vault],
+        b"escrow",
+        admin_key.as_ref(),
+        &seed_bytes,
+        bump,
     ]];
   
     let cpi_context: CpiContext<'_, '_, '_, '_, dlmm::cpi::accounts::RemoveLiquidity<'_>> = CpiContext::new_with_signer(self.dlmm_program.to_account_info(), accounts,signer_seeds)

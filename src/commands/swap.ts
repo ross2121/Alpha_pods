@@ -340,7 +340,6 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
    console.log(`\n🔍 Searching through ${dlmm.length} total pools...`);
    
   for(let i=0;i<dlmm.length;i++){
-    
     if((dlmm[i].account.tokenXMint.equals(tokenxmint) && dlmm[i].account.tokenYMint.equals(token_y)) || (dlmm[i].account.tokenYMint.equals(NATIVE_MINT) && dlmm[i].account.tokenXMint.equals(token_y))){
       console.log("2");
       poolsChecked++;

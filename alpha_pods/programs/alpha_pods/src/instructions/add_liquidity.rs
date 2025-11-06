@@ -58,9 +58,7 @@
         pub token_program:Program<'info,Token>,
         pub system_program:Program<'info,System>,
         pub associated_token_program:Program<'info,AssociatedToken>
-        // Bin arrays need to be passed using remaining accounts via ctx.remaining_accounts
     }
-
     impl<'info> AddLiquidity<'info>{
     pub fn add_liquidity(
         &mut self,
@@ -82,11 +80,8 @@
         } else { 
             liqudity_parameter.amount_y 
         };
-        
         let needs_wrapping = is_token_x_sol || is_token_y_sol;
-
         if needs_wrapping {
-
             msg!("Wrapping {} lamports of SOL to WSOL", amount_in);
             let wsol_vault = if is_token_x_sol {
                 &self.vaulta
@@ -94,27 +89,25 @@
                 &self.vaultb
             };
             let token_program_for_wsol = if is_token_x_sol {
-                &self.token_x_program  // Use token_x_program for X mint
+                &self.token_x_program  
             } else {
-                &self.token_y_program  // Use token_y_program for Y mint
+                &self.token_y_program 
             };
             let wsol_mint = if is_token_x_sol {
                 &self.token_x_mint
             } else {
                 &self.token_y_mint
             };
-        
             if wsol_vault.data_is_empty() {
                 msg!("Creating WSOL token account");
                 let cpi_accounts = Create {
                     payer: self.vault.to_account_info(),
                     associated_token: wsol_vault.to_account_info(),
-                    authority: self.vault.to_account_info(),
+                    authority: self.escrow.to_account_info(),
                     mint: wsol_mint.to_account_info(),
                     system_program: self.system_program.to_account_info(),
                     token_program: token_program_for_wsol.to_account_info(),
                 };
-                
                 create(
                     CpiContext::new_with_signer(
                         self.associated_token_program.to_account_info(),
@@ -123,10 +116,6 @@
                     )
                 )?;
             }
-        
-
-        
-
             anchor_lang::system_program::transfer(
                 CpiContext::new_with_signer(
                     self.system_program.to_account_info(),
@@ -138,7 +127,6 @@
                 ),
                 amount_in,
             )?;
-            
             anchor_spl::token::sync_native(CpiContext::new(
                 token_program_for_wsol.to_account_info(),
                 anchor_spl::token::SyncNative {
@@ -152,12 +140,11 @@
             let account=Create{
                 payer:self.vault.to_account_info(),
                 associated_token:self.vaulta.to_account_info(),
-                authority:self.vault.to_account_info(),
+                authority:self.escrow.to_account_info(),
                 mint:self.token_x_mint.to_account_info(),
                 system_program:self.system_program.to_account_info(),
                 token_program:self.token_x_program.to_account_info()
             };
-            
             let cpi_ctx=CpiContext::new_with_signer(self.associated_token_program.to_account_info(), account, signer_seeds);
             create(cpi_ctx)?;
         }
@@ -165,7 +152,7 @@
             let account=Create{
                 payer:self.vault.to_account_info(),
                 associated_token:self.vaultb.to_account_info(),
-                authority:self.vault.to_account_info(),
+                authority:self.escrow.to_account_info(),
                 mint:self.token_y_mint.to_account_info(),
                 system_program:self.system_program.to_account_info(),
                 token_program:self.token_y_program.to_account_info()
@@ -174,8 +161,6 @@
             let cpi_ctx=CpiContext::new_with_signer(self.associated_token_program.to_account_info(), account, signer_seeds);
             create(cpi_ctx)?;
         }
-
-
         let accounts = dlmm::cpi::accounts::AddLiquidity{
             lb_pair: self.lb_pair.to_account_info(),
             bin_array_bitmap_extension: self
@@ -191,19 +176,28 @@
             bin_array_lower: self.bin_array_lower.to_account_info(),
             bin_array_upper: self.bin_array_upper.to_account_info(),
             position:self.position.to_account_info(),
-            sender: self.vault.to_account_info(),
+            sender: self.escrow.to_account_info(),
             token_x_program:self.token_x_program.to_account_info(),
             token_y_program: self.token_y_program.to_account_info(),
             event_authority: self.event_authority.to_account_info(),
             program: self.dlmm_program.to_account_info(),
         };
         let escrow_key = self.escrow.key();
-        
-        let signer_seeds: &[&[&[u8]]] = &[&[
-            b"vault",
-            escrow_key.as_ref(),
-            &[bumps.vault],
-        ]];
+          let seed_bytes=self.escrow.seed.to_le_bytes();
+          let signer_seeds: &[&[&[u8]]] = &[
+            &[
+                b"vault",
+                escrow_key.as_ref(),
+                &[bumps.vault],
+            ],
+            &[
+                b"escrow",
+                self.escrow.admin.as_ref(),
+                &self.escrow.seed.to_le_bytes(),
+                &[self.escrow.bump],
+            ],
+        ];
+
         let cpi_context = CpiContext::new_with_signer(self.dlmm_program.to_account_info(), accounts, signer_seeds)
             .with_remaining_accounts(remaining_accounts.to_vec());
         dlmm::cpi::add_liquidity(cpi_context, liqudity_parameter)

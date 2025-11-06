@@ -1086,9 +1086,8 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
     const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(position.upperBinId));
     const [binArrayLower] = deriveBinArray(poolPubkey, lowerBinArrayIndex, METORA_PROGRAM_ID);
     const [binArrayUpper] = deriveBinArray(poolPubkey, upperBinArrayIndex, METORA_PROGRAM_ID);
-
-    const vaulta = await getAssociatedTokenAddress(tokenXMint, escrow_vault_pda, true);
-    const vaultb = await getAssociatedTokenAddress(tokenYMint, escrow_vault_pda, true);
+    const vaulta = await getAssociatedTokenAddress(tokenXMint, escrowPda, true);
+    const vaultb = await getAssociatedTokenAddress(tokenYMint, escrowPda, true);
 
     await ctx.reply("💧 Removing liquidity...");
     const binLiquidityReduction = [{ binId: activeBinId, bpsToRemove: 10000 }];
@@ -1109,14 +1108,12 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
         tokenYMint: tokenYMint,
         binArrayLower: binArrayLower,
         binArrayUpper: binArrayUpper,
-        user: adminKeypair.publicKey,
         dlmmProgram: METORA_PROGRAM_ID,
         eventAuthority: eventAuthority,
         tokenXProgram: TOKEN_PROGRAM_ID,
         tokenYProgram: TOKEN_PROGRAM_ID,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .signers([adminKeypair])
       .rpc();
 
     await connection.confirmTransaction(removeLiquidityTx, "confirmed");
@@ -1128,7 +1125,6 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
         position: positionPubkey,
         binArrayLower: binArrayLower,
         binArrayUpper: binArrayUpper,
-        rentReciver: adminKeypair.publicKey,
         escrow: escrowPda,
         dlmmProgram: METORA_PROGRAM_ID,
         eventAuthority: eventAuthority,
@@ -1138,7 +1134,6 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
 
     await connection.confirmTransaction(closeTx, "confirmed");
 
-    // Update database
     await prisma.liquidityPosition.update({
       where: { id: positionId.toString() },
       data: { isActive: false }
@@ -1210,7 +1205,9 @@ export const executeLP=async(proposal_id:string)=>{
     (pair.account.tokenXMint.toBase58() === tokenYMint.toBase58() &&
      pair.account.tokenYMint.toBase58() === tokenXMint.toBase58())
   );
+  console.log(matchingPair);
   if (!matchingPair) {
+    console.log("cechh");
     throw new Error("No matching pair found")
   }
   
@@ -1256,7 +1253,7 @@ export const executeLP=async(proposal_id:string)=>{
     .signers([positionKeypair])
     .rpc();
     
-  console.log("✅ Position created! Signature:", createPositionTx);
+  console.log(" Position created! Signature:", createPositionTx);
   await provider.connection.confirmTransaction(createPositionTx, "confirmed");
   const upperBinId = lowerBinId + width - 1;
   const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(lowerBinId));
@@ -1336,19 +1333,17 @@ export const executeLP=async(proposal_id:string)=>{
   let distributionX: number;
   let distributionY: number;
   
-  // Convert swap.amount_out from (tokens/1e9)*1000 to token's smallest unit (lamports)
-  // swap.amount_out is in tokens * 1e-6, so multiply by 1e6 to get smallest unit
-  // Assuming token has 9 decimals (standard), multiply by 1e6 to convert back
+
   const tokenAmountInSmallestUnit = Math.floor(swap.amount_out * 1e6);
   
   if (isWSOLTokenX) {
-    amountX = totalAmount; // WSOL in lamports
-    amountY = new anchor.BN(tokenAmountInSmallestUnit); // Token in smallest unit
+    amountX = totalAmount; 
+    amountY = new anchor.BN(tokenAmountInSmallestUnit); 
     distributionX = 5000;
     distributionY = 5000;
   } else if (isWSOLTokenY) {
-    amountX = new anchor.BN(tokenAmountInSmallestUnit); // Token in smallest unit
-    amountY = totalAmount; // WSOL in lamports
+    amountX = new anchor.BN(tokenAmountInSmallestUnit); 
+    amountY = totalAmount;
     distributionX = 5000;
     distributionY = 5000;
   } else {
@@ -1388,20 +1383,18 @@ export const executeLP=async(proposal_id:string)=>{
     
     const vaulta = await getAssociatedTokenAddress(
       poolTokenXMint, 
-      escrow_vault_pda, 
+      escrowPda, 
       true,
       poolTokenXProgramId
     );
     const vaultb = await getAssociatedTokenAddress(
       poolTokenYMint, 
-      escrow_vault_pda, 
+      escrowPda, 
       true,
       poolTokenYProgramId
     );
-    
     console.log("Vault A:", vaulta.toString(), "(tokenX:", poolTokenXMint.toBase58().slice(0, 8) + "...)");
     console.log("Vault B:", vaultb.toString(), "(tokenY:", poolTokenYMint.toBase58().slice(0, 8) + "...)");
-    
     const txSignature = await program.methods
       .addLiquidity(liquidityParameter)
       .accountsStrict({
@@ -1430,8 +1423,7 @@ export const executeLP=async(proposal_id:string)=>{
       
     console.log("✅ Liquidity added successfully!");
     console.log("Transaction signature:", txSignature);
-    
-    // Wait for confirmation before creating DB record
+
     await provider.connection.confirmTransaction(txSignature, "confirmed");
   
     await prisma.liquidityPosition.create({
