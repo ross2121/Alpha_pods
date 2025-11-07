@@ -392,11 +392,14 @@ export const createliqudityWizards= (bot: any) => new Scenes.WizardScene<MyConte
                        console.error("Failed to send expiration message:", sendError);
                    }
                }
+               let temp:boolean=false;
 
                console.log("Voting period over.");
                if (expiredproposal.yes > 0) {
                    try {
-                       await getminimumfund(expiredproposal.id, bot);
+                       const result=await getminimumfund(expiredproposal.id, bot);
+                       temp=result;
+                       console.log("result",result);
                        console.log(`Initial funding check requested for proposal ${expiredproposal.id}`);
                        try {
                            await bot.telegram.sendMessage(
@@ -406,11 +409,16 @@ export const createliqudityWizards= (bot: any) => new Scenes.WizardScene<MyConte
                        } catch (msgError) {
                            console.error("Failed to send funding message:", msgError);
                        }
-
+   
                        console.log(`Waiting 5 minutes for funding...`);
+                      
+                       
+                        console.log("tee");
                        setTimeout(async() => {
                            console.log(`Funding period over for proposal ${expiredproposal.id}. Checking funds...`);
+                           if(!temp){
                            await checkfund(expiredproposal.id);
+                        }
                            const fundedProposal = await prisma.proposal.findUnique({
                                where: { id: expiredproposal.id }
                            });
@@ -456,11 +464,12 @@ Click the button below to continue:
                            }
 
                        }, FUNDING_PERIOD_MS);
-                     
+                    
                    } catch (fundingError) {
                        console.error("Failed to check funding requirements:", fundingError);
                    }
                }
+
            } catch (e) {
                console.error("Failed to handle expired proposal:", e);
            } finally {

@@ -183,7 +183,6 @@
             program: self.dlmm_program.to_account_info(),
         };
         let escrow_key = self.escrow.key();
-          let seed_bytes=self.escrow.seed.to_le_bytes();
           let signer_seeds: &[&[&[u8]]] = &[
             &[
                 b"vault",

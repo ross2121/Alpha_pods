@@ -317,7 +317,6 @@ export const getfund = async (proposalid: string) => {
     }
   }
 };
-
 export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=>{
    const tokenxmint=NATIVE_MINT;
    const connection=new Connection("https://api.devnet.solana.com");
@@ -336,9 +335,7 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
    let poolsChecked = 0;
    const MIN_POOLS_TO_CHECK = 30;
    const errors: string[] = [];
-   
    console.log(`\n🔍 Searching through ${dlmm.length} total pools...`);
-   
   for(let i=0;i<dlmm.length;i++){
     if((dlmm[i].account.tokenXMint.equals(tokenxmint) && dlmm[i].account.tokenYMint.equals(token_y)) || (dlmm[i].account.tokenYMint.equals(NATIVE_MINT) && dlmm[i].account.tokenXMint.equals(token_y))){
       console.log("2");
@@ -358,9 +355,7 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
           false,
           2
          );
-         
-         console.log(`✓ Quote successful: ${(swapQuote.minOutAmount.toNumber() / 1e9).toFixed(6)} tokens`); 
-         
+         console.log(` Quote successful: ${(swapQuote.minOutAmount.toNumber() / 1e9).toFixed(6)} tokens`); 
          const vaulta = await getAssociatedTokenAddress(dlmm[i].account.tokenXMint, escrowPda, true);
          const vaultb = await getAssociatedTokenAddress(dlmm[i].account.tokenYMint, escrowPda, true);
          const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
@@ -445,6 +440,40 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
     `Try with a different token or on mainnet.`
   );
 }
+export const deposit_lp=async(amount_x:number,propoal_id:string)=>{
+const prisma=new PrismaClient();
+const proposal=await prisma.proposal.findUnique({
+  where:{
+    id:propoal_id
+  }
+});
+if(!proposal){
+  return;
+}
+const escrow=await prisma.escrow.findUnique({
+  where:{
+    chatId:proposal.chatId
+  }
+})
+if(!escrow){
+  return;
+}
+for(let i=0;i<proposal.Members.length;i++){
+    await prisma.deposit.update({
+    where:{
+      telegram_id_escrowId_mint:{
+        telegram_id:proposal.Members[i],
+        escrowId:escrow?.id,
+        mint:"",
+      }
+    },data:{
+      amount:{
+        decrement:amount_x
+      }
+    }
+   })
+}
+}
 export const executedSwapProposal=async(proposal_id:string)=>{
   const prisma=new PrismaClient();
   try{
@@ -485,7 +514,9 @@ export const executedSwapProposal=async(proposal_id:string)=>{
         success: true,
         message: "Swap executed successfully!",
         transaction: swapResult.txn,
+        amount_out:swapResult.amount_out
       };
+
   }catch(error:any){
      console.log("Execute Swap error");
     
@@ -518,7 +549,7 @@ export const executedliquidity=async(proposal_id:string)=>{
       const swapResult: any = await executeLP(proposal_id)
       console.log("swap",swapResult);
       // for (const memberId of proposal.Members) {
-      //   await updatebalance(swapResult.amount_out, swapResult.amount_in, proposal_id, memberId);
+      //   await update_lp_balance(swapResult.amount_out, swapResult.amount_in, proposal_id, memberId);
       // }
       
       console.log("swapresd",swapResult)
@@ -538,6 +569,57 @@ export const executedliquidity=async(proposal_id:string)=>{
     success: false,
     message: "Not found"
   };
+}
+export const update_lp_balance=async(amount_in:number,proposal_id:string,telegram_id:string)=>{
+  const prisma=new PrismaClient();
+const proposal=await prisma.proposal.findUnique({
+  where:{
+    id:proposal_id
+  }
+})
+if(!proposal){
+  return;
+}
+const escrow=await prisma.escrow.findUnique({
+  where:{
+    chatId:proposal.chatId
+  }
+})
+if(!escrow){
+  return;
+}
+const user=await prisma.user.findUnique({
+  where:{
+    telegram_id:telegram_id
+  }
+})
+if(!user){
+  return;
+}
+const solSpentPerMember = amount_in / (proposal.Members.length * LAMPORTS_PER_SOL); 
+
+const deposit=await prisma.deposit.findUnique({
+  where:{
+    telegram_id_escrowId_mint:{
+       telegram_id:telegram_id,
+       escrowId:escrow.id,
+       mint:""
+    }
+  }
+})
+if(deposit){
+  await prisma.deposit.update({
+    where:{
+     id:deposit.id
+    },
+    data:{
+      amount:{
+        decrement: solSpentPerMember
+      }
+    }
+  })
+}
+
 }
 export const updatebalance=async(amount_out:number,amount_in:number,proposal_id:string,telegram_id:string)=>{
 const prisma=new PrismaClient();
@@ -627,4 +709,52 @@ if(token_deposit){
   })
 }
 
+}
+export const sendmoney=async(amount_x:number,amount_y:number,proposal_id:string)=>{
+const prisma=new PrismaClient();
+const proposal=await prisma.proposal.findUnique({
+  where:{
+    id:proposal_id
+  }
+});
+if(!proposal){
+  return;
+}
+const escrow=await prisma.escrow.findUnique({
+  where:{
+    chatId:proposal.chatId
+  }
+});
+if(!escrow){
+  return;
+}
+for(let i=0;i<proposal.Members.length;i++){
+  await prisma.deposit.update({
+    where:{
+        telegram_id_escrowId_mint:{
+          telegram_id:proposal.Members[i],
+           escrowId:escrow.id,
+           mint:""
+        }
+    },data:{
+      amount:{
+        increment:amount_x
+      }
+    }
+  });
+ await prisma.deposit.update({
+  where:{
+    telegram_id_escrowId_mint:{
+      mint:proposal.mint,
+      telegram_id:proposal.Members[i],
+      escrowId:escrow.id
+    }
+  },data:{
+    amount:{
+      increment:amount_y
+    }
+  }
+ });
+
+}
 }

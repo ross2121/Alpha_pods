@@ -3,7 +3,7 @@ import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { Telegraf } from "telegraf";
 import dotenv from "dotenv";
 dotenv.config();
-export const getminimumfund = async (proposal_id: string, bot: any) => {
+export const getminimumfund = async (proposal_id: string, bot: any)=> {
     const prisma = new PrismaClient();
     const url = process.env.RPC_URL;
     console.log("url",url);
@@ -14,12 +14,19 @@ export const getminimumfund = async (proposal_id: string, bot: any) => {
             id: proposal_id
         }
     });
+    const escrow=await prisma.escrow.findUnique({
+        where:{
+            chatId:proposal?.chatId
+        }
+    });
+    if(!escrow){
+        return false;
+    }
     const members = proposal?.Members;
     if (!members || members.length === 0) {
         console.log("No members found for proposal");
-        return;
+        return false;
     }
-    
     console.log(`Checking funding for ${members.length} members who voted "Yes"`);
     
     for (const memberc of members) {
@@ -33,7 +40,21 @@ export const getminimumfund = async (proposal_id: string, bot: any) => {
             console.log(`User with telegram_id ${memberc} not found`);
             continue;
         }
-        
+        const deposit=await prisma.deposit.findUnique({
+            where:{
+                telegram_id_escrowId_mint:{
+                      telegram_id:memberc,
+                      escrowId:escrow?.id,
+                      mint:""
+                }
+            }
+        })
+        if(!deposit){
+            return false;
+        }
+        if(deposit?.amount>=proposal.amount){
+              return true;
+        }
         const public_key = new PublicKey(member.public_key);
         const balance = await connection.getBalance(public_key);
         const balancesol = balance / LAMPORTS_PER_SOL;
@@ -78,6 +99,7 @@ You can get SOL from exchanges like:
             }
         }
     }
+    return false;
 };
 export const checkfund=async(proposal_id:string)=>{
    const prisma=new PrismaClient();
