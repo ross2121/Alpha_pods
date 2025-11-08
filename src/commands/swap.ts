@@ -310,9 +310,9 @@ export const getfund = async (proposalid: string) => {
       const private_key = decryptPrivateKey(user.encrypted_private_key, user.encryption_iv);
       const keypair = Keypair.fromSecretKey(private_key);
       await deposit(amount, keypair, proposal.chatId, user.id);
-      console.log(`✓ Deposited ${amount} SOL for user ${user.telegram_id}`);
+      console.log(` Deposited ${amount} SOL for user ${user.telegram_id}`);
     } catch (e) {
-      console.log(`❌ Error depositing for user ${user.telegram_id}:`, e);
+      console.log(`Error depositing for user ${user.telegram_id}:`, e);
       // Continue to next user even if this one fails
     }
   }
@@ -404,7 +404,7 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
      console.log(`Pool: ${dlmm[i].publicKey.toBase58()}`);
      return {
       txn:swapTx,
-      amount_out:Number(amount_out)*1000,
+      amount_out:Number(amount_out),
       amount_in:amount
      }
      
@@ -430,7 +430,7 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
     }
   }
   
-  console.error(`\n❌ SWAP FAILED after checking ${poolsAttempted} pools`);
+  console.error(`\n SWAP FAILED after checking ${poolsAttempted} pools`);
   console.error(`\nErrors encountered:`);
   errors.forEach(err => console.error(`  - ${err}`));
   

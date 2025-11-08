@@ -3,7 +3,7 @@ import { admin_middleware } from "../middleware/admin";
 import  dotenv from "dotenv";
 import { PublicKey } from "@solana/web3.js";
 import { PrismaClient } from "@prisma/client";
-import { checkfund, getminimumfund } from "./fund";
+import { checkadminfund, checkfund, getminimumfund } from "./fund";
 const getTokenInfo = async (mintAddress: any) => {
     const url = process.env.HELIUS_RPC_URL || "https://devnet.helius-rpc.com/?api-key=1f13a790-f758-4d3e-8263-660d6b629709";
     console.log("url", url);
@@ -139,7 +139,7 @@ export const createProposeWizard = (bot: any) => new Scenes.WizardScene<MyContex
         })
         console.log(proposal);
         const VOTING_PERIOD_MS = 0.1 * 60 * 1000;
-        const FUNDING_PERIOD_MS = 0.1 * 60 * 1000; 
+        const FUNDING_PERIOD_MS = 10000; // 10 seconds 
 
         setTimeout(async () => {
            try {
@@ -345,7 +345,7 @@ export const createliqudityWizards= (bot: any) => new Scenes.WizardScene<MyConte
         })
         console.log(proposal);
         const VOTING_PERIOD_MS = 0.1 * 60 * 1000;
-        const FUNDING_PERIOD_MS = 0.1 * 60 * 1000; 
+        const FUNDING_PERIOD_MS = 10000; // 10 seconds 
 
         setTimeout(async () => {
            try {
@@ -393,32 +393,43 @@ export const createliqudityWizards= (bot: any) => new Scenes.WizardScene<MyConte
                    }
                }
                let temp:boolean=false;
-
-               console.log("Voting period over.");
-               if (expiredproposal.yes > 0) {
-                   try {
-                       const result=await getminimumfund(expiredproposal.id, bot);
-                       temp=result;
-                       console.log("result",result);
-                       console.log(`Initial funding check requested for proposal ${expiredproposal.id}`);
-                       try {
-                           await bot.telegram.sendMessage(
-                               Number(expiredproposal.chatId),
-                               `Voting complete. Members who voted "Yes" now have 5 minutes to ensure their wallets are funded.`
-                           );
-                       } catch (msgError) {
-                           console.error("Failed to send funding message:", msgError);
-                       }
-   
-                       console.log(`Waiting 5 minutes for funding...`);
+               let temp2:boolean=true
+              console.log("Voting period over.");
+              if (expiredproposal.yes > 0) {
+                  try {
+                      const result=await getminimumfund(expiredproposal.id, bot);
+                      temp=result;
                       
-                       
-                        console.log("tee");
-                       setTimeout(async() => {
-                           console.log(`Funding period over for proposal ${expiredproposal.id}. Checking funds...`);
-                           if(!temp){
-                           await checkfund(expiredproposal.id);
-                        }
+                      console.log("result",result);
+                      console.log(`Initial funding check requested for proposal ${expiredproposal.id}`);
+                      try {
+                          await bot.telegram.sendMessage(
+                              Number(expiredproposal.chatId),
+                              `Voting complete. Members who voted "Yes" now have 10 seconds to ensure their wallets are funded.`
+                          );
+                      } catch (msgError) {
+                          console.error("Failed to send funding message:", msgError);
+                      }
+  
+                      console.log(`Waiting 10 seconds for funding...`);
+                     
+                      
+                       console.log("tee");
+                      setTimeout(async() => {
+                          console.log(`Funding period over for proposal ${expiredproposal.id}. Checking funds...`);
+                          if(!temp){
+                          await checkfund(expiredproposal.id);
+                          }
+                          
+                          // Check admin fund AFTER member fund check
+                          const admincheck=await checkadminfund(expiredproposal.id,bot);
+                          if(!admincheck){
+                              await bot.telegram.sendMessage(
+                                  Number(expiredproposal.chatId),
+                                  `Admin dont have enough fund to execute please fund the admin wallet to execute`
+                              )
+                              return;
+                          }
                            const fundedProposal = await prisma.proposal.findUnique({
                                where: { id: expiredproposal.id }
                            });

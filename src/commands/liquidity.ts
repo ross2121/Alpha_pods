@@ -21,6 +21,7 @@ import { decryptPrivateKey } from "../services/auth";
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
 import { error } from "console";
 import { deposit_lp, executedSwapProposal, handlswap, sendmoney } from "./swap";
+import { checkadminfund, deductamount } from "./fund";
 
 const prisma = new PrismaClient();
 const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
@@ -1019,7 +1020,6 @@ export const handleClosePosition = async (ctx: Context) => {
       return;
     }
 
-    // Create buttons for each position
     const buttons = positions.map((pos: any, index: number) => [
       Markup.button.callback(
         `Position ${index + 1}: ${pos.tokenMint.slice(0, 8)}... (${pos.amount} SOL)`,
@@ -1192,6 +1192,7 @@ export const executeLP=async(proposal_id:string)=>{
     if(!lp){
       throw new Error("LP not found in db")
     }
+  
     const tokenYMint = new PublicKey(lp.mint);
     const tokenXMint = NATIVE_MINT;
     const connection=new Connection(process.env.RPC_URL || "https://api.devnet.solana.com", { commitment: "confirmed" });
@@ -1253,6 +1254,9 @@ export const executeLP=async(proposal_id:string)=>{
     const positionKeypair = Keypair.generate();
     console.log("Position:", positionKeypair.publicKey.toBase58());
     const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+    const amount=await connection.getBalance(escrow_vault_pda);
+      const beforsol=amount/LAMPORTS_PER_SOL;
+      console.log("beeff",beforsol);
     const createPositionTx = await program.methods
       .addPostion(lowerBinId, width)
       .accountsStrict({
@@ -1267,7 +1271,12 @@ export const executeLP=async(proposal_id:string)=>{
       })
       .signers([positionKeypair])
       .rpc();
-      
+      const amountafter=await connection.getBalance(escrow_vault_pda);
+      const balanceafter=amountafter/LAMPORTS_PER_SOL;
+      console.log("dads",balanceafter);
+      const balance=beforsol-balanceafter;
+      await deductamount(proposal_id,balance);
+      console.log("balanc",balance);
     console.log(" Position created! Signature:", createPositionTx);
     await provider.connection.confirmTransaction(createPositionTx, "confirmed");
     const upperBinId = lowerBinId + width - 1;
@@ -1385,7 +1394,7 @@ export const executeLP=async(proposal_id:string)=>{
       ],
     };
     
-    console.log("\n💰 Distribution:");
+    
     console.log("Bin ID:", activeBinId);
     console.log("Distribution X:", distributionX / 100, "%");
     console.log("Distribution Y:", distributionY / 100, "%");
@@ -1415,6 +1424,7 @@ export const executeLP=async(proposal_id:string)=>{
       console.log("Vault B:", vaultb.toString(), "(tokenY:", poolTokenYMint.toBase58().slice(0, 8) + "...)");
       // console.log("dasdd",(liquidityParameter.amountX)/LAMPORTS_PER_SOL);
       console.log("check3",Number(liquidityParameter.amountY)/LAMPORTS_PER_SOL);
+      
       const txSignature = await program.methods
         .addLiquidity(liquidityParameter)
         .accountsStrict({
@@ -1440,7 +1450,7 @@ export const executeLP=async(proposal_id:string)=>{
         associatedTokenProgram: ASSOCIATED_PROGRAM_ID
         })
         .rpc();
-        
+     
       console.log(" Liquidity added successfully!");
       console.log("Transaction signature:", txSignature);
       await provider.connection.confirmTransaction(txSignature, "confirmed");

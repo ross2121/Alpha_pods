@@ -26,7 +26,6 @@ import {
 } from "./commands/liquidity";
 import * as anchor from "@coral-xyz/anchor";
 import * as idl from "./idl/alpha_pods.json";
-import { getminimumfund } from "./commands/fund";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from "@solana/web3.js";
 import { program } from "@coral-xyz/anchor/dist/cjs/native/system";
 import { createAssociatedTokenAccountInstruction, createSyncNativeInstruction, getAccount, getAssociatedTokenAddress, NATIVE_MINT, TOKEN_PROGRAM_ID, transfer } from "@solana/spl-token";
@@ -136,9 +135,6 @@ bot.action(/claim_fees:(.+)/, admin_middleware, async (ctx) => {
   await ctx.answerCbQuery("💰 Claiming fees feature coming soon!");
   await ctx.reply(`💰 **Claim Fees Feature**\n\nPosition: \`${positionAddress}\`\n\nThis feature will allow you to claim accumulated trading fees from your liquidity position.\n\n🚧 Coming soon!`, { parse_mode: "Markdown" });
 });
-
-
-
 bot.command("view_positions", handleViewPositions);
 bot.command("close_position", admin_middleware, handleClosePosition);
 bot.command("execute_liquidity", admin_middleware, handleExecuteLiquidity);
@@ -149,7 +145,7 @@ bot.command("withdraw", user_middleware, async (ctx) => {
   
   if (args.length < 2) {
     await ctx.reply(
-      "❌ **Invalid Command Format**\n\n" +
+      "**Invalid Command Format**\n\n" +
       "**Usage:**\n" +
       "`/withdraw <amount> [address]`\n\n" +
       "**Examples:**\n" +
@@ -165,7 +161,7 @@ bot.command("withdraw", user_middleware, async (ctx) => {
   const toAddress = args[2] || null;
   
   if (isNaN(amount) || amount <= 0) {
-    await ctx.reply("❌ Invalid amount. Please provide a positive number.");
+    await ctx.reply(" Invalid amount. Please provide a positive number.");
     return;
   }
   
@@ -176,13 +172,13 @@ bot.command("withdraw", user_middleware, async (ctx) => {
     });
     
     if (!user) {
-      await ctx.reply("❌ User not found. Please register first.");
+      await ctx.reply(" User not found. Please register first.");
       return;
     }
     
     const chatId = ctx.chat?.id;
     if (!chatId) {
-      await ctx.reply("❌ Chat ID not found.");
+      await ctx.reply("Chat ID not found.");
       return;
     }
     
@@ -191,7 +187,7 @@ bot.command("withdraw", user_middleware, async (ctx) => {
     });
     
     if (!escrow) {
-      await ctx.reply("❌ Escrow not found for this chat.");
+      await ctx.reply(" Escrow not found for this chat.");
       return;
     }
     
