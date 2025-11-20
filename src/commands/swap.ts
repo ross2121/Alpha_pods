@@ -75,11 +75,25 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
         
      console.log(`\n SWAP SUCCESSFUL!`);
      console.log(`Transaction: ${swapTx}`);
-      const amount_out=(swapQuote.outAmount.toNumber() / 1e9).toFixed(6);
+    const token=await connection.getParsedAccountInfo(token_y);
+    const parsedData =
+      token.value?.data &&
+      typeof token.value.data === "object" &&
+      "parsed" in token.value.data
+        ? token.value.data.parsed
+        : null;
+    const decimals = parsedData?.info?.decimals;
+    console.log("token", parsedData);
+     console.log("original",swapQuote.outAmount.toNumber()/decimals);
+     const humanAmount = swapQuote.outAmount.toNumber() / Math.pow(10, decimals);
+     console.log("dadas",humanAmount);
+      const amount_out=swapQuote.outAmount.toNumber()/decimals;
      console.log(`Pool: ${dlmm[i].publicKey.toBase58()}`);
+     console.log("swap amount out",humanAmount);
      return {
       txn:swapTx,
-      amount_out:Number(amount_out),
+      amount_out:humanAmount,
+      amount_out_smallest_unit: swapQuote.outAmount.toNumber(),
       amount_in:amount
      }
      

@@ -677,33 +677,40 @@ export const executeLP=async(proposal_id:string)=>{
     console.log("Proposal amount (SOL):", lp.amount);
     console.log("Number of members:", lp.Members.length);
     console.log("Total amount (lamports):", totalAmount.toString());
-    const swapAmount = totalAmount.div(new anchor.BN(2)).toNumber();
-    // const swap=await  executedSwapProposal(proposal_id);
-    const swap=await handlswap(tokenYMint,Number(swapAmount),escrowPda.toString());
+    const halfAmount = totalAmount.div(new anchor.BN(2));
+    const swapAmountLamports = halfAmount.toNumber();
+    console.log("Half of total (to swap):",swapAmountLamports,"lamports");
+    console.log("Half of total (remaining SOL):",swapAmountLamports,"lamports");
+    console.log("Total amount:",totalAmount.toString(),"lamports");
+    
+    const swap=await handlswap(tokenYMint,swapAmountLamports,escrowPda.toString());
     if(!swap?.amount_out){
-      console.log("dasdasd")
+      console.log("Swap failed - no output amount")
       return;
     }
-    // console.log("swap",swap);
-    // console.log("swa",swap.transaction);
+    
     let amountX: anchor.BN;
     let amountY: anchor.BN;
     let distributionX: number;
     let distributionY: number;
-    const tokenAmountInSmallestUnit = Math.floor( swap.amount_out* 1e6);
-    const solamount=swapAmount/LAMPORTS_PER_SOL;
-    console.log("swap amount",solamount);
-    console.log("token amiunt",totalAmount);
+    console.log("swap amount out (human):",swap.amount_out);
+    console.log("swap amount out (smallest unit):",swap.amount_out_smallest_unit);
+    const tokenAmountInSmallestUnit = swap.amount_out_smallest_unit;
+    
+    const remainingSOLLamports = swapAmountLamports;
+    console.log("Remaining SOL for liquidity (lamports):",remainingSOLLamports);
+    console.log("Token amount for liquidity (smallest unit):",tokenAmountInSmallestUnit);
+    
     if (isWSOLTokenX) {
-      amountX =new anchor.BN(swapAmount); 
+      amountX = new anchor.BN(remainingSOLLamports); 
       amountY = new anchor.BN(tokenAmountInSmallestUnit); 
-      distributionX = 5000;
-      distributionY = 5000;
+      distributionX = 10000;
+      distributionY = 10000;
     } else if (isWSOLTokenY) {
       amountX = new anchor.BN(tokenAmountInSmallestUnit); 
-      amountY =new anchor.BN(swapAmount);
-      distributionX = 5000;
-      distributionY = 5000;
+      amountY = new anchor.BN(remainingSOLLamports);
+      distributionX = 10000;
+      distributionY = 10000;
     } else {
       throw new Error("Neither token in pool is WSOL");
     }
@@ -724,7 +731,9 @@ export const executeLP=async(proposal_id:string)=>{
         }
       ],
     };
-    
+    console.log("asmdas",amountX);
+    console.log("Das",amountY);
+    console.log("dasd",liquidityParameter);
     
     console.log("Bin ID:", activeBinId);
     console.log("Distribution X:", distributionX / 100, "%");
