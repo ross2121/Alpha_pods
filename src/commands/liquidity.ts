@@ -312,7 +312,7 @@ You can get SOL from exchanges like:
   }
 };
 
-// Remove members who don't have enough funds
+
 const removeLiquidityMembersWithoutFunds = async (proposal_id: string) => {
   const url = process.env.RPC_URL;
   const connection = new Connection(url || "https://api.devnet.solana.com", { commitment: "confirmed" });
@@ -346,217 +346,7 @@ const removeLiquidityMembersWithoutFunds = async (proposal_id: string) => {
     }
   }
 };
-const executeLiquidityOLD = async (tokenXMint: PublicKey, amount: number, chatId: number, connection: Connection) => {
-    try {
-    const secretKeyArray = [123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
-    const adminKeypair = Keypair.fromSecretKey(new Uint8Array(secretKeyArray));
-    
-    const program = getProgram(connection, adminKeypair);
 
-    const escrowRow = await prisma.escrow.findUnique({
-      where: { chatId: Number(chatId) }
-    });
-
-    if (!escrowRow) {
-      throw new Error("No escrow found");
-    }
-
-    const escrowPda = new PublicKey(escrowRow.escrow_pda);
-    const [escrow_vault_pda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vault"), escrowPda.toBuffer()],
-      program.programId
-    );
-
-    const tokenYMint = NATIVE_MINT;
-
-    const allPairs = await DLMM.getLbPairs(connection);
-    const matchingPair = allPairs.find(pair => 
-      (pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() && pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()) ||
-      (pair.account.tokenYMint.toBase58() === tokenXMint.toBase58() && pair.account.tokenXMint.toBase58() === tokenYMint.toBase58())
-    );
-
-    if (!matchingPair) {
-      throw new Error("Pool not found");
-    }
-
-    const activeBinId = matchingPair.account.activeId;
-    const lowerBinId = activeBinId - 24;
-    const width = 48;
-
-    // Create position keypair
-    const positionKeypair = Keypair.generate();
-    const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
-
-    console.log("escrow",escrowPda);
-    console.log("escrowpda",escrow_vault_pda);
-    const createPositionTx = await program.methods
-      .addPostion(lowerBinId, width)
-      .accountsStrict({
-        lbPair: matchingPair.publicKey,
-        position: positionKeypair.publicKey,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-        escrow: escrowPda,
-        vault: escrow_vault_pda,
-        dlmmProgram: METORA_PROGRAM_ID,
-        eventAuthority: eventAuthority,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([positionKeypair])
-      .rpc(); 
-    
-    await connection.confirmTransaction(createPositionTx, "confirmed");
-    console.log("position",createPositionTx);
-    
-    // Amount is already in lamports from member deposits
-    const amountInLamports = amount;
-    console.log(`Using ${amountInLamports} lamports (${amountInLamports / anchor.web3.LAMPORTS_PER_SOL} SOL) from escrow vault`);
-
-
-    const upperBinId = lowerBinId + width - 1;
-    const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(lowerBinId));
-    const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(upperBinId));
-
-    const [binArrayLower] = deriveBinArray(matchingPair.publicKey, lowerBinArrayIndex, METORA_PROGRAM_ID);
-    const [binArrayUpper] = deriveBinArray(matchingPair.publicKey, upperBinArrayIndex, METORA_PROGRAM_ID);
-
-    const lowerBinArrayInfo = await connection.getAccountInfo(binArrayLower);
-    if (!lowerBinArrayInfo) {
-      try {
-        const createLowerBinArrayTx = await program.methods
-          .addBin(new anchor.BN(lowerBinArrayIndex.toNumber()))
-          .accountsStrict({
-            lbPair: matchingPair.publicKey,
-            binArray: binArrayLower,
-            escrow: escrowPda,
-            systemProgram: SystemProgram.programId,
-            dlmmProgram: METORA_PROGRAM_ID,
-            vault: escrow_vault_pda
-          })
-          .rpc();
-        await connection.confirmTransaction(createLowerBinArrayTx, "confirmed");
-      } catch (err: any) {
-        console.log("Bin array creation note:", err.message);
-      }
-    }
-
-    const upperBinArrayInfo = await connection.getAccountInfo(binArrayUpper);
-    if (!upperBinArrayInfo && binArrayUpper.toString() !== binArrayLower.toString()) {
-      try {
-        const createUpperBinArrayTx = await program.methods
-          .addBin(new anchor.BN(upperBinArrayIndex.toNumber()))
-          .accountsStrict({
-            lbPair: matchingPair.publicKey,
-            binArray: binArrayUpper,
-            escrow: escrowPda,
-            systemProgram: SystemProgram.programId,
-            dlmmProgram: METORA_PROGRAM_ID,
-            vault: escrow_vault_pda
-          })
-          .rpc();
-        await connection.confirmTransaction(createUpperBinArrayTx, "confirmed");
-      } catch (err: any) {
-        console.log("Bin array creation note:", err.message);
-      }
-    }
-    const vaulta = await getAssociatedTokenAddress(tokenXMint, escrow_vault_pda, true);
-    const vaultb = await getAssociatedTokenAddress(tokenYMint, escrow_vault_pda, true);
-
-    const vaultaInfo = await connection.getAccountInfo(vaulta);
-    if (!vaultaInfo) {
-      const createVaultaTx = new Transaction().add(
-        createAssociatedTokenAccountInstruction(adminKeypair.publicKey, vaulta, escrow_vault_pda, tokenXMint)
-      );
-      await sendAndConfirmTransaction(connection, createVaultaTx, [adminKeypair]);
-    }
-
-    const vaultbInfo = await connection.getAccountInfo(vaultb);
-    if (!vaultbInfo) {
-      const createVaultbTx = new Transaction().add(
-        createAssociatedTokenAccountInstruction(adminKeypair.publicKey, vaultb, escrow_vault_pda, tokenYMint)
-      );
-      await sendAndConfirmTransaction(connection, createVaultbTx, [adminKeypair]);
-    }
-    
-    // Wrap SOL: withdraw from vault → admin wraps it → transfer to vaultb
-    console.log("💧 Wrapping SOL from vault...");
-    
-    // // Step 1: Withdraw SOL from vault to admin
-    // const withdrawTx = await program.methods
-    //   .withdraw(new anchor.BN(amountInLamports))
-    //   .accountsStrict({
-    //     vault: escrow_vault_pda,
-    //     member: adminKeypair.publicKey,
-    //     systemProgram: SystemProgram.programId,
-    //     escrow: escrowPda
-    //   })
-    //   .signers([adminKeypair])
-    //   .rpc();
-    // await connection.confirmTransaction(withdrawTx, "confirmed");
-    // console.log("✅ Withdrawn from vault:", withdrawTx);
-    
-
-    
-    
-    const amountY = new anchor.BN(amountInLamports);
-    console.log("Amount Y for liquidity:", amountY.toString(), "lamports");
-
-    // Add liquidity
-    const liquidityParameter = {
-      amountX: new anchor.BN(0),
-      amountY: amountY,
-      binLiquidityDist: [
-        {
-          binId: activeBinId,
-          distributionX: 0,
-          distributionY: 10000,
-        }
-      ],
-    };
- 
-    const sameBinArray = binArrayLower.equals(binArrayUpper);
-    const txSignature = await program.methods
-      .addLiquidity(liquidityParameter)
-      .accountsStrict({
-        lbPair: matchingPair.publicKey,
-        position: positionKeypair.publicKey,
-        binArrayBitmapExtension: null,
-        reserveX: matchingPair.account.reserveX,
-        reserveY: matchingPair.account.reserveY,
-        binArrayLower: binArrayLower,
-        binArrayUpper: sameBinArray ? binArrayLower : binArrayUpper,
-        vaulta: vaulta,
-        vaultb: vaultb,
-        tokenXMint: tokenXMint,
-        vault: escrow_vault_pda,
-        tokenYMint: tokenYMint,
-        escrow: escrowPda,
-        dlmmProgram: METORA_PROGRAM_ID,
-        eventAuthority: eventAuthority,
-        tokenXProgram: TOKEN_PROGRAM_ID,
-        tokenYProgram: TOKEN_PROGRAM_ID,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-        associatedTokenProgram:ASSOCIATED_PROGRAM_ID
-      })
-      .rpc();
-
-    await connection.confirmTransaction(txSignature, "confirmed");
-    console.log("liquidity",txSignature);
- 
-    return {
-      positionAddress: positionKeypair.publicKey.toBase58(),
-      poolAddress: matchingPair.publicKey.toBase58(),
-      txSignature: txSignature,
-      lowerBinId: lowerBinId,
-      upperBinId: upperBinId,
-      activeBinId: activeBinId
-    };
-
-  } catch (error: any) {
-    console.error("Error adding liquidity:", error);
-    throw error;
-  }
-};
 export const handleLiquidityVote = async (ctx: any) => {
   const action = ctx.match[1];
   const mint = ctx.match[2];
@@ -631,231 +421,7 @@ export const handleLiquidityVote = async (ctx: any) => {
   }
 };
 
-export const handleExecuteLiquidity = async (ctx: Context) => {
-  try {
-    const text = 'text' in ctx.message! ? ctx.message.text : '';
-    const parts = text.split(' ');
-    
-    if (parts.length < 2) {
-      await ctx.reply("Usage: `/execute_liquidity <proposal_id>`", { parse_mode: "Markdown" });
-      return;
-    }
 
-    const proposalId = parts[1];
-    
-    await ctx.reply("⏳ Collecting funds and adding liquidity...");
-
-    const proposal = await prisma.proposal.findUnique({
-      where: { id: proposalId }
-    });
-
-    if (!proposal || proposal.mintb !== "LIQUIDITY_PROPOSAL") {
-      await ctx.reply("❌ Proposal not found or not a liquidity proposal.");
-      return;
-    }
-
-    if (proposal.Members.length === 0) {
-      await ctx.reply("❌ No members voted YES. Cannot execute.");
-      return;
-    }
-
-    const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com", { commitment: "confirmed" });
-    
-    const totalAmount = proposal.amount * proposal.Members.length;
-    const tokenMint = new PublicKey(proposal.mint);
-    
-    // Get escrow info
-    const escrowRow = await prisma.escrow.findUnique({
-      where: { chatId: Number(proposal.chatId) }
-    });
-
-    if (!escrowRow) {
-      await ctx.reply("❌ No escrow found for this chat.");
-      return;
-    }
-    await ctx.reply(`🔍 Checking member balances...`);
-    await removeLiquidityMembersWithoutFunds(proposalId);
-
-
-    const updatedProposal = await prisma.proposal.findUnique({
-      where: { id: proposalId }
-    });
-
-    if (!updatedProposal || updatedProposal.Members.length === 0) {
-      await ctx.reply("❌ No members have sufficient funds. Cannot execute.");
-      return;
-    }
-    await ctx.reply(`💰 Collecting ${updatedProposal.amount} SOL from ${updatedProposal.Members.length} members...`);
-
-    let successfulDeposits = 0;
-    const failedMembers: string[] = [];
-
-    for (const memberTelegramId of updatedProposal.Members) {
-      try {
-        const user = await prisma.user.findUnique({
-          where: { telegram_id: memberTelegramId }
-        });
-
-        if (!user) {
-          console.log(`User ${memberTelegramId} not found in database`);
-          failedMembers.push(memberTelegramId);
-          
-          await ctx.reply(`❌ Member ${memberTelegramId} not found in database. Stopping execution.`);
-          return;
-        }
-
-        const privatekey = decryptPrivateKey(user.encrypted_private_key, user.encryption_iv);
-        const keypair = Keypair.fromSecretKey(privatekey);
-        
-        // deposit() now accepts SOL directly
-        const sig = await deposit(updatedProposal.amount, keypair, updatedProposal.chatId,user.id);
-        // console.log(`✅ Collected ${updatedProposal.amount} SOL from member ${memberTelegramId}, tx: ${sig}`);
-        successfulDeposits++;
-        
-      } catch (error: any) {
-        console.error(`Failed to collect from member ${memberTelegramId}:`, error);
-        failedMembers.push(memberTelegramId);
-        
-        
-        const userForError = await prisma.user.findUnique({
-          where: { telegram_id: memberTelegramId }
-        });
-    
-        const errorMsg = error.message || error.toString();
-        let userMessage = '';
-        
-        if (errorMsg.includes('insufficient lamports')) {
-          const match = errorMsg.match(/insufficient lamports (\d+), need (\d+)/);
-          if (match) {
-            const hasLamports = parseInt(match[1]);
-            const needLamports = parseInt(match[2]);
-            const shortfallLamports = needLamports - hasLamports;
-            const shortfallSOL = shortfallLamports / anchor.web3.LAMPORTS_PER_SOL;
-            
-            userMessage = `
-🚨 **Insufficient Funds - Execution Stopped** 🚨
-
-We couldn't collect ${updatedProposal.amount} SOL from your wallet for the liquidity proposal.
-
-**Your Balance:** ${(hasLamports / anchor.web3.LAMPORTS_PER_SOL).toFixed(4)} SOL
-**Required:** ${(needLamports / anchor.web3.LAMPORTS_PER_SOL).toFixed(4)} SOL
-**Shortfall:** ${shortfallSOL.toFixed(4)} SOL
-
-**Your Wallet Address:**
-\`${userForError?.public_key || 'Unknown'}\`
-
-⚠️ **IMPORTANT:** The liquidity execution has been STOPPED. Please fund your wallet with at least ${shortfallSOL.toFixed(4)} SOL and then the admin can retry with:
-\`/execute_liquidity ${proposalId}\`
-
-You can get SOL from exchanges like Binance, Coinbase, or Jupiter.
-            `;
-          } else {
-            userMessage = `
-🚨 **Insufficient Funds - Execution Stopped** 🚨
-
-We couldn't collect ${updatedProposal.amount} SOL from your wallet.
-
-**Your Wallet Address:**
-\`${userForError?.public_key || 'Unknown'}\`
-
-Please fund your wallet with at least ${updatedProposal.amount} SOL and retry.
-            `;
-          }
-        } else {
-          userMessage = `
-❌ **Payment Failed - Execution Stopped**
-
-Failed to collect ${updatedProposal.amount} SOL from your wallet.
-
-**Error:** ${errorMsg}
-
-Please ensure your wallet is funded and try again with:
-\`/execute_liquidity ${proposalId}\`
-          `;
-        }
-      
-        try {
-          await ctx.telegram.sendMessage(
-            parseInt(memberTelegramId),
-            userMessage,
-            { parse_mode: 'Markdown' }
-          );
-        } catch (msgError) {
-          console.error(`Failed to send error message to ${memberTelegramId}:`, msgError);
-        }
-        
-        
-        await ctx.reply(`❌ **Execution Stopped**\n\nFailed to collect funds from member. A funding request has been sent to the member.\n\nPlease retry after they fund their wallet with:\n\`/execute_liquidity ${proposalId}\``, { parse_mode: 'Markdown' });
-        
-       
-        return;
-      }
-    }
-
-    if (successfulDeposits === 0) {
-      await ctx.reply("❌ Failed to collect funds from any member. Cannot execute.");
-      return;
-    }
-    
-    await ctx.reply(`✅ Successfully collected from all ${successfulDeposits} members!`);
-    
-    // Calculate total in lamports (proposal.amount is in SOL)
-    const actualTotalAmountLamports = Math.floor(updatedProposal.amount * anchor.web3.LAMPORTS_PER_SOL * successfulDeposits);
-
-    await ctx.reply("📝 Creating liquidity position...");
-    const result = await executeLiquidityOLD(tokenMint, actualTotalAmountLamports, Number(updatedProposal.chatId), connection);
-
-    await prisma.liquidityPosition.create({
-      data: {
-        positionAddress: result.positionAddress,
-        poolAddress: result.poolAddress,
-        tokenMint: tokenMint.toBase58(),
-        amount: actualTotalAmountLamports.toString(),
-        chatId: BigInt(updatedProposal.chatId),
-        escrowId: escrowRow.id,
-        lowerBinId: result.lowerBinId,
-        upperBinId: result.upperBinId,
-        isActive: true
-      }
-    });
-
-    await ctx.reply(`
-✅ **Liquidity Execution Complete!**
-
-**Position Details:**
-• Position: \`${result.positionAddress}\`
-• Pool: \`${result.poolAddress}\`
-• Total Liquidity: ${updatedProposal.amount * successfulDeposits} SOL from ${successfulDeposits} members
-• Bin Range: ${result.lowerBinId} - ${result.upperBinId}
-• Active Bin: ${result.activeBinId}
-
-**Transaction:**
-• Signature: \`${result.txSignature}\`
-
-The liquidity position is now earning fees! 🎉
-
-View on Solscan: https://solscan.io/tx/${result.txSignature}
-    `, { parse_mode: "Markdown" });
-
-    // Mark proposal as executed
-    await prisma.proposal.update({
-      where: { id: proposalId },
-      data: { ProposalStatus: "Expired", Votestatus: "Expired" }
-    });
-
-  } catch (error: any) {
-    console.error("Error executing liquidity:", error);
-    
-    let errorMsg = "❌ Failed to execute liquidity addition.";
-    if (error.message?.includes("insufficient")) {
-      errorMsg = "❌ Insufficient balance in escrow. Please ensure enough SOL is deposited.";
-    } else if (error.message?.includes("Pool not found")) {
-      errorMsg = "❌ No liquidity pool found for this token.";
-    }
-    
-    await ctx.reply(errorMsg);
-  }
-};
 export const createLiquidityWizard = new Scenes.WizardScene<LiquidityContext>(
   "add_liquidity_wizard",
   askMintStep,
@@ -1130,10 +696,68 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
     const mintA = tokenXMint.toBase58();
     const mintB = tokenYMint.toBase58();
     
-    console.log("Amount A:", amountA.toString(), "Mint A:", mintA);
-    console.log("Amount B:", amountb.toString(), "Mint B:", mintB);
+    console.log("Amount A (raw):", amountA.toString(), "Mint A:", mintA);
+    console.log("Amount B (raw):", amountb.toString(), "Mint B:", mintB);
+  
+    const proposal = await prisma.proposal.findFirst({
+      where: {
+        chatId: position.chatId,
+        mint: position.tokenMint,
+        mintb: "LIQUIDITY_PROPOSAL"
+      }
+    });
     
-    await sendmoney(Number(amountA),Number(amountb),positionId);
+    if (!proposal) {
+      console.log("No proposal found for position, cannot distribute funds");
+      await ctx.reply("❌ Could not find the original proposal. Funds are in the escrow vault but cannot be distributed automatically.");
+    } else {
+      // Calculate per-member amounts
+      const numMembers = proposal.Members.length;
+      if (numMembers === 0) {
+        await ctx.reply("❌ No members found in proposal. Cannot distribute funds.");
+      } else {
+        let solAmountLamports: number;
+        let tokenAmountSmallestUnit: number;
+        
+        // Get token decimals for conversion
+        const tokenMint = mintA === NATIVE_MINT.toBase58() ? tokenYMint : tokenXMint;
+        const tokenMintInfo = await getMint(connection, tokenMint);
+        const tokenDecimals = tokenMintInfo.decimals;
+        const tokenDecimalsMultiplier = Math.pow(10, tokenDecimals);
+        
+        if(mintA === NATIVE_MINT.toBase58()){
+          // SOL is token A, token is token B
+          solAmountLamports = Number(amountA);
+          tokenAmountSmallestUnit = Number(amountb);
+        } else {
+          // Token is token A, SOL is token B
+          tokenAmountSmallestUnit = Number(amountA);
+          solAmountLamports = Number(amountb);
+        }
+        
+        // Convert to human-readable units (SOL and token amount)
+        const totalSolAmount = solAmountLamports / LAMPORTS_PER_SOL;
+        const totalTokenAmount = tokenAmountSmallestUnit / tokenDecimalsMultiplier;
+        
+        // Divide by number of members to get per-member amounts
+        const solAmountPerMember = totalSolAmount / numMembers;
+        const tokenAmountPerMember = totalTokenAmount / numMembers;
+        
+        console.log("Total SOL (lamports):", solAmountLamports);
+        console.log("Total SOL (SOL):", totalSolAmount);
+        console.log("Total Token (smallest units):", tokenAmountSmallestUnit);
+        console.log("Total Token (tokens):", totalTokenAmount);
+        console.log("Token decimals:", tokenDecimals);
+        console.log("SOL per member:", solAmountPerMember);
+        console.log("Token per member:", tokenAmountPerMember);
+        
+        // sendmoney expects human-readable amounts: SOL first, token second
+        // amount_x = SOL per member, amount_y = token per member
+        await sendmoney(solAmountPerMember, tokenAmountPerMember, proposal.id);
+      }
+    }
+    const beforesol=await connection.getBalance(new PublicKey(escrow_vault_pda));
+    const beforeamount=beforesol/LAMPORTS_PER_SOL;
     const closeTx = await program.methods
       .closePosition()
       .accountsStrict({
@@ -1147,9 +771,15 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
         vault: escrow_vault_pda
       })
       .rpc();
-
+ 
     await connection.confirmTransaction(closeTx, "confirmed");
-
+    if(!proposal){
+      return;
+    }
+    const aftersol=await connection.getBalance(new PublicKey(escrow_vault_pda));
+    const afteramount=aftersol/LAMPORTS_PER_SOL;
+    const amount=afteramount-beforeamount;
+    await deductamount(proposal?.id,amount,true);
     await prisma.liquidityPosition.update({
       where: { id: positionId.toString() },
       data: { isActive: false }
@@ -1192,7 +822,6 @@ export const executeLP=async(proposal_id:string)=>{
     if(!lp){
       throw new Error("LP not found in db")
     }
-  
     const tokenYMint = new PublicKey(lp.mint);
     const tokenXMint = NATIVE_MINT;
     const connection=new Connection(process.env.RPC_URL || "https://api.devnet.solana.com", { commitment: "confirmed" });
@@ -1275,7 +904,7 @@ export const executeLP=async(proposal_id:string)=>{
       const balanceafter=amountafter/LAMPORTS_PER_SOL;
       console.log("dads",balanceafter);
       const balance=beforsol-balanceafter;
-      await deductamount(proposal_id,balance);
+      await deductamount(proposal_id,balance,false);
       console.log("balanc",balance);
     console.log(" Position created! Signature:", createPositionTx);
     await provider.connection.confirmTransaction(createPositionTx, "confirmed");
@@ -1283,13 +912,13 @@ export const executeLP=async(proposal_id:string)=>{
     const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(lowerBinId));
     const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(upperBinId));
     
-    const [binArrayLower] = deriveBinArray(
+    let [binArrayLower] = deriveBinArray(
       matchingPair.publicKey,
       lowerBinArrayIndex,
       METORA_PROGRAM_ID
     );
     
-    const [binArrayUpper] = deriveBinArray(
+    let [binArrayUpper] = deriveBinArray(
       matchingPair.publicKey,
       upperBinArrayIndex,
       METORA_PROGRAM_ID
@@ -1338,6 +967,24 @@ export const executeLP=async(proposal_id:string)=>{
       } catch (err: any) {
         console.log("Note: Bin array creation error (may already exist):", err.message);
       }
+    }
+    if(binArrayLower.equals(binArrayUpper)){
+      const placeholderIndex = upperBinArrayIndex.add(new anchor.BN(1));
+      [binArrayUpper] = deriveBinArray(
+        matchingPair.publicKey,
+        placeholderIndex,
+        METORA_PROGRAM_ID
+      );
+      if(!binArrayUpper){
+         const binarray=await program.methods.addBin(new anchor.BN(upperBinArrayIndex.toNumber())).accountsStrict({
+          lbPair:matchingPair.publicKey,
+          binArray:binArrayUpper,
+          escrow:escrowPda,
+          systemProgram:SystemProgram.programId,
+          dlmmProgram:METORA_PROGRAM_ID,
+          vault:escrow_vault_pda
+         }).rpc();
+      } 
     }
     const isWSOLTokenX = matchingPair.account.tokenXMint.equals(NATIVE_MINT);
     const isWSOLTokenY = matchingPair.account.tokenYMint.equals(NATIVE_MINT);

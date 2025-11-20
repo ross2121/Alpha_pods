@@ -6,7 +6,6 @@ import dotenv from "dotenv";
 import * as idl from "../idl/alpha_pods.json";
 import { PrismaClient } from "@prisma/client";
 import { AlphaPods } from "../idl/alpha_pods";
-import { keyboard } from "telegraf/typings/markup";
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, transfer } from "@solana/spl-token";
 dotenv.config();
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
@@ -74,7 +73,7 @@ export const init = async (
     }catch(e:any){
         console.profile(e);
       }
-      
+
        await prisma.escrow.create({
         data:{
             escrow_pda:escrowPda.toString(),
@@ -100,7 +99,6 @@ const prisma = new PrismaClient();
 const lamportsToSol = (lamports: anchor.BN): number => {
   return lamports.toNumber() / LAMPORTS_PER_SOL;
 };
-
 export const deposit = async (amountInSol: number, member: Keypair, chatid: BigInt,userid:string) => {
   const escrowRow = await prisma.escrow.findUnique({
     where: {

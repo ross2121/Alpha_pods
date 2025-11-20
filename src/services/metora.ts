@@ -84,8 +84,6 @@ import { BN } from "@coral-xyz/anchor";
     sqrtMaxPrice: configState.sqrtMaxPrice,
     tokenAInfo,
   });
-
-  // create pool (included create first position)
   console.log("create pool");
   const positionNft = Keypair.generate();
   const initPoolTx = await cpAmm.createPool({

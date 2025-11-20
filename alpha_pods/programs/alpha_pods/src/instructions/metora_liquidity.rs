@@ -19,16 +19,14 @@ pub struct LPPOOl<'info> {
     #[account(mut)]
     /// CHECK: 
     pub oracle: AccountInfo<'info>,
-    #[account(init_if_needed, payer=member, associated_token::mint=minta, associated_token::authority=member, associated_token::token_program=token_program)]
-    pub member_minta:Account<'info,TokenAccount>,
-    #[account(init_if_needed, payer=member, associated_token::mint=mintb, associated_token::authority=member, associated_token::token_program=token_program)]
-    pub member_mintb:Account<'info,TokenAccount>,
     pub minta:Account<'info,Mint>,
     pub mintb:Account<'info,Mint>,
-    #[account(init,payer=member,associated_token::mint=minta,associated_token::authority=lp_account,associated_token::token_program=token_program)]
-    pub vaulta:Account<'info,TokenAccount>,
-    #[account(init,payer=member,associated_token::mint=mintb,associated_token::authority=lp_account,associated_token::token_program=token_program)]
-    pub vaultb:Account<'info,TokenAccount>,
+    #[account(mut)]
+    ///CHECK:dasd
+    pub vaulta:UncheckedAccount<'info>,
+    #[account(mut)]
+    ///CHECK:dasd
+    pub vaultb:UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
     pub token_program:Program<'info,Token>,
     pub associated_token_program:Program<'info,AssociatedToken>,

@@ -143,10 +143,10 @@ export const checkadminfund=async(proposal_id:string,bot:any)=>{
         }
     });
     if(!proposal){
+        console.log(" no proposal");
         return false;
     } 
     let admin;
-
     for(let i=0;i<proposal.Members.length;i++){
         const member=await prisma.user.findUnique({
             where:{
@@ -159,6 +159,7 @@ export const checkadminfund=async(proposal_id:string,bot:any)=>{
         }
     }
     if(!admin){
+        console.log("addmin");
         return false;
     }
     const escrow=await prisma.escrow.findUnique({
@@ -167,6 +168,7 @@ export const checkadminfund=async(proposal_id:string,bot:any)=>{
         }
     });
     if(!escrow){
+        console.log("fescrow");
         return false;
     }
     const deposits=await prisma.deposit.findUnique({
@@ -224,20 +226,26 @@ You can get SOL from exchanges like:
     const updated_sol=await connection.getBalance(new PublicKey(admin.public_key));
     const sols=updated_sol/LAMPORTS_PER_SOL;
     if(sols<1){
+        console.log("dadsadsd 1")
        return false;
     }
     if(!deposits){
-        return false;
+        console.log("deposit")
+        const seretkey=decryptPrivateKey(admin.encrypted_private_key,admin.encryption_iv);
+        const keypair=Keypair.fromSecretKey(seretkey);
+        await deposit(1,keypair,proposal.chatId,admin.id);
+        return true;
     }
     if(deposits?.amount<1){
         const amount=1-deposits.amount;
+        console.log("amount",amount);
         const seretkey=decryptPrivateKey(admin.encrypted_private_key,admin.encryption_iv);
         const keypair=Keypair.fromSecretKey(seretkey);
         await deposit(amount,keypair,proposal.chatId,admin.id);
     }
      return true;
 }
-export const deductamount=async(proposal_id:string,amounts:number)=>{
+export const deductamount=async(proposal_id:string,amounts:number,isdepositing:boolean)=>{
     const prisma=new PrismaClient();
     const proposal=await prisma.proposal.findUnique({
         where:{
@@ -272,6 +280,7 @@ export const deductamount=async(proposal_id:string,amounts:number)=>{
         return false;
     }
     console.log("amoundasddadas",amounts);   
+    if(!isdepositing){
     await prisma.deposit.update({
         where:{
             telegram_id_escrowId_mint:{
@@ -285,4 +294,20 @@ export const deductamount=async(proposal_id:string,amounts:number)=>{
             }
         }
     });
+
+}else{
+    await prisma.deposit.update({
+        where:{
+            telegram_id_escrowId_mint:{
+                telegram_id:admin?.telegram_id,
+                escrowId:escrow.id,
+                mint:""
+            }
+        },data:{
+            amount:{
+                increment:amounts
+            }
+        }
+    })
+}
 }

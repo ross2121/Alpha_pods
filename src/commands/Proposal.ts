@@ -345,7 +345,7 @@ export const createliqudityWizards= (bot: any) => new Scenes.WizardScene<MyConte
         })
         console.log(proposal);
         const VOTING_PERIOD_MS = 0.1 * 60 * 1000;
-        const FUNDING_PERIOD_MS = 10000; // 10 seconds 
+        const FUNDING_PERIOD_MS = 10000; 
 
         setTimeout(async () => {
            try {
@@ -420,9 +420,8 @@ export const createliqudityWizards= (bot: any) => new Scenes.WizardScene<MyConte
                           if(!temp){
                           await checkfund(expiredproposal.id);
                           }
-                          
-                          // Check admin fund AFTER member fund check
                           const admincheck=await checkadminfund(expiredproposal.id,bot);
+                          console.log(admincheck);
                           if(!admincheck){
                               await bot.telegram.sendMessage(
                                   Number(expiredproposal.chatId),

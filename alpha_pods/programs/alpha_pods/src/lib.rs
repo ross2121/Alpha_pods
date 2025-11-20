@@ -8,7 +8,7 @@ pub mod state;
 pub use state::*;
 pub mod error;
 pub use error::*;
-declare_id!("FeozaXSwZZexg48Fup4xLZFN2c9nUsSvtHbWz3V3GQuq");
+declare_id!("2UxzDQnXYxnANW3ugTbjn3XhiSaqtfzpBKVqmh1nHL3A");
 declare_program!(dlmm);
 
 #[program]

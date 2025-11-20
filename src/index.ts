@@ -22,7 +22,6 @@ import {
     handleClosePosition, 
     executeClosePosition,
     handleLiquidityVote,
-    handleExecuteLiquidity
 } from "./commands/liquidity";
 import * as anchor from "@coral-xyz/anchor";
 import * as idl from "./idl/alpha_pods.json";
@@ -137,7 +136,7 @@ bot.action(/claim_fees:(.+)/, admin_middleware, async (ctx) => {
 });
 bot.command("view_positions", handleViewPositions);
 bot.command("close_position", admin_middleware, handleClosePosition);
-bot.command("execute_liquidity", admin_middleware, handleExecuteLiquidity);
+
 
 
 bot.command("withdraw", user_middleware, async (ctx) => {
