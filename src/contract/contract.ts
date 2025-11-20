@@ -387,7 +387,7 @@ export const closePosition=async(lbPair:PublicKey,positionPubkey:PublicKey,binAr
       return closeTx;
 }
 export const swap=async(amount:number,minAmountOut:anchor.BN,poolPubkey:PublicKey,userTokenIn:PublicKey,userTokenOut:PublicKey,
-bitmapExtensionToUse:PublicKey,escrowPda:PublicKey,vaulta:PublicKey,vaultb:PublicKey,escrow_vault_pda:PublicKey,tokenxmint:PublicKey,
+escrowPda:PublicKey,vaulta:PublicKey,vaultb:PublicKey,escrow_vault_pda:PublicKey,tokenxmint:PublicKey,
 tokenymint:PublicKey,reserveX:PublicKey,reserveY:PublicKey,oracle:PublicKey,binArrayAccounts:any
 )=>{
      
@@ -402,7 +402,7 @@ tokenymint:PublicKey,reserveX:PublicKey,reserveY:PublicKey,oracle:PublicKey,binA
     tokenYMint: tokenymint,
     tokenYProgram: TOKEN_PROGRAM_ID,
     hostFeeIn: null,
-    binArrayBitmapExtension: bitmapExtensionToUse,
+    binArrayBitmapExtension:null,
     escrow: escrowPda,
     vaulta: vaulta,
     vaultb: vaultb,

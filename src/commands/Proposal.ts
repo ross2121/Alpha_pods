@@ -214,7 +214,7 @@ export const createProposeWizard = (bot: any) => new Scenes.WizardScene<MyContex
                                return;
                            }
                           const quoteButton = Markup.inlineKeyboard([
-                              Markup.button.callback('🚀 Get Best DLMM Pool', `get_quote:${fundedProposal.id}`)
+                              Markup.button.callback('🚀 Get Best DLMM Pool', `execute_swap:${fundedProposal.id}`)
                           ]);
                           if(fundedProposal.Members.length==0){
                              const message="0 members have appropiate funds";

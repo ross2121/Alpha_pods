@@ -20,9 +20,10 @@ import { addbin, addliquidity, closePosition, createposition, deposit, removeLiq
 import { decryptPrivateKey } from "../services/auth";
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
 import { error } from "console";
-import { deposit_lp, executedSwapProposal, handlswap, sendmoney } from "./swap";
-import { checkadminfund, deductamount } from "./fund";
+import {  executedSwapProposal, handlswap } from "./swap";
+import { checkadminfund, deductamount, getfund } from "./fund";
 import { program } from "@coral-xyz/anchor/dist/cjs/native/system";
+import { deposit_lp } from "../services/lpbalance";
 
 const prisma = new PrismaClient();
 const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
@@ -37,14 +38,6 @@ interface LiquiditySessionData extends Scenes.WizardSessionData {
 }
 
 type LiquidityContext = Scenes.WizardContext<LiquiditySessionData>;
-
-
-function getProgram(connection: Connection, adminKeypair: Keypair): Program<AlphaPods> {
-  const wallet = new anchor.Wallet(adminKeypair);
-  const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
-  return new Program<AlphaPods>(idl as AlphaPods, provider);
-}
-
 const askMintStep = async (ctx: LiquidityContext) => {
   await ctx.reply(
     "**Propose Liquidity Addition**\n\n" +
@@ -74,8 +67,6 @@ const findPoolsStep = async (ctx: LiquidityContext) => {
 
     const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com", { commitment: "confirmed" });
     const allPairs = await DLMM.getLbPairs(connection);
-
-    // Find pools with this token paired with SOL
     const matchingPairs = allPairs.filter(pair => 
       (pair.account.tokenXMint.toBase58() === tokenMint.toBase58() && pair.account.tokenYMint.toBase58() === NATIVE_MINT.toBase58()) ||
       (pair.account.tokenYMint.toBase58() === tokenMint.toBase58() && pair.account.tokenXMint.toBase58() === NATIVE_MINT.toBase58())
@@ -315,40 +306,6 @@ You can get SOL from exchanges like:
 };
 
 
-const removeLiquidityMembersWithoutFunds = async (proposal_id: string) => {
-  const url = process.env.RPC_URL;
-  const connection = new Connection(url || "https://api.devnet.solana.com", { commitment: "confirmed" });
-
-  const proposal = await prisma.proposal.findUnique({
-    where: { id: proposal_id }
-  });
-
-  if (!proposal) {
-    return;
-  }
-
-  for (const memberTelegramId of proposal.Members) {
-    const user = await prisma.user.findUnique({
-      where: { telegram_id: memberTelegramId }
-    });
-
-    if (!user) continue;
-
-    const publickey = new PublicKey(user.public_key);
-    const balance = await connection.getBalance(publickey);
-    const amount = balance / anchor.web3.LAMPORTS_PER_SOL;
-
-    if (proposal.amount > amount) {
-      proposal.Members = proposal.Members.filter(memberId => memberId !== memberTelegramId);
-      await prisma.proposal.update({
-        where: { id: proposal.id },
-        data: { Members: proposal.Members }
-      });
-      console.log(`Removed member ${memberTelegramId} due to insufficient funds`);
-    }
-  }
-};
-
 export const handleLiquidityVote = async (ctx: any) => {
   const action = ctx.match[1];
   const mint = ctx.match[2];
@@ -557,7 +514,6 @@ export const handleViewPositions = async (ctx: Context) => {
             ]
           ]
         },
-        // disable_web_page_preview: true
       });
     }
 
@@ -605,168 +561,7 @@ export const handleClosePosition = async (ctx: Context) => {
   }
 };
 
-export const executeClosePosition = async (ctx: Context, positionId: string) => {
-  try {
-    await ctx.answerCbQuery("⏳ Closing position...");
-    await ctx.reply("⏳ Closing liquidity position... This may take a moment.");
-    console.log("Closing position with ID:",positionId);
-    const position = await prisma.liquidityPosition.findUnique({
-      where: { id: positionId },
-      include: { escrow: true }
-    });
 
-    if (!position || !position.isActive) {
-      await ctx.reply(" Position not found or already closed.");
-      return;
-    }
-    const escrowPda = new PublicKey(position.escrow.escrow_pda);
-    console.log("escrow",escrowPda);
-    const [escrow_vault_pda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("vault"), escrowPda.toBuffer()],
-    PROGRAM_ID
-    );
-    console.log("pda",escrow_vault_pda);
-
-    const positionPubkey = new PublicKey(position.positionAddress);
-    const poolPubkey = new PublicKey(position.poolAddress);
-    const allPairs = await DLMM.getLbPairs(connection);
-    const matchingPair = allPairs.find(pair => pair.publicKey.toBase58() === poolPubkey.toBase58());
-
-    if (!matchingPair) {
-      await ctx.reply(" Pool not found.");
-      return;
-    }
-    const tokenXMint = matchingPair.account.tokenXMint;
-    const tokenYMint = matchingPair.account.tokenYMint
-    const activeBinId = matchingPair.account.activeId;
-    const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
-    const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(position.lowerBinId));
-    const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(position.upperBinId));
-    const [binArrayLower] = deriveBinArray(poolPubkey, lowerBinArrayIndex, METORA_PROGRAM_ID);
-    const [binArrayUpper] = deriveBinArray(poolPubkey, upperBinArrayIndex, METORA_PROGRAM_ID);
-    const vaulta = await getAssociatedTokenAddress(tokenXMint, escrowPda, true);
-    const vaultb = await getAssociatedTokenAddress(tokenYMint, escrowPda, true);
-    const balance_before_vaulta = await connection.getTokenAccountBalance(vaulta);
-    const balance_before_vaultb = await connection.getTokenAccountBalance(vaultb);
-    console.log("balance before", balance_before_vaulta, balance_before_vaultb);
-    await ctx.reply("💧 Removing liquidity...");
-    const binLiquidityReduction = [{ binId: activeBinId, bpsToRemove: 10000 }];
-    const removeLiquidityTx=await removeLiqudity(binLiquidityReduction,poolPubkey,positionPubkey,matchingPair,escrowPda,escrow_vault_pda,vaulta,vaultb,tokenXMint,tokenYMint,binArrayLower,binArrayUpper);
- 
-    
-    await connection.confirmTransaction(removeLiquidityTx, "confirmed");
-    await ctx.reply("🔒 Closing position...");
-    const after_closing_vaulta = await connection.getTokenAccountBalance(vaulta);
-    const after_closing_vaultb = await connection.getTokenAccountBalance(vaultb);
-     
-      console.log("after closing", after_closing_vaulta, after_closing_vaultb);
-    
-    const amountA = new anchor.BN(after_closing_vaulta.value.amount).sub(new anchor.BN(balance_before_vaulta.value.amount));
-    const amountb=new anchor.BN(after_closing_vaultb.value.amount).sub(new anchor.BN(balance_before_vaultb.value.amount));
-    const mintA = tokenXMint.toBase58();
-    const mintB = tokenYMint.toBase58();
-    
-    console.log("Amount A (raw):", amountA.toString(), "Mint A:", mintA);
-    console.log("Amount B (raw):", amountb.toString(), "Mint B:", mintB);
-  
-    const proposal = await prisma.proposal.findFirst({
-      where: {
-        chatId: position.chatId,
-        mint: position.tokenMint,
-        mintb: "LIQUIDITY_PROPOSAL"
-      }
-    });
-    
-    if (!proposal) {
-      console.log("No proposal found for position, cannot distribute funds");
-      await ctx.reply("❌ Could not find the original proposal. Funds are in the escrow vault but cannot be distributed automatically.");
-    } else {
-      // Calculate per-member amounts
-      const numMembers = proposal.Members.length;
-      if (numMembers === 0) {
-        await ctx.reply("❌ No members found in proposal. Cannot distribute funds.");
-      } else {
-        let solAmountLamports: number;
-        let tokenAmountSmallestUnit: number;
-        const tokenMint = mintA === NATIVE_MINT.toBase58() ? tokenYMint : tokenXMint;
-        const tokenMintInfo = await getMint(connection, tokenMint);
-        const tokenDecimals = tokenMintInfo.decimals;
-        const tokenDecimalsMultiplier = Math.pow(10, tokenDecimals);    
-        if(mintA === NATIVE_MINT.toBase58()){
-    
-          solAmountLamports = Number(amountA);
-          tokenAmountSmallestUnit = Number(amountb);
-        } else {
-          // Token is token A, SOL is token B
-          tokenAmountSmallestUnit = Number(amountA);
-          solAmountLamports = Number(amountb);
-        }
-        
-        // Convert to human-readable units (SOL and token amount)
-        const totalSolAmount = solAmountLamports / LAMPORTS_PER_SOL;
-        const totalTokenAmount = tokenAmountSmallestUnit / tokenDecimalsMultiplier;
-        
-        // Divide by number of members to get per-member amounts
-        const solAmountPerMember = totalSolAmount / numMembers;
-        const tokenAmountPerMember = totalTokenAmount / numMembers;
-        
-        console.log("Total SOL (lamports):", solAmountLamports);
-        console.log("Total SOL (SOL):", totalSolAmount);
-        console.log("Total Token (smallest units):", tokenAmountSmallestUnit);
-        console.log("Total Token (tokens):", totalTokenAmount);
-        console.log("Token decimals:", tokenDecimals);
-        console.log("SOL per member:", solAmountPerMember);
-        console.log("Token per member:", tokenAmountPerMember);
-        
-        // sendmoney expects human-readable amounts: SOL first, token second
-        // amount_x = SOL per member, amount_y = token per member
-        await sendmoney(solAmountPerMember, tokenAmountPerMember, proposal.id);
-      }
-    }
-    const beforesol=await connection.getBalance(new PublicKey(escrow_vault_pda));
-    const beforeamount=beforesol/LAMPORTS_PER_SOL;
-    const closeTx = await closePosition(poolPubkey,positionPubkey,binArrayLower,binArrayUpper,escrowPda,escrow_vault_pda);
- 
-    await connection.confirmTransaction(closeTx, "confirmed");
-    if(!proposal){
-      return;
-    }
-    const aftersol=await connection.getBalance(new PublicKey(escrow_vault_pda));
-    const afteramount=aftersol/LAMPORTS_PER_SOL;
-    const amount=afteramount-beforeamount;
-    await deductamount(proposal?.id,amount,true);
-    await prisma.liquidityPosition.update({
-      where: { id: positionId.toString() },
-      data: { isActive: false }
-    });
-
-    const successMessage = `
- **Position Closed Successfully!**
-
-**Details:**
-• Position: \`${position.positionAddress}\`
-• Liquidity removed and position closed
-
-**Transactions:**
-• Remove Liquidity: \`${removeLiquidityTx}\`
-• Close Position: \`${closeTx}\`
-
-Funds have been returned to the escrow vault! 
-    `;
-
-    await ctx.reply(successMessage, { parse_mode: "Markdown" });
-
-  } catch (error: any) {
-    console.error("Error closing position:", error);
-    let errorMsg = "❌ Failed to close position.";
-    
-    if (error.logs) {
-      console.error("Program logs:", error.logs);
-    }
-    
-    await ctx.reply(errorMsg);
-  }
-};
 export const executeLP=async(proposal_id:string)=>{
     const prisma=new PrismaClient();
     const lp=await prisma.proposal.findUnique({
@@ -1001,3 +796,42 @@ export const executeLP=async(proposal_id:string)=>{
     }
   }
 
+  export const executedliquidity=async(proposal_id:string)=>{
+    const prisma=new PrismaClient();
+    try{
+        const proposal=await prisma.proposal.findUnique({
+          where:{
+            id:proposal_id
+          }
+        });
+        if(!proposal){
+          return;
+        }
+        const escrow=await prisma.escrow.findUnique({
+          where:{
+            chatId:proposal.chatId
+          }
+        });
+        if(!escrow){
+          return;
+        }
+        await getfund(proposal_id);
+        const swapResult: any = await executeLP(proposal_id)
+        console.log("swap",swapResult);
+        
+        
+        console.log("swapresd",swapResult);
+        return {
+          success: true,
+          message: "Liquidity executed successfully!",
+          transaction: swapResult?.txn|| null,
+        };
+    }catch(error:any){
+       console.log("Execute Swap error");
+      
+    }
+    return {
+      success: false,
+      message: "Not found"
+    };
+  }

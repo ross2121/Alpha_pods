@@ -1374,7 +1374,7 @@ describe("alpha_pods", () => {
 it("Add Liquidity with Bin Array Management", async () => {    
   const tokenYMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
   const tokenXMint = NATIVE_MINT; 
-  console.log("🔍 Finding LP Pair...");
+  console.log("Finding LP Pair...");
   const secretKeyArray2 = [174,70,95,178,70,166,25,216,124,162,189,78,48,118,32,164,207,194,42,216,57,126,67,186,232,204,104,173,172,247,41,136,26,0,127,191,26,115,1,50,172,196,82,192,124,190,83,122,116,127,96,102,198,66,197,81,67,94,196,203,151,16,230,130]; 
   const secretarray2=new Uint8Array(secretKeyArray2); 
   const adminkeypair= Keypair.fromSecretKey(secretarray2);
@@ -1401,11 +1401,11 @@ it("Add Liquidity with Bin Array Management", async () => {
      pair.account.tokenYMint.toBase58() === tokenXMint.toBase58())
   );
   if (!targetPair) {
-    console.log("⚠️  No matching pair found");
+    console.log("No matching pair found");
     return;
   }
   
-  console.log("🎯 Target Pool (for liquidity):", targetPair.publicKey.toBase58());
+  console.log("Target Pool (for liquidity):", targetPair.publicKey.toBase58());
   console.log("Target Token:", tokenYMint.toBase58());
   
   const tokenXMintInfo = await provider.connection.getAccountInfo(tokenXMint);
@@ -1506,7 +1506,7 @@ it("Add Liquidity with Bin Array Management", async () => {
     await ensureBinArrayExists("Placeholder upper", binArrayUpper, placeholderIndex);
   }
   
-  console.log("\n📦 Target Pool Bin Arrays:");
+  console.log("\nTarget Pool Bin Arrays:");
   console.log("Lower Bin Array:", binArrayLower.toString());
   console.log("Upper Bin Array:", binArrayUpper.toString());
 
@@ -1522,14 +1522,14 @@ it("Add Liquidity with Bin Array Management", async () => {
   const tokenXBalance = new anchor.BN(tokenXVaultAccount.value.amount);
   const tokenYBalance = new anchor.BN(tokenYVaultAccount.value.amount);
   
-  console.log("\n💰 Target Pool Vault Balances:");
+  console.log("\nTarget Pool Vault Balances:");
   console.log("Token X balance:", tokenXBalance.toString(), `(${targetPair.account.tokenXMint.toBase58().slice(0, 8)}...)`);
   console.log("Token Y balance:", tokenYBalance.toString(), `(${targetPair.account.tokenYMint.toBase58().slice(0, 8)}...)`);
 
   const amountX = tokenXBalance.mul(new anchor.BN(90)).div(new anchor.BN(100));
   const amountY = tokenYBalance.mul(new anchor.BN(90)).div(new anchor.BN(100));
   
-  console.log("\n💧 Liquidity Parameters (50/50):");
+  console.log("\nLiquidity Parameters (50/50):");
   console.log("Amount X to deposit:", amountX.toString());
   console.log("Amount Y to deposit:", amountY.toString());
   console.log("Active Bin ID:", activeBinId);
@@ -1548,12 +1548,12 @@ it("Add Liquidity with Bin Array Management", async () => {
     ],
   };
   
-  console.log("\n💰 Distribution:");
+  console.log("\nDistribution:");
   console.log("Target Bin ID:", targetBinId);
   console.log("Distribution: 50% X, 50% Y");
   
   try {
-    console.log("\n🚀 Adding liquidity to TARGET pool...");
+    console.log("\nAdding liquidity to TARGET pool...");
   
     const sameBinArray = binArrayLower.equals(binArrayUpper);
     console.log("lower",binArrayLower);
@@ -1589,7 +1589,7 @@ it("Add Liquidity with Bin Array Management", async () => {
     
     await provider.connection.confirmTransaction(txSignature, "confirmed");
     
-    console.log("\n🔄 Removing liquidity...");
+    console.log("\nRemoving liquidity...");
     
     const removeLiquidityTx = await program.methods
       .removeLiqudity([{ binId: targetBinId, bpsToRemove: 10000 }])
@@ -1630,7 +1630,7 @@ it("Add Liquidity with Bin Array Management", async () => {
         vault: escrow_vault_pda
       })
       .rpc();
-  
+
     console.log("✅ Position closed! Tx:", close);
     console.log("\n✅ SUCCESS! Full test completed.");
     

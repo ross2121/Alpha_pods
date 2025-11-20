@@ -1,6 +1,5 @@
 import { PrismaClient } from "@prisma/client"
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
-import { Telegraf } from "telegraf";
 import dotenv from "dotenv";
 import { deposit } from "../contract/contract";
 import { decryptPrivateKey } from "../services/auth";
@@ -311,3 +310,65 @@ export const deductamount=async(proposal_id:string,amounts:number,isdepositing:b
     })
 }
 }
+export const getfund = async (proposalid: string) => {
+    const prisma = new PrismaClient();
+    const proposal = await prisma.proposal.findUnique({
+      where: { 
+        id: proposalid
+      }
+    });
+    if (!proposal) {
+      return;
+    }
+    const escrow = await prisma.escrow.findFirst({
+      where: {
+        chatId: Number(proposal.chatId)
+      }
+    });
+    
+    if (!escrow) {
+      return;
+    }
+    
+    for (let i = 0; i < proposal.Members.length; i++) {
+      const deposits = await prisma.deposit.findFirst({
+        where: {
+          telegram_id: proposal.Members[i],
+          escrowId: escrow.id,
+          mint: ""
+        }
+      });
+    
+      let amount: number;
+      
+      if (!deposits) {
+        amount = proposal.amount;
+      } else if (deposits.amount >= proposal.amount) {
+  
+        continue;
+      } else {
+        amount = proposal.amount - deposits.amount;
+      }
+  
+      const user = await prisma.user.findUnique({
+        where: {
+          telegram_id: proposal.Members[i]
+        }
+      });
+      
+      if (!user) {
+        console.log(`User not found for telegram_id: ${proposal.Members[i]}`);
+        continue;
+      }
+      
+      try {
+        const private_key = decryptPrivateKey(user.encrypted_private_key, user.encryption_iv);
+        const keypair = Keypair.fromSecretKey(private_key);
+        await deposit(amount, keypair, proposal.chatId, user.id);
+        console.log(` Deposited ${amount} SOL for user ${user.telegram_id}`);
+      } catch (e) {
+        console.log(`Error depositing for user ${user.telegram_id}:`, e);
+      
+      }
+    }
+  };

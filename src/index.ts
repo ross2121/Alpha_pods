@@ -13,14 +13,13 @@ import {
     handleMyChatMember 
 } from "./commands/group";
 import { handleStart } from "./commands/start";
-import { executedliquidity, executedSwapProposal, getQuote, handlswap } from "./commands/swap";
-import { executeLP } from "./commands/liquidity";
+import {  executedSwapProposal, handlswap } from "./commands/swap";
+import { executedliquidity, executeLP } from "./commands/liquidity";
 import { handleWallet, handleWithdrawWallet, handleExportKeyWallet } from "./commands/wallet";
 import { 
     createLiquidityWizard, 
     handleViewPositions, 
     handleClosePosition, 
-    executeClosePosition,
     handleLiquidityVote,
 } from "./commands/liquidity";
 import * as anchor from "@coral-xyz/anchor";
@@ -34,6 +33,7 @@ import { Program } from "@coral-xyz/anchor";
 import { AlphaPods } from "./idl/alpha_pods";
 import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority } from "@meteora-ag/dlmm";
 import { PrismaClient } from "@prisma/client";
+import { executeClosePosition } from "./commands/closePosition";
 
 dotenv.config();
 const prisma = new PrismaClient();
@@ -136,9 +136,6 @@ bot.action(/claim_fees:(.+)/, admin_middleware, async (ctx) => {
 });
 bot.command("view_positions", handleViewPositions);
 bot.command("close_position", admin_middleware, handleClosePosition);
-
-
-
 bot.command("withdraw", user_middleware, async (ctx) => {
   const args = ctx.message.text.split(' ');
   
@@ -324,55 +321,7 @@ bot.action("swap_tokens", async (ctx) => {
   await ctx.reply("🔄 **Swap Tokens**\n\nTo execute a swap:\n1. Create a proposal with the token mint address\n2. Members vote on the proposal\n3. Once approved, admin can execute the swap\n\nUse `/propose` to create a new swap proposal.", { parse_mode: "Markdown" });
 });
 
-bot.action(/get_quote:(.+)/, async (ctx) => {
-    const proposalId = ctx.match[1];
-    await ctx.answerCbQuery("🔍 Searching for best DLMM pool...");
-    
-    try {
-        const quoteResult = await getQuote(proposalId);
-      
-        if (quoteResult) {
-            const inputAmount = parseInt(quoteResult.inAmount) / 1e9;
-            const outputAmount = parseInt(quoteResult.outAmount) / 1e9;
-            const priceImpact = parseFloat(quoteResult.priceImpact);
-            const feePercent = quoteResult.feeBps / 100;
-            const liquidityInSol = quoteResult.liquidity / 1e9;
-            
-            const approveButton = Markup.inlineKeyboard([
-                Markup.button.callback('✅ Execute Swap', `execute_swap:${proposalId}`)
-            ]);
-            
-            const quoteMessage = `
-🎯 **Best Pool Selected!** 🎯
 
-**Pool Details:**
-• Address: \`${quoteResult.poolAddress.slice(0, 8)}...${quoteResult.poolAddress.slice(-8)}\`
-• Liquidity: ${liquidityInSol.toFixed(2)} SOL
-• Bin Step: ${quoteResult.binStep} bps
-• Fee: ${feePercent}%
-
-**Swap Quote:**
-• Input: ${inputAmount.toFixed(4)} SOL
-• Est. Output: ~${outputAmount.toFixed(6)} tokens
-• Price Impact: ${priceImpact}%
-
-**Why This Pool?**
-✅ Highest output amount
-💎 Best liquidity/price ratio
-⚡ Optimal fee structure
-
-Ready to execute the swap!
-            `;
-            
-            await ctx.reply(quoteMessage, { ...approveButton, parse_mode: 'Markdown' });
-        } else {
-            await ctx.reply("❌ **No DLMM Pools Found**\n\nNo suitable pools found for this token pair. Please try a different token.", { parse_mode: 'Markdown' });
-        }
-    } catch (error: any) {
-        console.error("Error finding pool:", error);
-        await ctx.reply("❌ **Pool Search Failed**\n\nUnable to find pools at this time. Please try again later.", { parse_mode: 'Markdown' });
-    }
-});
 bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
   const proposalId = ctx.match[1];
   await ctx.answerCbQuery();
