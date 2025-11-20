@@ -6,11 +6,15 @@ import dotenv from "dotenv";
 import * as idl from "../idl/alpha_pods.json";
 import { PrismaClient } from "@prisma/client";
 import { AlphaPods } from "../idl/alpha_pods";
-import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, transfer } from "@solana/spl-token";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, TOKEN_PROGRAM_ID, transfer } from "@solana/spl-token";
+import { deriveEventAuthority } from "@meteora-ag/dlmm";
+import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
 dotenv.config();
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
 const secretKeyArray=[123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
 const secretKey = new Uint8Array(secretKeyArray);
+const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
+const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
 const    superadmin = Keypair.fromSecretKey(secretKey);
 const wallet=new anchor.Wallet(superadmin);
 const provider = new anchor.AnchorProvider(connection, wallet, {
@@ -269,7 +273,153 @@ for(let i=0;i<userdeposit.length;i++){
 }
 return map;
 }
-
+export const createposition=async(lowerBinId:any,width:any,lppair:PublicKey,positionKeypair:Keypair,escrowPda:PublicKey,
+  escrow_vault_pda:PublicKey
+)=>{
+  const createPositionTx = await program.methods
+  .addPostion(lowerBinId, width)
+  .accountsStrict({
+    lbPair:lppair,
+    position: positionKeypair.publicKey,
+    rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+    escrow: escrowPda,
+    vault: escrow_vault_pda,
+    dlmmProgram: METORA_PROGRAM_ID,
+    eventAuthority: eventAuthority,
+    systemProgram: SystemProgram.programId,
+  })
+  .signers([positionKeypair])
+  .rpc();
+  return createPositionTx;
+}
+export const addbin=async(lowerBinArrayIndex:any,lb_pair:PublicKey,
+  binArrayLower:PublicKey,escrowPda:PublicKey,escrow_vault_pda:PublicKey
+)=>{
+  const  CreateBinArrayTx = await program.methods
+  .addBin(new anchor.BN(lowerBinArrayIndex.toNumber()))
+  .accountsStrict({
+    lbPair: lb_pair,
+    binArray: binArrayLower,
+    escrow: escrowPda,
+    systemProgram: SystemProgram.programId,
+    dlmmProgram: METORA_PROGRAM_ID,
+    vault: escrow_vault_pda
+  })
+  .rpc();
+  return CreateBinArrayTx
+}
+export const addliquidity=async(liquidityParameter:any,lb_pair:PublicKey,
+  binArrayLower:PublicKey,escrowPda:PublicKey,escrow_vault_pda:PublicKey,
+  position_public_key:PublicKey,matchingPair:any,
+binArrayUpper:PublicKey,vaulta:PublicKey,vaultb:PublicKey,poolTokenXMint:PublicKey,
+poolTokenYMint:PublicKey,poolTokenXProgramId:PublicKey,poolTokenYProgramId:PublicKey
+)=>{  
+  const txSignature = await program.methods
+  .addLiquidity(liquidityParameter)
+  .accountsStrict({
+    lbPair: matchingPair.publicKey,
+    position: position_public_key,
+    binArrayBitmapExtension: null,
+    reserveX: matchingPair.account.reserveX,
+    reserveY: matchingPair.account.reserveY,
+    binArrayLower: binArrayLower,
+    binArrayUpper: binArrayUpper,
+    vaulta: vaulta,
+    vaultb: vaultb,
+    tokenXMint: poolTokenXMint,
+    tokenYMint: poolTokenYMint,
+    vault: escrow_vault_pda,
+    escrow: escrowPda,
+    dlmmProgram: METORA_PROGRAM_ID,
+    eventAuthority: eventAuthority,
+    tokenXProgram: poolTokenXProgramId,
+    tokenYProgram: poolTokenYProgramId,
+  tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+  associatedTokenProgram: ASSOCIATED_PROGRAM_ID
+  })
+  .rpc();
+  return txSignature 
+}    
+export const removeLiqudity=async(binLiquidityReduction:any,poolPubkey:PublicKey,positionPubkey:PublicKey,matchingPair:any,
+  escrowPda:PublicKey,escrow_vault_pda:PublicKey,vaulta:PublicKey,vaultb:PublicKey,tokenXMint:PublicKey,tokenYMint:PublicKey,
+  binArrayLower:PublicKey,binArrayUpper:PublicKey
+)=>{
+  const removeLiquidityTx = await program.methods
+  .removeLiqudity(binLiquidityReduction)
+  .accountsStrict({
+    lbPair: poolPubkey,
+    binArrayBitmapExtension: null,
+    position: positionPubkey,
+    reserveX: matchingPair.account.reserveX,
+    reserveY: matchingPair.account.reserveY,
+    escrow: escrowPda,
+    vault: escrow_vault_pda,
+    vaulta: vaulta,
+    vaultb: vaultb,
+    tokenXMint: tokenXMint,
+    tokenYMint: tokenYMint,
+    binArrayLower: binArrayLower,
+    binArrayUpper: binArrayUpper,
+    dlmmProgram: METORA_PROGRAM_ID,
+    eventAuthority: eventAuthority,
+    tokenXProgram: TOKEN_PROGRAM_ID,
+    tokenYProgram: TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+  })
+  .rpc();
+  return removeLiquidityTx;
+}
+export const closePosition=async(lbPair:PublicKey,positionPubkey:PublicKey,binArrayLower:PublicKey,binArrayUpper:PublicKey,escrowPda:PublicKey,escrow_vault_pda:PublicKey)=>{
+  const closeTx = await program.methods
+      .closePosition()
+      .accountsStrict({
+        lbPair: lbPair,
+        position: positionPubkey,
+        binArrayLower: binArrayLower,
+        binArrayUpper: binArrayUpper,
+        escrow: escrowPda,
+        dlmmProgram: METORA_PROGRAM_ID,
+        eventAuthority: eventAuthority,
+        vault: escrow_vault_pda
+      })
+      .rpc();
+      return closeTx;
+}
+export const swap=async(amount:number,minAmountOut:anchor.BN,poolPubkey:PublicKey,userTokenIn:PublicKey,userTokenOut:PublicKey,
+bitmapExtensionToUse:PublicKey,escrowPda:PublicKey,vaulta:PublicKey,vaultb:PublicKey,escrow_vault_pda:PublicKey,tokenxmint:PublicKey,
+tokenymint:PublicKey,reserveX:PublicKey,reserveY:PublicKey,oracle:PublicKey,binArrayAccounts:any
+)=>{
+     
+  const swapTx = await program.methods
+  .swap(new anchor.BN(amount), minAmountOut)
+  .accountsStrict({
+    lbPair: poolPubkey,
+    userTokenIn: userTokenIn,
+    userTokenOut: userTokenOut,
+    tokenXMint: tokenxmint,
+    tokenXProgram: TOKEN_PROGRAM_ID,
+    tokenYMint: tokenymint,
+    tokenYProgram: TOKEN_PROGRAM_ID,
+    hostFeeIn: null,
+    binArrayBitmapExtension: bitmapExtensionToUse,
+    escrow: escrowPda,
+    vaulta: vaulta,
+    vaultb: vaultb,
+    reserveX: reserveX,
+    reserveY: reserveY,
+    oracle: oracle,
+    dlmmProgram: METORA_PROGRAM_ID,
+    eventAuthority: eventAuthority,
+    vault:escrow_vault_pda,
+    systemProgram: SystemProgram.programId,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram:TOKEN_PROGRAM_ID
+  })
+  .remainingAccounts(binArrayAccounts)
+  .rpc();
+  return swapTx;
+}
 // export const withdraw = async (amount: anchor.BN, member: Keypair, chatid: BigInt) => {
 //   const escrowRow = await prisma.escrow.findUnique({
 //     where: {

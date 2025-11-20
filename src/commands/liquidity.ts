@@ -16,16 +16,18 @@ import { AlphaPods } from "../idl/alpha_pods";
 import * as idl from "../idl/alpha_pods.json";
 import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority } from "@meteora-ag/dlmm";
 import { PrismaClient } from "@prisma/client";
-import { deposit } from "../contract/contract";
+import { addbin, addliquidity, closePosition, createposition, deposit, removeLiqudity } from "../contract/contract";
 import { decryptPrivateKey } from "../services/auth";
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
 import { error } from "console";
 import { deposit_lp, executedSwapProposal, handlswap, sendmoney } from "./swap";
 import { checkadminfund, deductamount } from "./fund";
+import { program } from "@coral-xyz/anchor/dist/cjs/native/system";
 
 const prisma = new PrismaClient();
 const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
-
+const PROGRAM_ID=new PublicKey("2UxzDQnXYxnANW3ugTbjn3XhiSaqtfzpBKVqmh1nHL3A");
+const connection=new Connection("https://api.devnet.solana.com");
 interface LiquiditySessionData extends Scenes.WizardSessionData {
   mint?: string;
   amount?: string;
@@ -45,7 +47,7 @@ function getProgram(connection: Connection, adminKeypair: Keypair): Program<Alph
 
 const askMintStep = async (ctx: LiquidityContext) => {
   await ctx.reply(
-    "🏊 **Propose Liquidity Addition**\n\n" +
+    "**Propose Liquidity Addition**\n\n" +
     "This will create a proposal for members to vote on.\n\n" +
     "Please provide the token mint address you want to add liquidity for:\n\n" +
     "Example: `Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr`",
@@ -68,7 +70,7 @@ const findPoolsStep = async (ctx: LiquidityContext) => {
     (ctx.wizard.state as any).mint = mintAddress;
     (ctx.wizard.state as any).chatId = ctx.chat?.id;
 
-    await ctx.reply("🔍 Searching for DLMM pools...");
+    await ctx.reply("Searching for DLMM pools...");
 
     const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com", { commitment: "confirmed" });
     const allPairs = await DLMM.getLbPairs(connection);
@@ -85,7 +87,7 @@ const findPoolsStep = async (ctx: LiquidityContext) => {
     }
 
  
-    let poolMessage = `✅ Found ${matchingPairs.length} pool(s):\n\n`;
+    let poolMessage = `Found ${matchingPairs.length} pool(s):\n\n`;
     matchingPairs.forEach((pair, index) => {
       const reserveX = parseFloat(pair.account.reserveX.toString()) / 1e9;
       const reserveY = parseFloat(pair.account.reserveY.toString()) / 1e9;
@@ -96,7 +98,7 @@ const findPoolsStep = async (ctx: LiquidityContext) => {
       poolMessage += `• Reserve Y: ${reserveY.toFixed(4)}\n\n`;
     });
 
-    poolMessage += "💰 How much SOL should each member contribute?\n";
+    poolMessage += "How much SOL should each member contribute?\n";
     poolMessage += "Example: `0.1` (for 0.1 SOL per member)";
 
     await ctx.reply(poolMessage, { parse_mode: "Markdown" });
@@ -129,7 +131,7 @@ const createProposalStep = async (ctx: LiquidityContext) => {
     const creatorTelegramId = ctx.from?.id?.toString() || "";
 
     const proposalMessage = await ctx.reply(
-      `🗳️ **Liquidity Proposal**\n\n` +
+      `**Liquidity Proposal**\n\n` +
       `**Token Mint:** \`${mint}\`\n` +
       `**Amount per member:** ${amount} SOL\n\n` +
       `Should we add liquidity to this pool?\n\n` +
@@ -138,8 +140,8 @@ const createProposalStep = async (ctx: LiquidityContext) => {
         parse_mode: "Markdown",
         ...Markup.inlineKeyboard([
           [
-            Markup.button.callback("👍 Yes (0)", `vote_liquidity:yes:${mint}`),
-            Markup.button.callback("👎 No (0)", `vote_liquidity:no:${mint}`)
+            Markup.button.callback("Yes (0)", `vote_liquidity:yes:${mint}`),
+            Markup.button.callback("No (0)", `vote_liquidity:no:${mint}`)
           ]
         ])
       }
@@ -162,7 +164,7 @@ const createProposalStep = async (ctx: LiquidityContext) => {
     });
 
     const successMessage = `
-✅ **Liquidity Proposal Created!**
+**Liquidity Proposal Created!**
 
 **Proposal ID:** \`${proposal.id}\`
 **Token:** \`${mint.slice(0, 8)}...${mint.slice(-8)}\`
@@ -170,7 +172,7 @@ const createProposalStep = async (ctx: LiquidityContext) => {
 
 Members can now vote! Those who vote YES will contribute ${amount} SOL to the liquidity pool.
 
-**Voting closes in 5 minutes.**
+Voting closes in 5 minutes.
     `;
 
     await ctx.reply(successMessage, { parse_mode: "Markdown" });
@@ -617,17 +619,11 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
       await ctx.reply(" Position not found or already closed.");
       return;
     }
-    const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com", { commitment: "confirmed" });
-    const secretKeyArray = [123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
-    const adminKeypair = Keypair.fromSecretKey(new Uint8Array(secretKeyArray));
-    
-    const program = getProgram(connection, adminKeypair);
-
     const escrowPda = new PublicKey(position.escrow.escrow_pda);
     console.log("escrow",escrowPda);
     const [escrow_vault_pda] = PublicKey.findProgramAddressSync(
       [Buffer.from("vault"), escrowPda.toBuffer()],
-      program.programId
+    PROGRAM_ID
     );
     console.log("pda",escrow_vault_pda);
 
@@ -640,15 +636,10 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
       await ctx.reply(" Pool not found.");
       return;
     }
-
-    // Use the actual pool's token mints (not hardcoded)
     const tokenXMint = matchingPair.account.tokenXMint;
-    const tokenYMint = matchingPair.account.tokenYMint;
-
+    const tokenYMint = matchingPair.account.tokenYMint
     const activeBinId = matchingPair.account.activeId;
     const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
-
- 
     const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(position.lowerBinId));
     const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(position.upperBinId));
     const [binArrayLower] = deriveBinArray(poolPubkey, lowerBinArrayIndex, METORA_PROGRAM_ID);
@@ -660,29 +651,8 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
     console.log("balance before", balance_before_vaulta, balance_before_vaultb);
     await ctx.reply("💧 Removing liquidity...");
     const binLiquidityReduction = [{ binId: activeBinId, bpsToRemove: 10000 }];
-    const removeLiquidityTx = await program.methods
-      .removeLiqudity(binLiquidityReduction)
-      .accountsStrict({
-        lbPair: poolPubkey,
-        binArrayBitmapExtension: null,
-        position: positionPubkey,
-        reserveX: matchingPair.account.reserveX,
-        reserveY: matchingPair.account.reserveY,
-        escrow: escrowPda,
-        vault: escrow_vault_pda,
-        vaulta: vaulta,
-        vaultb: vaultb,
-        tokenXMint: tokenXMint,
-        tokenYMint: tokenYMint,
-        binArrayLower: binArrayLower,
-        binArrayUpper: binArrayUpper,
-        dlmmProgram: METORA_PROGRAM_ID,
-        eventAuthority: eventAuthority,
-        tokenXProgram: TOKEN_PROGRAM_ID,
-        tokenYProgram: TOKEN_PROGRAM_ID,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .rpc();
+    const removeLiquidityTx=await removeLiqudity(binLiquidityReduction,poolPubkey,positionPubkey,matchingPair,escrowPda,escrow_vault_pda,vaulta,vaultb,tokenXMint,tokenYMint,binArrayLower,binArrayUpper);
+ 
     
     await connection.confirmTransaction(removeLiquidityTx, "confirmed");
     await ctx.reply("🔒 Closing position...");
@@ -718,15 +688,12 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
       } else {
         let solAmountLamports: number;
         let tokenAmountSmallestUnit: number;
-        
-        // Get token decimals for conversion
         const tokenMint = mintA === NATIVE_MINT.toBase58() ? tokenYMint : tokenXMint;
         const tokenMintInfo = await getMint(connection, tokenMint);
         const tokenDecimals = tokenMintInfo.decimals;
-        const tokenDecimalsMultiplier = Math.pow(10, tokenDecimals);
-        
+        const tokenDecimalsMultiplier = Math.pow(10, tokenDecimals);    
         if(mintA === NATIVE_MINT.toBase58()){
-          // SOL is token A, token is token B
+    
           solAmountLamports = Number(amountA);
           tokenAmountSmallestUnit = Number(amountb);
         } else {
@@ -758,19 +725,7 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
     }
     const beforesol=await connection.getBalance(new PublicKey(escrow_vault_pda));
     const beforeamount=beforesol/LAMPORTS_PER_SOL;
-    const closeTx = await program.methods
-      .closePosition()
-      .accountsStrict({
-        lbPair: poolPubkey,
-        position: positionPubkey,
-        binArrayLower: binArrayLower,
-        binArrayUpper: binArrayUpper,
-        escrow: escrowPda,
-        dlmmProgram: METORA_PROGRAM_ID,
-        eventAuthority: eventAuthority,
-        vault: escrow_vault_pda
-      })
-      .rpc();
+    const closeTx = await closePosition(poolPubkey,positionPubkey,binArrayLower,binArrayUpper,escrowPda,escrow_vault_pda);
  
     await connection.confirmTransaction(closeTx, "confirmed");
     if(!proposal){
@@ -825,14 +780,6 @@ export const executeLP=async(proposal_id:string)=>{
     const tokenYMint = new PublicKey(lp.mint);
     const tokenXMint = NATIVE_MINT;
     const connection=new Connection(process.env.RPC_URL || "https://api.devnet.solana.com", { commitment: "confirmed" });
-    const secretKeyArray=[123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
-    const secretKey = new Uint8Array(secretKeyArray);
-    const    superadmin = Keypair.fromSecretKey(secretKey);
-    const wallet=new anchor.Wallet(superadmin);
-    const provider = new anchor.AnchorProvider(connection, wallet, {
-    commitment: "confirmed",
-    })
-    const program = new Program<AlphaPods>(idl as AlphaPods, provider)
     const escrowRow = await prisma.escrow.findFirst({ where: { chatId: lp.chatId } });
     console.log("escrowo",escrowRow?.escrow_pda);
     if (!escrowRow) {
@@ -841,7 +788,7 @@ export const executeLP=async(proposal_id:string)=>{
     const escrowPda = new PublicKey(escrowRow.escrow_pda);
     const [escrow_vault_pda] = PublicKey.findProgramAddressSync(
       [Buffer.from("vault"), escrowPda.toBuffer()],
-      program.programId
+      PROGRAM_ID
     );
     console.log("escrow vault",escrow_vault_pda);
     const allPairs = await DLMM.getLbPairs(connection);
@@ -860,46 +807,17 @@ export const executeLP=async(proposal_id:string)=>{
     const poolTokenYMintInfo = await connection.getAccountInfo(matchingPair.account.tokenYMint);
     const poolTokenXProgramId = poolTokenXMintInfo?.owner || TOKEN_PROGRAM_ID;
     const poolTokenYProgramId = poolTokenYMintInfo?.owner || TOKEN_PROGRAM_ID;
-    // if (poolTokenXProgramId.toString() !== TOKEN_PROGRAM_ID.toString() ||
-    //     poolTokenYProgramId.toString() !== TOKEN_PROGRAM_ID.toString()) {
-    //   console.log("Skipping: Pool uses Token-2022 (not supported)");
-    //   return;
-    // }
-    // const deposit = await program.methods
-    //   .deposit(new anchor.BN(200_000_000)) 
-    //   .accountsStrict({
-    //     escrow: escrowPda,
-    //     vault: escrow_vault_pda,
-    //     member: adminkeypair.publicKey,
-    //     systemProgram: SystemProgram.programId
-    //   })
-    //   .signers([adminkeypair])
-    //   .rpc();
-    //   console.log("escrow_pda",escrowPda);
-    // console.log("deposit", deposit);
     const activeBinId = matchingPair.account.activeId;
     const lowerBinId = activeBinId - 24;
     const width = 48;
     const positionKeypair = Keypair.generate();
     console.log("Position:", positionKeypair.publicKey.toBase58());
+                          
     const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
     const amount=await connection.getBalance(escrow_vault_pda);
       const beforsol=amount/LAMPORTS_PER_SOL;
       console.log("beeff",beforsol);
-    const createPositionTx = await program.methods
-      .addPostion(lowerBinId, width)
-      .accountsStrict({
-        lbPair: matchingPair.publicKey,
-        position: positionKeypair.publicKey,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-        escrow: escrowPda,
-        vault: escrow_vault_pda,
-        dlmmProgram: METORA_PROGRAM_ID,
-        eventAuthority: eventAuthority,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([positionKeypair])
-      .rpc();
+    const createPositionTx =await  createposition(lowerBinId,width,matchingPair.publicKey,positionKeypair,escrowPda,escrow_vault_pda)
       const amountafter=await connection.getBalance(escrow_vault_pda);
       const balanceafter=amountafter/LAMPORTS_PER_SOL;
       console.log("dads",balanceafter);
@@ -907,7 +825,6 @@ export const executeLP=async(proposal_id:string)=>{
       await deductamount(proposal_id,balance,false);
       console.log("balanc",balance);
     console.log(" Position created! Signature:", createPositionTx);
-    await provider.connection.confirmTransaction(createPositionTx, "confirmed");
     const upperBinId = lowerBinId + width - 1;
     const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(lowerBinId));
     const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(upperBinId));
@@ -923,46 +840,25 @@ export const executeLP=async(proposal_id:string)=>{
       upperBinArrayIndex,
       METORA_PROGRAM_ID
     );
-    console.log("\n📦 Bin Arrays:");
+    console.log("\nBin Arrays:");
     console.log("Lower Bin Array:", binArrayLower.toString());
     console.log("Upper Bin Array:", binArrayUpper.toString());
-    const lowerBinArrayInfo = await provider.connection.getAccountInfo(binArrayLower);
+    const lowerBinArrayInfo = await connection.getAccountInfo(binArrayLower);
     if (!lowerBinArrayInfo) {
-      console.log(" Lower bin array doesn't exist, creating...");
+      console.log("Lower bin array doesn't exist, creating...");
       try {
-        const createLowerBinArrayTx = await program.methods
-          .addBin(new anchor.BN(lowerBinArrayIndex.toNumber()))
-          .accountsStrict({
-            lbPair: matchingPair.publicKey,
-            binArray: binArrayLower,
-            escrow: escrowPda,
-            systemProgram: SystemProgram.programId,
-            dlmmProgram: METORA_PROGRAM_ID,
-            vault: escrow_vault_pda
-          })
-          .rpc();
-        await provider.connection.confirmTransaction(createLowerBinArrayTx, "confirmed");
+        const createLowerBinArrayTx = await addbin(lowerBinArrayIndex,matchingPair.publicKey,binArrayLower,escrowPda,escrow_vault_pda)
         console.log(" Lower bin array created");
       } catch (err: any) {
         console.log("Note: Bin array creation error (may already exist):", err.message);
       }
     }
-      const upperBinArrayInfo = await provider.connection.getAccountInfo(binArrayUpper);
+      const upperBinArrayInfo = await  connection.getAccountInfo(binArrayUpper);
     if (!upperBinArrayInfo && binArrayUpper.toString() !== binArrayLower.toString()) {
-      console.log("⚠️  Upper bin array doesn't exist, creating...");
+      console.log("Upper bin array doesn't exist, creating...");
       try {
-        const createUpperBinArrayTx = await program.methods
-          .addBin(new anchor.BN(upperBinArrayIndex.toNumber()))
-          .accountsStrict({
-            lbPair: matchingPair.publicKey,
-            binArray: binArrayUpper,
-            escrow: escrowPda,
-            systemProgram: SystemProgram.programId,
-            dlmmProgram: METORA_PROGRAM_ID,
-            vault: escrow_vault_pda
-          })
-          .rpc();
-        await provider.connection.confirmTransaction(createUpperBinArrayTx, "confirmed");
+        const createUpperBinArrayTx = await addbin(upperBinArrayIndex,matchingPair.publicKey,binArrayUpper,escrowPda,escrow_vault_pda)
+        await  connection.confirmTransaction(createUpperBinArrayTx, "confirmed");
         console.log(" Upper bin array created");
       } catch (err: any) {
         console.log("Note: Bin array creation error (may already exist):", err.message);
@@ -976,14 +872,7 @@ export const executeLP=async(proposal_id:string)=>{
         METORA_PROGRAM_ID
       );
       if(!binArrayUpper){
-         const binarray=await program.methods.addBin(new anchor.BN(upperBinArrayIndex.toNumber())).accountsStrict({
-          lbPair:matchingPair.publicKey,
-          binArray:binArrayUpper,
-          escrow:escrowPda,
-          systemProgram:SystemProgram.programId,
-          dlmmProgram:METORA_PROGRAM_ID,
-          vault:escrow_vault_pda
-         }).rpc();
+          await addbin(upperBinArrayIndex,matchingPair.publicKey,binArrayUpper,escrowPda,escrow_vault_pda)
       } 
     }
     const isWSOLTokenX = matchingPair.account.tokenXMint.equals(NATIVE_MINT);
@@ -1024,7 +913,7 @@ export const executeLP=async(proposal_id:string)=>{
       throw new Error("Neither token in pool is WSOL");
     }
     
-    console.log("\n💧 Liquidity Parameters:");
+    console.log("\nLiquidity Parameters:");
     console.log("Amount X:", amountX.toString(), "lamports");
     console.log("Amount Y:", amountY.toString(), "lamports");
     console.log("WSOL is tokenX:", isWSOLTokenX, "tokenY:", isWSOLTokenY);
@@ -1047,7 +936,7 @@ export const executeLP=async(proposal_id:string)=>{
     console.log("Distribution Y:", distributionY / 100, "%");
     
     try {
-      console.log("\n🚀 Adding liquidity...");
+      console.log("\nAdding liquidity...");
     
       const sameBinArray = binArrayLower.equals(binArrayUpper);
       console.log("Same bin array?", sameBinArray);
@@ -1071,36 +960,10 @@ export const executeLP=async(proposal_id:string)=>{
       console.log("Vault B:", vaultb.toString(), "(tokenY:", poolTokenYMint.toBase58().slice(0, 8) + "...)");
       // console.log("dasdd",(liquidityParameter.amountX)/LAMPORTS_PER_SOL);
       console.log("check3",Number(liquidityParameter.amountY)/LAMPORTS_PER_SOL);
-      
-      const txSignature = await program.methods
-        .addLiquidity(liquidityParameter)
-        .accountsStrict({
-          lbPair: matchingPair.publicKey,
-          position: positionKeypair.publicKey,
-          binArrayBitmapExtension: null,
-          reserveX: matchingPair.account.reserveX,
-          reserveY: matchingPair.account.reserveY,
-          binArrayLower: binArrayLower,
-          binArrayUpper: sameBinArray ? binArrayLower : binArrayUpper,
-          vaulta: vaulta,
-          vaultb: vaultb,
-          tokenXMint: poolTokenXMint,
-          tokenYMint: poolTokenYMint,
-          vault: escrow_vault_pda,
-          escrow: escrowPda,
-          dlmmProgram: METORA_PROGRAM_ID,
-          eventAuthority: eventAuthority,
-          tokenXProgram: poolTokenXProgramId,
-          tokenYProgram: poolTokenYProgramId,
-        tokenProgram: TOKEN_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
-        associatedTokenProgram: ASSOCIATED_PROGRAM_ID
-        })
-        .rpc();
-     
+      const txSignature=await addliquidity(liquidityParameter,matchingPair.publicKey,binArrayLower,escrowPda,escrow_vault_pda,positionKeypair.publicKey,matchingPair,binArrayUpper,vaulta,vaultb,poolTokenXMint,poolTokenYMint,poolTokenXProgramId,poolTokenYProgramId);
       console.log(" Liquidity added successfully!");
       console.log("Transaction signature:", txSignature);
-      await provider.connection.confirmTransaction(txSignature, "confirmed");
+      await  connection.confirmTransaction(txSignature, "confirmed");
       await deposit_lp(lp.amount,proposal_id);
       await prisma.liquidityPosition.create({
         data: {
@@ -1123,7 +986,7 @@ export const executeLP=async(proposal_id:string)=>{
     
       
     } catch (error: any) {
-      console.error("\n❌ Add liquidity failed:", error);
+    
       
       if (error.logs) {
         console.error("\n📋 Program Logs:");
