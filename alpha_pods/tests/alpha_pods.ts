@@ -1606,7 +1606,7 @@ it("Add Liquidity with Bin Array Management", async () => {
         tokenXMint: targetPair.account.tokenXMint,
         tokenYMint: targetPair.account.tokenYMint,
         binArrayLower: binArrayLower,
-        binArrayUpper: binArrayUpper,
+        binArrayUpper: sameBinArray ? binArrayLower : binArrayUpper,
         dlmmProgram: METORA_PROGRAM_ID,
         eventAuthority: eventAuthority,
         tokenXProgram: tokenXProgramId,

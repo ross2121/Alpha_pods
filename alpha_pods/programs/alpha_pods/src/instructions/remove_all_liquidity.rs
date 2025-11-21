@@ -1,7 +1,6 @@
 use crate::{InitializeAdmin, dlmm::{self, types::BinLiquidityReduction}};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
-
 #[derive(Accounts)]
 pub struct Removeliquidity<'info> {
     #[account(mut)]
@@ -45,7 +44,7 @@ pub struct Removeliquidity<'info> {
 
     #[account(mut)]
     /// CHECK: Referral fee account
-    pub bin_array_upper: UncheckedAccount<'info>,
+    pub bin_array_upper: Option<UncheckedAccount<'info>>,
     #[account(address = dlmm::ID)]
     /// CHECK: DLMM program
     pub dlmm_program: UncheckedAccount<'info>,
@@ -68,6 +67,12 @@ pub fn remove_liqudity(
       bumps: &RemoveliquidityBumps,
       binreduction:Vec<BinLiquidityReduction>
 ) -> Result<()> {
+    let bin_array_lower_ai = self.bin_array_lower.to_account_info();
+    let bin_array_upper_ai = self
+        .bin_array_upper
+        .as_ref()
+        .map(|account| account.to_account_info())
+        .unwrap_or_else(|| bin_array_lower_ai.clone());
     let accounts = dlmm::cpi::accounts::RemoveLiquidity {
         lb_pair: self.lb_pair.to_account_info(),
         bin_array_bitmap_extension: self
@@ -85,8 +90,8 @@ pub fn remove_liqudity(
         token_y_program: self.token_y_program.to_account_info(),
         event_authority: self.event_authority.to_account_info(),
         program: self.dlmm_program.to_account_info(),
-        bin_array_lower:self.bin_array_lower.to_account_info(),
-        bin_array_upper:self.bin_array_upper.to_account_info(),
+        bin_array_lower:bin_array_lower_ai,
+        bin_array_upper:bin_array_upper_ai,
         position:self.position.to_account_info()
     };
     let admin_key = self.escrow.admin.key();

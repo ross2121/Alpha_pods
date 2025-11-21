@@ -1100,7 +1100,8 @@
         },
         {
           "name": "bin_array_upper",
-          "writable": true
+          "writable": true,
+          "optional": true
         },
         {
           "name": "dlmm_program",

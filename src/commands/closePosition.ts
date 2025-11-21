@@ -2,7 +2,7 @@ import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority } from
 import { PrismaClient } from "@prisma/client";
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { Context } from "telegraf";
-import { closePosition, removeLiqudity } from "../contract/contract";
+import { addbin, closePosition, removeLiqudity } from "../contract/contract";
 import { getAssociatedTokenAddress, getMint, NATIVE_MINT } from "@solana/spl-token";
 import { sendmoney } from "../services/balance";
 import { deductamount } from "./fund";
@@ -49,7 +49,7 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
       const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(position.lowerBinId));
       const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(position.upperBinId));
       const [binArrayLower] = deriveBinArray(poolPubkey, lowerBinArrayIndex, METORA_PROGRAM_ID);
-      const [binArrayUpper] = deriveBinArray(poolPubkey, upperBinArrayIndex, METORA_PROGRAM_ID);
+      let [binArrayUpper] = deriveBinArray(poolPubkey, upperBinArrayIndex, METORA_PROGRAM_ID);
       const vaulta = await getAssociatedTokenAddress(tokenXMint, escrowPda, true);
       const vaultb = await getAssociatedTokenAddress(tokenYMint, escrowPda, true);
       const balance_before_vaulta = await connection.getTokenAccountBalance(vaulta);
@@ -57,6 +57,19 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
       console.log("balance before", balance_before_vaulta, balance_before_vaultb);
       await ctx.reply("💧 Removing liquidity...");
       const binLiquidityReduction = [{ binId: activeBinId, bpsToRemove: 10000 }];
+      console.log("lowerbin array",binArrayLower);
+      console.log("upper bin arrya",binArrayUpper);
+      if(binArrayLower.equals(binArrayUpper)){
+        const placeholderIndex = upperBinArrayIndex.add(new anchor.BN(1));
+        [binArrayUpper] = deriveBinArray(
+          matchingPair.publicKey,
+          placeholderIndex,
+          METORA_PROGRAM_ID
+        );
+        if(!binArrayUpper){
+            await addbin(upperBinArrayIndex,matchingPair.publicKey,binArrayUpper,escrowPda,escrow_vault_pda)
+        } 
+      }
       const removeLiquidityTx=await removeLiqudity(binLiquidityReduction,poolPubkey,positionPubkey,matchingPair,escrowPda,escrow_vault_pda,vaulta,vaultb,tokenXMint,tokenYMint,binArrayLower,binArrayUpper);
    
       

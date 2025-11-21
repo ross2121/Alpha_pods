@@ -1106,7 +1106,8 @@ export type AlphaPods = {
         },
         {
           "name": "binArrayUpper",
-          "writable": true
+          "writable": true,
+          "optional": true
         },
         {
           "name": "dlmmProgram",
