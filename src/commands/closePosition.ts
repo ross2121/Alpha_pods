@@ -86,7 +86,7 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
             await addbin(upperBinArrayIndex,matchingPair.publicKey,binArrayUpper,escrowPda,escrow_vault_pda)
         } 
       }
-    
+       
       const removeLiquidityTx=await removeLiqudity(binLiquidityReduction,poolPubkey,positionPubkey,matchingPair,escrowPda,escrow_vault_pda,vaulta,vaultb,tokenXMint,tokenYMint,binArrayLower,binArrayUpper);
       
       await connection.confirmTransaction(removeLiquidityTx, "confirmed");
@@ -152,15 +152,23 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
         }
       }
       const beforesol=await connection.getBalance(new PublicKey(escrow_vault_pda));
+      console.log("before sol",beforesol);
       const beforeamount=beforesol/LAMPORTS_PER_SOL;
+      console.log("before amount",beforeamount);
       const closeTx = await closePosition(poolPubkey,positionPubkey,binArrayLower,binArrayUpper,escrowPda,escrow_vault_pda);
-      await connection.confirmTransaction(closeTx, "confirmed");
+      await new Promise(resolve => setTimeout(resolve, 2000)); 
       if(!proposal){
         return;
       }
-      const aftersol=await connection.getBalance(new PublicKey(escrow_vault_pda));
+      const aftersol = await connection.getBalance(
+        new PublicKey(escrow_vault_pda),
+        "confirmed"
+      );
       const afteramount=aftersol/LAMPORTS_PER_SOL;
       const amount=afteramount-beforeamount;
+      console.log("proposal amount",amount);
+      console.log("after amount",afteramount);
+      console.log("before amount",beforeamount);
       await deductamount(proposal?.id,amount,true);
       await prisma.liquidityPosition.update({
         where: { id: positionId.toString() },

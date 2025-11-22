@@ -88,7 +88,6 @@ export const updatebalance=async(amount_out:number,amount_in:number,proposal_id:
         }
       })
     }
-    
     }
     export const updatebalance_afterlp=async(amount_x:number,amount_y:number,proposal_id:string)=>{
     const prisma=new PrismaClient();
