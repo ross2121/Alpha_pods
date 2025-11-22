@@ -176,92 +176,100 @@ console.log("check1");
   return sig;
 };
 
-export const withdraw=async(userid:string,escrow_id:string)=>{
+export const withdraw=async(userid:string)=>{
   const prisma=new PrismaClient();
   const Deposit=await prisma.deposit.findMany({
       where:{
           id:userid
       }
   })
-  const escrow=await prisma.escrow.findUnique({
-    where:{
-      id:escrow_id
-    }
-  });
-  if(!escrow){
-    return;
-  }
-  const  escrow_pda=new PublicKey(escrow.escrow_pda);
-  const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("vault"),
-      escrow_pda.toBuffer()
-    ],
-    program.programId
-  )
-const user=await prisma.user.findUnique({
-  where:{
-    id:userid
-  }
-})
-if(!user){
-  return;
-}
   for(let i=0;i<Deposit.length;i++){
-     const mint=Deposit[i].mint;
-     if(mint==""){
-       const tx=await program.methods.withdraw(new anchor.BN(Deposit[i].amount)).accountsStrict({
-        member:user.public_key,
-        escrow:escrow.escrow_pda,
-        vault:escrow_vault_pda,
-        systemProgram:SystemProgram.programId
+    const deposit_item=Deposit[i];
+    const escrow=await prisma.escrow.findUnique({
+      where:{
+        id:deposit_item.escrowId
+      }
+    });
+    if(!escrow){
+      continue;
+    }
+    const escrow_pda=new PublicKey(escrow.escrow_pda);
+    const [escrow_vault_pda,bump]=PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("vault"),
+        escrow_pda.toBuffer()
+      ],
+      program.programId
+    )
+    const user=await prisma.user.findUnique({
+      where:{
+        id:userid
+      }
+    })
+    if(!user){
+      return;
+    }
+    if(deposit_item.mint==""){
+      const tx=await program.methods.withdraw(new anchor.BN(Deposit[i].amount)).accountsStrict({
+       member:user.public_key,
+       escrow:escrow.escrow_pda,
+       vault:escrow_vault_pda,
+       systemProgram:SystemProgram.programId
+      }).rpc();
+      await prisma.deposit.update({
+       where:{
+         id:Deposit[i].id
+       },data:{
+         amount:0
+       }
+      })
+      console.log("txn",tx)
+
+    }else{
+     const mint=new PublicKey(Deposit[i].mint||"");
+     const vault_mint=await getAssociatedTokenAddress(mint,escrow_pda,false);
+     const user_mint=await getAssociatedTokenAddress(mint,new PublicKey(user.public_key));
+       const tx=await program.methods.withdrawMint(new anchor.BN(Deposit[i].amount)).accountsStrict({
+         member:user.public_key,
+         escrow:escrow.escrow_pda,
+         vault:vault_mint,
+         tokenProgram:TOKEN_PROGRAM_ID,
+         systemProgram:SystemProgram.programId,
+         mint:Deposit[i].mint || "",
+         memberAta:user_mint
        }).rpc();
        await prisma.deposit.update({
-        where:{
-          id:Deposit[i].id
-        },data:{
-          amount:0
-        }
+         where:{
+           id:Deposit[i].id
+         },data:{
+           amount:0
+         }
        })
-       console.log("txn",tx)
-     }else{
-      const mint=new PublicKey(Deposit[i].mint||"");
-      const vault_mint=await getAssociatedTokenAddress(mint,escrow_pda,false);
-      const user_mint=await getAssociatedTokenAddress(mint,new PublicKey(user.public_key));
-        const tx=await program.methods.withdrawMint(new anchor.BN(Deposit[i].amount)).accountsStrict({
-          member:user.public_key,
-          escrow:escrow.escrow_pda,
-          vault:vault_mint,
-          tokenProgram:TOKEN_PROGRAM_ID,
-          systemProgram:SystemProgram.programId,
-          mint:Deposit[i].mint || "",
-          memberAta:user_mint
-        }).rpc();
-        await prisma.deposit.update({
-          where:{
-            id:Deposit[i].id
-          },data:{
-            amount:0
-          }
-        })
-        console.log("tsx mint",tx)
-      }
+       console.log("tsx mint",tx)
+     }
   }
+
+  
 }
 export const wallet_funds=async(userid:string)=>{
 const prisma=new  PrismaClient();
+console.log("userid",userid);
 const userdeposit=await prisma.deposit.findMany({
   where:{
-    id:userid
+    userId:userid
   }
 })
+console.log("userdeposit",userdeposit);
 if(!userdeposit){
   return;
 }
 const map=new Map<string, number>();
+console.log("userdeposit",userdeposit);
 for(let i=0;i<userdeposit.length;i++){
   const mint=userdeposit[i].mint;
   const amount=userdeposit[i].amount;
+  console.log("mint",mint);
+  console.log("amount",amount);
   if(!mint || mint==""){
   
     const currentSol = map.get("SOL") || 0;
@@ -271,6 +279,7 @@ for(let i=0;i<userdeposit.length;i++){
     map.set(mint, currentAmount + amount);
   }
 }
+console.log("map",map);
 return map;
 }
 export const createposition=async(lowerBinId:any,width:any,lppair:PublicKey,positionKeypair:Keypair,escrowPda:PublicKey,

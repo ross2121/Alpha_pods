@@ -87,9 +87,15 @@ bot.action(/claim_fees:(.+)/, admin_middleware, async (ctx) => {
 });
 bot.command("view_positions", handleViewPositions);
 bot.command("close_position", admin_middleware, handleClosePosition);
-bot.command("wallet", user_middleware, handleWallet);
-bot.action(/withdraw_wallet:(.+)/, user_middleware, handleWithdrawWallet);
-bot.action(/export_key_wallet:(.+)/, user_middleware, handleExportKeyWallet);
+bot.command("wallet", async (ctx, next) => {
+  if (ctx.chat?.type !== 'private') {
+    await ctx.reply("💼 Please use /wallet in a private chat with me for security.");
+    return;
+  }
+  return next();
+}, handleWallet);
+bot.action(/withdraw_wallet:(.+)/,  handleWithdrawWallet);
+bot.action(/export_key_wallet:(.+)/, handleExportKeyWallet);
 bot.action("wallet_button", user_middleware, async (ctx) => {
   await ctx.answerCbQuery();
   await handleWallet(ctx);
@@ -109,7 +115,7 @@ bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
   try {
     const result = await executedSwapProposal(proposalId);
     if(!result){
-      await ctx.reply("Swap failed")
+  
       return;
       ctx.answerCbQuery("swap")
     } 
