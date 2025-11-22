@@ -25,15 +25,7 @@ import {
 import { executeClosePosition } from "./commands/closePosition";
 dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
-const mainKeyboard = Markup.inlineKeyboard([
-    [Markup.button.callback("Swap", "Swap")],
-    [Markup.button.callback("Propose", "propose")],
-    [Markup.button.callback("🔄 Swap Tokens", "swap_tokens")],
-    [Markup.button.callback("💼 Wallet", "wallet_button")],
-    [Markup.button.callback("🏊 Add Liquidity", "add_liquidity")],
-    [Markup.button.callback("📊 View Positions", "view_positions")],
-    [Markup.button.callback("🔒 Close Position", "close_position")]
-]);
+
 const app=express();
 const proposeWizard = createProposeWizard(bot);
 const liquidtywizard=createliqudityWizards(bot);
@@ -45,8 +37,18 @@ app.listen(port,()=>{
 })
 bot.use(session());
 bot.use(stage.middleware());
+
+bot.telegram.setMyCommands([
+  { command: 'start', description: 'Show main menu' },
+  { command: 'Swap', description: 'Create a swap proposal' },
+  { command: 'wallet', description: 'Manage wallet' },
+  { command: 'add_liquidity', description: 'Add liquidity proposal' },
+  { command: 'view_positions', description: 'View liquidity positions' },
+  { command: 'close_position', description: 'Close a position' }
+]).catch(err => console.error('Failed to set bot commands:', err));
+
 bot.command("start", handleStart);
-bot.command("propose", admin_middleware, async (ctx) => {
+bot.command("Swap", admin_middleware, async (ctx) => {
   await ctx.scene.enter('propose_wizard');
 });
 bot.command('membercount', handleMemberCount);
@@ -104,9 +106,9 @@ bot.action("market_info", async (ctx) => {
   await ctx.answerCbQuery();
   await handleMarket(ctx);
 });
-bot.action("swap_tokens", async (ctx) => {
+bot.action("Swap", admin_middleware, async (ctx) => {
   await ctx.answerCbQuery();
-  await ctx.reply("🔄 **Swap Tokens**\n\nTo execute a swap:\n1. Create a proposal with the token mint address\n2. Members vote on the proposal\n3. Once approved, admin can execute the swap\n\nUse `/propose` to create a new swap proposal.", { parse_mode: "Markdown" });
+  await ctx.scene.enter('propose_wizard');
 });
 bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
   const proposalId = ctx.match[1];

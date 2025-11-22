@@ -8,14 +8,6 @@ Your decentralized group treasury management solution on Solana.
 
 **📋 Available Commands:**
 
-**👥 Group Management:**
-• \`/membercount\` - Check group member count
-• \`/myinfo\` - View your user information
-• \`/market\` - View market information
-
-**💼 Proposal & Voting:**
-• \`/propose\` - Create a new proposal (Admin only)
-• Vote on proposals via inline buttons
 
 **💱 Swap & Trading:**
 • \`/swap\` or use Swap button - Execute token swaps
@@ -38,12 +30,12 @@ Use the buttons below for common actions!
   `;
 
   const keyboard = Markup.inlineKeyboard([
-    [Markup.button.callback("💼 Propose", "propose")],
-    [Markup.button.callback("🔄 Swap Tokens", "swap_tokens")],
+    [Markup.button.callback("💼 Swap", "Swap")],
     [Markup.button.callback("🏊 Add Liquidity", "add_liquidity")],
     [Markup.button.callback("📊 View Positions", "view_positions")],
     [Markup.button.callback("🔒 Close Position", "close_position")],
     [Markup.button.callback("📈 Market Info", "market_info")],
+    [Markup.button.callback("💼 Wallet", "wallet")],
   ]);
 
   await ctx.reply(welcomeMessage, {
