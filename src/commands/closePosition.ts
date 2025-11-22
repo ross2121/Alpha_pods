@@ -4,10 +4,9 @@ import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { Context } from "telegraf";
 import { addbin, closePosition, removeLiqudity } from "../contract/contract";
 import { getAssociatedTokenAddress, getMint, NATIVE_MINT } from "@solana/spl-token";
-import { sendmoney } from "../services/balance";
+import {  updatebalance_afterlp } from "../services/balance";
 import { deductamount } from "./fund";
 import * as anchor from "@coral-xyz/anchor";
-
 export const executeClosePosition = async (ctx: Context, positionId: string) => {
   const prisma=new PrismaClient();
   const PROGRAM_ID=new PublicKey("2UxzDQnXYxnANW3ugTbjn3XhiSaqtfzpBKVqmh1nHL3A");
@@ -32,7 +31,6 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
       PROGRAM_ID
       );
       console.log("pda",escrow_vault_pda);
-  
       const positionPubkey = new PublicKey(position.positionAddress);
       const poolPubkey = new PublicKey(position.poolAddress);
       const allPairs = await DLMM.getLbPairs(connection);
@@ -43,9 +41,7 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
         return;
       }
       const tokenXMint = matchingPair.account.tokenXMint;
-      const tokenYMint = matchingPair.account.tokenYMint
-      const activeBinId = matchingPair.account.activeId;
-      const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+      const tokenYMint = matchingPair.account.tokenYMint;
       const lowerBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(position.lowerBinId));
       const upperBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(position.upperBinId));
       const [binArrayLower] = deriveBinArray(poolPubkey, lowerBinArrayIndex, METORA_PROGRAM_ID);
@@ -56,7 +52,27 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
       const balance_before_vaultb = await connection.getTokenAccountBalance(vaultb);
       console.log("balance before", balance_before_vaulta, balance_before_vaultb);
       await ctx.reply("💧 Removing liquidity...");
-      const binLiquidityReduction = [{ binId: activeBinId, bpsToRemove: 10000 }];
+      const dlmmPool = await DLMM.create(connection, poolPubkey);  
+      const positionData = await dlmmPool.getPosition(positionPubkey);
+      // for(let i=0;i<positionData.positionData.positionBinData.length;i++){
+      //       if(positionData.positionData.positionBinData[i].binId==position.lowerBinId||positionData.positionData.positionBinData[i].binId==position.upperBinId){
+      //         console.log(`data ${i}`,positionData.positionData.positionBinData)
+      //       }
+      // }
+       console.log("data",positionData.positionData);
+       
+      const binLiquidityReduction = positionData.positionData.positionBinData.map(bin => ({
+        binId: bin.binId,
+        bpsToRemove: 10000 
+      }));
+      const binArraysNeeded = new Set<number>();
+      for (let binId = position.lowerBinId; binId <= position.upperBinId; binId++) {
+        binArraysNeeded.add(binIdToBinArrayIndex(new anchor.BN(binId)).toNumber());
+      }
+      const binArrayPubkeys = Array.from(binArraysNeeded).map(index => 
+        deriveBinArray(poolPubkey, new anchor.BN(index), METORA_PROGRAM_ID)[0]
+      );
+  
       console.log("lowerbin array",binArrayLower);
       console.log("upper bin arrya",binArrayUpper);
       if(binArrayLower.equals(binArrayUpper)){
@@ -70,14 +86,14 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
             await addbin(upperBinArrayIndex,matchingPair.publicKey,binArrayUpper,escrowPda,escrow_vault_pda)
         } 
       }
+    
       const removeLiquidityTx=await removeLiqudity(binLiquidityReduction,poolPubkey,positionPubkey,matchingPair,escrowPda,escrow_vault_pda,vaulta,vaultb,tokenXMint,tokenYMint,binArrayLower,binArrayUpper);
-   
       
       await connection.confirmTransaction(removeLiquidityTx, "confirmed");
       await ctx.reply("🔒 Closing position...");
       const after_closing_vaulta = await connection.getTokenAccountBalance(vaulta);
       const after_closing_vaultb = await connection.getTokenAccountBalance(vaultb);
-       
+                               
         console.log("after closing", after_closing_vaulta, after_closing_vaultb);
       
       const amountA = new anchor.BN(after_closing_vaulta.value.amount).sub(new anchor.BN(balance_before_vaulta.value.amount));
@@ -87,7 +103,8 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
       
       console.log("Amount A (raw):", amountA.toString(), "Mint A:", mintA);
       console.log("Amount B (raw):", amountb.toString(), "Mint B:", mintB);
-    
+      console.log("binarya id",position.lowerBinId);
+      console.log("binarray id",position.upperBinId);
       const proposal = await prisma.proposal.findFirst({
         where: {
           chatId: position.chatId,
@@ -100,46 +117,43 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
         console.log("No proposal found for position, cannot distribute funds");
         await ctx.reply("❌ Could not find the original proposal. Funds are in the escrow vault but cannot be distributed automatically.");
       } else {
-        // Calculate per-member amounts
         const numMembers = proposal.Members.length;
         if (numMembers === 0) {
           await ctx.reply("❌ No members found in proposal. Cannot distribute funds.");
         } else {
-          let solAmountLamports: number;
-          let tokenAmountSmallestUnit: number;
-          const tokenMint = mintA === NATIVE_MINT.toBase58() ? tokenYMint : tokenXMint;
-          const tokenMintInfo = await getMint(connection, tokenMint);
-          const tokenDecimals = tokenMintInfo.decimals;
-          const tokenDecimalsMultiplier = Math.pow(10, tokenDecimals);    
-          if(mintA === NATIVE_MINT.toBase58()){
-      
-            solAmountLamports = Number(amountA);
-            tokenAmountSmallestUnit = Number(amountb);
-          } else {
-        
-            tokenAmountSmallestUnit = Number(amountA);
-            solAmountLamports = Number(amountb);
+            
+          let tokenAmountPerMember=0;
+           let solAmountPerMember;
+          if(matchingPair.account.tokenXMint==NATIVE_MINT){
+            const tokenMintInfo=await getMint(connection,matchingPair.account.tokenYMint); 
+            const tokenamount=Number(positionData.positionData.totalYAmount)/Math.pow(10, tokenMintInfo.decimals);
+            console.log("decimal",tokenMintInfo);
+            console.log("das",tokenMintInfo.decimals);
+            tokenAmountPerMember=tokenamount/numMembers;
+            console.log("token amount",tokenAmountPerMember);
+            const solamount=Number(positionData.positionData.totalXAmount)/LAMPORTS_PER_SOL;
+               solAmountPerMember=solamount/numMembers;
+               console.log("Sol amount",solAmountPerMember);
+          }else{
+            const tokenMintInfo=await getMint(connection,matchingPair.account.tokenXMint); 
+            console.log("decimal",tokenMintInfo);
+            console.log("das",tokenMintInfo.decimals);
+            const tokenAmount=Number(positionData.positionData.totalXAmount)/ Math.pow(10, tokenMintInfo.decimals);
+            console.log("token amount",tokenAmountPerMember);
+            tokenAmountPerMember=tokenAmount/numMembers;
+            const solamount=Number(positionData.positionData.totalYAmount)/LAMPORTS_PER_SOL;
+            solAmountPerMember=solamount/numMembers; 
+            console.log("Sol amount per member",solAmountPerMember);
+  
           }
-          const totalSolAmount = solAmountLamports / LAMPORTS_PER_SOL;
-          const totalTokenAmount = tokenAmountSmallestUnit / tokenDecimalsMultiplier;
-          const solAmountPerMember = totalSolAmount / numMembers;
-          const tokenAmountPerMember = totalTokenAmount / numMembers;
           
-          console.log("Total SOL (lamports):", solAmountLamports);
-          console.log("Total SOL (SOL):", totalSolAmount);
-          console.log("Total Token (smallest units):", tokenAmountSmallestUnit);
-          console.log("Total Token (tokens):", totalTokenAmount);
-          console.log("Token decimals:", tokenDecimals);
-          console.log("SOL per member:", solAmountPerMember);
-          console.log("Token per member:", tokenAmountPerMember);
-      
-          await sendmoney(solAmountPerMember, tokenAmountPerMember, proposal.id);
+       console.log("usdc",matchingPair.account.tokenXMint)
+          await updatebalance_afterlp(solAmountPerMember, tokenAmountPerMember, proposal.id);
         }
       }
       const beforesol=await connection.getBalance(new PublicKey(escrow_vault_pda));
       const beforeamount=beforesol/LAMPORTS_PER_SOL;
       const closeTx = await closePosition(poolPubkey,positionPubkey,binArrayLower,binArrayUpper,escrowPda,escrow_vault_pda);
-   
       await connection.confirmTransaction(closeTx, "confirmed");
       if(!proposal){
         return;
@@ -168,7 +182,7 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
       `;
   
       await ctx.reply(successMessage, { parse_mode: "Markdown" });
-  
+    
     } catch (error: any) {
       console.error("Error closing position:", error);
       let errorMsg = "❌ Failed to close position.";

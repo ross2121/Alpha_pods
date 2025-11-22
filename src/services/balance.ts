@@ -90,7 +90,7 @@ export const updatebalance=async(amount_out:number,amount_in:number,proposal_id:
     }
     
     }
-    export const sendmoney=async(amount_x:number,amount_y:number,proposal_id:string)=>{
+    export const updatebalance_afterlp=async(amount_x:number,amount_y:number,proposal_id:string)=>{
     const prisma=new PrismaClient();
     console.log("proposal id",proposal_id);
     console.log("check1");
@@ -123,7 +123,6 @@ export const updatebalance=async(amount_out:number,amount_in:number,proposal_id:
         console.log(`User ${proposal.Members[i]} not found, skipping`);
         continue;
       }
-    
       const solDeposit=await prisma.deposit.findUnique({
         where:{
           telegram_id_escrowId_mint:{
@@ -155,8 +154,6 @@ export const updatebalance=async(amount_out:number,amount_in:number,proposal_id:
           }
         });
       }
-    
-    
       const tokenDeposit=await prisma.deposit.findUnique({
         where:{
           telegram_id_escrowId_mint:{
