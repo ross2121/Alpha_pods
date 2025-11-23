@@ -1425,11 +1425,9 @@ it("Add Liquidity with Bin Array Management", async () => {
   let lowerBinId = activeBinId - 24;
   let width = 48;
   let positionKeypair = Keypair.generate();
-  
   const connection=new Connection("https://api.devnet.solana.com");
-  const binStep=25;
+  const binStep=1;
   const presetParams = await DLMM.getAllPresetParameters(connection);
-  const lb_pair_2=new Keypair();
  const matchingPresetIndex = presetParams.presetParameter.findIndex(
   p => p.account.binStep === binStep
 );
@@ -1440,12 +1438,11 @@ console.log("- Index:", matchingPresetIndex);
 console.log("- Bin Step:", matchingPreset.account.binStep);
 console.log("- Base Factor:", matchingPreset.account.baseFactor);
 
-// Derive with the SAME preset's baseFactor
 const [lb_pair, _bump] = deriveLbPair2(
   tokenXMint,
   tokenYMint,
   new anchor.BN(binStep),
-  new anchor.BN(matchingPreset.account.baseFactor), // Use matching preset's baseFactor
+  new anchor.BN(matchingPreset.account.baseFactor), 
   METORA_PROGRAM_ID
 );
 console.log("lb_pair",lb_pair.toBase58());
@@ -1456,7 +1453,7 @@ if (poolAccount) {
   console.log("Pool address:", lb_pair.toBase58());
   return;
 }
-  console.log("Preset parameter",presetParams);
+  console.log("Preset parameter",presetParams.presetParameter[0].account);
   console.log("present parameter ",)
   const [reserveX] = await PublicKey.findProgramAddress(
     [lb_pair.toBuffer(), tokenXMint.toBuffer()],
@@ -1485,9 +1482,9 @@ systemProgram:SystemProgram.programId,
 associatedTokenProgram:ASSOCIATED_TOKEN_PROGRAM_ID,
 rent:anchor.web3.SYSVAR_RENT_PUBKEY,
 eventAuthority:eventAuthority,
-    member:adminkeypair.publicKey,
+    vault:escrow_vault_pda,
     meteoraProgram:METORA_PROGRAM_ID,
-  }).signers([adminkeypair]).rpc();
+  }).rpc();
   console.log("create pool tx",createPoolTx);
   await provider.connection.confirmTransaction(createPoolTx, "confirmed");
   console.log("create pool success");

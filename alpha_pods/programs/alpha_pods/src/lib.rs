@@ -35,7 +35,7 @@ pub mod alpha_pods {
         Ok(())
     }
     pub fn lppool(ctx:Context<CreatePool>,bin_step:i32,active_bin:u16)->Result<()>{
-        ctx.accounts.createpool(bin_step, active_bin)
+        ctx.accounts.createpool(bin_step, active_bin,&ctx.bumps)
     }
     pub fn swap<'a, 'b, 'c, 'info>(
         ctx: Context<'a, 'b, 'c, 'info, DlmmSwap<'info>>,

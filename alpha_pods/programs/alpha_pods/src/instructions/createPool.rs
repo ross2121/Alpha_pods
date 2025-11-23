@@ -9,10 +9,11 @@ use crate::dlmm;
 #[derive(Accounts)]
 #[instruction(bin_id:i32,bin_step:u16)]
 pub struct CreatePool<'info> {
-    #[account(mut)]
-    pub member:Signer<'info>,
     #[account(mut,seeds=[b"escrow",escrow.admin.key().as_ref(),&escrow.seed.to_le_bytes()],bump=escrow.bump)]
     pub escrow:Account<'info,InitializeAdmin>,
+    #[account(mut,seeds=[b"vault",escrow.key().as_ref()],bump)]
+    /// CHECK: PDA that owns the position
+    pub vault: SystemAccount<'info>,
     #[account(mut)]
     /// CHECK: This is an external program account
     pub lp_account:UncheckedAccount<'info>,
@@ -35,13 +36,19 @@ pub struct CreatePool<'info> {
     pub rent: Sysvar<'info, Rent>, 
     #[account(mut)]
     /// CHECK: 
-    pub meteora_program: AccountInfo<'info>,
+    pub meteora_program: UncheckedAccount<'info>,
        /// CHECK: 
        pub event_authority: AccountInfo<'info>
 }
 impl<'info> CreatePool<'info>{
-    pub fn createpool(&mut self,bin_id:i32,bin_step:u16)->Result<()>{
-        let cpi_context = CpiContext::new(
+    pub fn createpool(&mut self,bin_id:i32,bin_step:u16,bumps:&CreatePoolBumps)->Result<()>{
+        let key=self.escrow.key();
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            b"vault",
+            key.as_ref(),
+            &[bumps.vault],
+        ]];
+        let cpi_context = CpiContext::new_with_signer(
             self.meteora_program.to_account_info(), 
             InitializeLbPair { 
                 lb_pair: self.lp_account.to_account_info(),
@@ -51,7 +58,7 @@ impl<'info> CreatePool<'info>{
                 reserve_y: self.vaultb.to_account_info(), 
                 oracle: self.oracle.to_account_info(), 
                 preset_parameter: self.preset_parameter.to_account_info(),  
-                funder: self.member.to_account_info(),
+                funder: self.vault.to_account_info(),
                 token_program: self.token_program.to_account_info(),
                 system_program: self.system_program.to_account_info(),
                 rent: self.rent.to_account_info(), 
@@ -59,6 +66,7 @@ impl<'info> CreatePool<'info>{
                 program: self.meteora_program.to_account_info(), 
                 bin_array_bitmap_extension: None,
             },
+            signer_seeds
         );
         msg!("Calling Metora initialize_lb_pair CPI...");
         dlmm::cpi::initialize_lb_pair(cpi_context, bin_id, bin_step)?;
