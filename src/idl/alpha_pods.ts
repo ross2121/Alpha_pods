@@ -909,11 +909,6 @@ export type AlphaPods = {
       ],
       "accounts": [
         {
-          "name": "member",
-          "writable": true,
-          "signer": true
-        },
-        {
           "name": "escrow",
           "writable": true,
           "pda": {
@@ -938,6 +933,28 @@ export type AlphaPods = {
                 "kind": "account",
                 "path": "escrow.seed",
                 "account": "initializeAdmin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
               }
             ]
           }

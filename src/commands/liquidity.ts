@@ -11,18 +11,14 @@ import {
   getMint
 } from "@solana/spl-token";
 import * as anchor from "@coral-xyz/anchor";
-import { Program } from "@coral-xyz/anchor";
-import { AlphaPods } from "../idl/alpha_pods";
-import * as idl from "../idl/alpha_pods.json";
+
 import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority } from "@meteora-ag/dlmm";
 import { PrismaClient } from "@prisma/client";
-import { addbin, addliquidity, closePosition, createposition, deposit, removeLiqudity } from "../contract/contract";
-import { decryptPrivateKey } from "../services/auth";
-import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
-import { error } from "console";
+import { addbin, addliquidity, closePosition, createPool, createposition, deposit, removeLiqudity } from "../contract/contract";
+
 import {  executedSwapProposal, handlswap } from "./swap";
 import { checkadminfund, deductamount, getfund } from "./fund";
-import { program } from "@coral-xyz/anchor/dist/cjs/native/system";
+
 import { deposit_lp } from "../services/lpbalance";
 
 const prisma = new PrismaClient();
@@ -470,7 +466,7 @@ export const handleViewPositions = async (ctx: Context) => {
       const unclaimedFeeY = details.total_fee_y_claimed || 0;
       const rewardUsd = details.total_reward_usd_claimed || 0;
 
-      // Build detailed message
+   
       const detailedMessage = `
 📊 **Position ${i + 1}/${positions.length}** - ${pos.tokenMint.slice(0, 4)}...${pos.tokenMint.slice(-4)}/SOL
 
@@ -587,7 +583,7 @@ export const executeLP=async(proposal_id:string)=>{
     );
     console.log("escrow vault",escrow_vault_pda);
     const allPairs = await DLMM.getLbPairs(connection);
-    const matchingPair = allPairs.find(pair => 
+    let matchingPair = allPairs.find(pair => 
       (pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
       pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()) ||
       (pair.account.tokenXMint.toBase58() === tokenYMint.toBase58() &&
@@ -596,6 +592,21 @@ export const executeLP=async(proposal_id:string)=>{
     console.log(matchingPair);
     if (!matchingPair) {
       console.log("cechh");
+      console.log("creating pool");
+      const before=await connection.getBalance(escrow_vault_pda);
+      const beforesol=before/LAMPORTS_PER_SOL;
+      const lb_pair=await createPool(1,1,escrowPda,escrow_vault_pda,tokenXMint,tokenYMint);
+      await new Promise(resolve => setTimeout(resolve, 2000)); 
+      const after=await connection.getBalance(escrow_vault_pda,"confirmed");
+      const aftersol=after/LAMPORTS_PER_SOL;
+      const balance=beforesol-aftersol;
+      await deductamount(proposal_id,balance,false);
+      if(!lb_pair){
+        throw new Error("Failed to create pool")
+      }
+      matchingPair=lb_pair.toString() as any;
+    }
+    if(!matchingPair){
       throw new Error("No matching pair found")
     }
     const poolTokenXMintInfo = await connection.getAccountInfo(matchingPair.account.tokenXMint);

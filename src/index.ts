@@ -1,9 +1,9 @@
 import express, { json } from "express";
-import { Telegraf, Markup, Scenes, session } from "telegraf";
+import { Telegraf, Scenes, session } from "telegraf";
 import dotenv from "dotenv";
 import { admin_middleware, user_middleware } from "./middleware/admin";
 import { MyContext, createProposeWizard, createliqudityWizards} from "./commands/Proposal";
-import { handleVote, Vote } from "./commands/vote";
+import { handleVote } from "./commands/vote";
 import { 
     handleMemberCount, 
     handleMyInfo, 
@@ -13,31 +13,38 @@ import {
     handleMyChatMember 
 } from "./commands/group";
 import { handleStart } from "./commands/start";
-import {  executedSwapProposal, handlswap } from "./commands/swap";
-import { executedliquidity, executeLP } from "./commands/liquidity";
+import {  executedSwapProposal } from "./commands/swap";
+import { executedliquidity } from "./commands/liquidity";
 import { handleWallet, handleWithdrawWallet, handleExportKeyWallet } from "./commands/wallet";
+
 import { 
-    createLiquidityWizard, 
     handleViewPositions, 
     handleClosePosition, 
     handleLiquidityVote,
 } from "./commands/liquidity";
 import { executeClosePosition } from "./commands/closePosition";
+import { Keypair } from "@solana/web3.js";
 dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
-
 const app=express();
 const proposeWizard = createProposeWizard(bot);
 const liquidtywizard=createliqudityWizards(bot);
 const stage = new Scenes.Stage<MyContext>([proposeWizard, liquidtywizard as any]);
+
 app.use(json);
 const port = process.env.PORT || 4000 
 app.listen(port,()=>{
+  const secretKeyArray=process.env.SECRET_KEY?.split(",").map(Number);
+  console.log("Seret key",process.env.SECRET_KEY);
+  if(secretKeyArray){
+  const secretKey = new Uint8Array(secretKeyArray);
+  const    superadmin = Keypair.fromSecretKey(secretKey);
+  console.log("Superadmin",superadmin.publicKey.toString());
+}
   console.log("port",port);
 })
 bot.use(session());
 bot.use(stage.middleware());
-
 bot.telegram.setMyCommands([
   { command: 'start', description: 'Show main menu' },
   { command: 'Swap', description: 'Create a swap proposal' },
@@ -46,7 +53,6 @@ bot.telegram.setMyCommands([
   { command: 'view_positions', description: 'View liquidity positions' },
   { command: 'close_position', description: 'Close a position' }
 ]).catch(err => console.error('Failed to set bot commands:', err));
-
 bot.command("start", handleStart);
 bot.command("Swap", admin_middleware, async (ctx) => {
   await ctx.scene.enter('propose_wizard');
@@ -173,9 +179,4 @@ bot.action(/execute_liquidity:(.+)/, admin_middleware, async (ctx) => {
     await ctx.reply(`❌ Swap execution failed: ${error.message}`);
   }
 });
-
 bot.launch()
-// handlswap(new PublicKey("6i6Z7twwpvr8PsCpsPujR1PgucdjpNPxAA4U7Uk2RZSk"),0.1*LAMPORTS_PER_SOL,"7oB9zbkRHScBur7kbLwJB9VNqUYGUdYobTeFB9QLPjEf");
-
-
-

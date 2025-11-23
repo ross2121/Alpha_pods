@@ -903,11 +903,6 @@
       ],
       "accounts": [
         {
-          "name": "member",
-          "writable": true,
-          "signer": true
-        },
-        {
           "name": "escrow",
           "writable": true,
           "pda": {
@@ -932,6 +927,28 @@
                 "kind": "account",
                 "path": "escrow.seed",
                 "account": "InitializeAdmin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
               }
             ]
           }

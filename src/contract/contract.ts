@@ -7,11 +7,14 @@ import * as idl from "../idl/alpha_pods.json";
 import { PrismaClient } from "@prisma/client";
 import { AlphaPods } from "../idl/alpha_pods";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, TOKEN_PROGRAM_ID, transfer } from "@solana/spl-token";
-import { deriveEventAuthority } from "@meteora-ag/dlmm";
+import DLMM, { deriveEventAuthority, deriveLbPair2 } from "@meteora-ag/dlmm";
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
 dotenv.config();
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
-const secretKeyArray=[123,133,250,221,237,158,87,58,6,57,62,193,202,235,190,13,18,21,47,98,24,62,69,69,18,194,81,72,159,184,174,118,82,197,109,205,235,192,3,96,149,165,99,222,143,191,103,42,147,43,200,178,125,213,222,3,20,104,168,189,104,13,71,224];
+const secretKeyArray=process.env.SECRET_KEY?.split(",").map(Number);
+if(!secretKeyArray){
+  throw new Error("SECRET_KEY is not set");
+}
 const secretKey = new Uint8Array(secretKeyArray);
 const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
 const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
@@ -350,6 +353,51 @@ poolTokenYMint:PublicKey,poolTokenXProgramId:PublicKey,poolTokenYProgramId:Publi
   .rpc();
   return txSignature 
 }    
+export const createPool=async(binStep:number,activeBin:number,escrowPda:PublicKey,escrow_vault_pda:PublicKey,tokenXMint:PublicKey,tokenYMint:PublicKey)=>{
+  const presetParams = await DLMM.getAllPresetParameters(connection);
+  const matchingPresetIndex = presetParams.presetParameter.findIndex(
+   p => p.account.binStep === binStep
+ );
+ const matchingPreset = presetParams.presetParameter[matchingPresetIndex];
+  const [lb_pair, _bump] = deriveLbPair2(
+    tokenXMint,
+    tokenYMint,
+    new anchor.BN(binStep),
+    new anchor.BN(matchingPreset.account.baseFactor), 
+    METORA_PROGRAM_ID
+  )
+  const [reserveX] = await PublicKey.findProgramAddress(
+    [lb_pair.toBuffer(), tokenXMint.toBuffer()],
+    METORA_PROGRAM_ID
+);
+const [reserveY] = await PublicKey.findProgramAddress(
+  [lb_pair.toBuffer(), tokenYMint.toBuffer()],
+  METORA_PROGRAM_ID
+);
+const [oracle] = PublicKey.findProgramAddressSync(
+  [Buffer.from("oracle"), lb_pair.toBuffer()],  
+  METORA_PROGRAM_ID
+);
+let [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+  const createPoolTx=await program.methods.lppool(activeBin,binStep).accountsStrict({
+    escrow:escrowPda,
+    vault:escrow_vault_pda,
+    presetParameter:matchingPreset.publicKey,
+    lpAccount:lb_pair,
+   vaulta:reserveX,
+   vaultb:reserveY,
+   oracle:oracle,
+   tokenProgram: TOKEN_PROGRAM_ID,
+   rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+   meteoraProgram:METORA_PROGRAM_ID,
+   minta:tokenXMint,
+   mintb:tokenYMint,
+    eventAuthority: eventAuthority,
+    systemProgram: SystemProgram.programId,
+    associatedTokenProgram: ASSOCIATED_PROGRAM_ID
+  }).rpc();
+  return createPoolTx;
+}
 export const removeLiqudity=async(binLiquidityReduction:any,poolPubkey:PublicKey,positionPubkey:PublicKey,matchingPair:any,
   escrowPda:PublicKey,escrow_vault_pda:PublicKey,vaulta:PublicKey,vaultb:PublicKey,tokenXMint:PublicKey,tokenYMint:PublicKey,
   binArrayLower:PublicKey,binArrayUpper:PublicKey
