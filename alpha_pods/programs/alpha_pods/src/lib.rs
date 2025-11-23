@@ -10,7 +10,6 @@ pub mod error;
 pub use error::*;
 declare_id!("2UxzDQnXYxnANW3ugTbjn3XhiSaqtfzpBKVqmh1nHL3A");
 declare_program!(dlmm);
-
 #[program]
 pub mod alpha_pods {
     use super::*;
@@ -21,8 +20,6 @@ pub mod alpha_pods {
   pub fn deposit(ctx:Context<Deposit>,amount:u64)->Result<()>{
     ctx.accounts.deposit(amount)
   }
-    
-
     pub fn deposit_mint(ctx: Context<DepositMint>, amount: u64) -> Result<()> {
         ctx.accounts.trade(amount)?;
         Ok(())
@@ -37,7 +34,7 @@ pub mod alpha_pods {
         ctx.accounts.signedtxn(instruction_data)?;
         Ok(())
     }
-    pub fn lppool(ctx:Context<LPPOOl>,bin_step:i32,active_bin:u16)->Result<()>{
+    pub fn lppool(ctx:Context<CreatePool>,bin_step:i32,active_bin:u16)->Result<()>{
         ctx.accounts.createpool(bin_step, active_bin)
     }
     pub fn swap<'a, 'b, 'c, 'info>(

@@ -8,7 +8,7 @@ use crate::{ InitializeAdmin};
 use crate::dlmm;
 #[derive(Accounts)]
 #[instruction(bin_id:i32,bin_step:u16)]
-pub struct LPPOOl<'info> {
+pub struct CreatePool<'info> {
     #[account(mut)]
     pub member:Signer<'info>,
     #[account(mut,seeds=[b"escrow",escrow.admin.key().as_ref(),&escrow.seed.to_le_bytes()],bump=escrow.bump)]
@@ -18,7 +18,7 @@ pub struct LPPOOl<'info> {
     pub lp_account:UncheckedAccount<'info>,
     #[account(mut)]
     /// CHECK: 
-    pub oracle: AccountInfo<'info>,
+    pub oracle: UncheckedAccount<'info>,
     pub minta:Account<'info,Mint>,
     pub mintb:Account<'info,Mint>,
     #[account(mut)]
@@ -39,7 +39,7 @@ pub struct LPPOOl<'info> {
        /// CHECK: 
        pub event_authority: AccountInfo<'info>
 }
-impl<'info> LPPOOl<'info>{
+impl<'info> CreatePool<'info>{
     pub fn createpool(&mut self,bin_id:i32,bin_step:u16)->Result<()>{
         let cpi_context = CpiContext::new(
             self.meteora_program.to_account_info(), 
@@ -49,15 +49,15 @@ impl<'info> LPPOOl<'info>{
                 token_mint_y: self.mintb.to_account_info(), 
                 reserve_x: self.vaulta.to_account_info(), 
                 reserve_y: self.vaultb.to_account_info(), 
-                oracle: self.oracle.to_account_info(), // Use .to_account_info()
+                oracle: self.oracle.to_account_info(), 
                 preset_parameter: self.preset_parameter.to_account_info(),  
-                funder: self.member.to_account_info(), // Use .to_account_info()
-                token_program: self.token_program.to_account_info(), // Use .to_account_info()
-                system_program: self.system_program.to_account_info(), // Use .to_account_info()
-                rent: self.rent.to_account_info(), // Use .to_account_info()
-                event_authority: self.event_authority.to_account_info(), // Use .to_account_info()
-                program: self.meteora_program.to_account_info(), // Use .to_account_info() (Metora program itself)
-                bin_array_bitmap_extension: None, // Keep as None
+                funder: self.member.to_account_info(),
+                token_program: self.token_program.to_account_info(),
+                system_program: self.system_program.to_account_info(),
+                rent: self.rent.to_account_info(), 
+                event_authority: self.event_authority.to_account_info(), 
+                program: self.meteora_program.to_account_info(), 
+                bin_array_bitmap_extension: None,
             },
         );
         msg!("Calling Metora initialize_lb_pair CPI...");

@@ -13,7 +13,8 @@ import {
   NATIVE_MINT,
   transfer
 } from "@solana/spl-token";
-import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority, derivePlaceHolderAccountMeta } from "@meteora-ag/dlmm";
+import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority, deriveLbPair2, derivePlaceHolderAccountMeta } from "@meteora-ag/dlmm";
+import { pre } from "telegraf/typings/format";
 
 describe("alpha_pods", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -1374,10 +1375,12 @@ describe("alpha_pods", () => {
 it("Add Liquidity with Bin Array Management", async () => {    
   const tokenYMint = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
   const tokenXMint = NATIVE_MINT; 
+  const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
   console.log("Finding LP Pair...");
   const secretKeyArray2 = [174,70,95,178,70,166,25,216,124,162,189,78,48,118,32,164,207,194,42,216,57,126,67,186,232,204,104,173,172,247,41,136,26,0,127,191,26,115,1,50,172,196,82,192,124,190,83,122,116,127,96,102,198,66,197,81,67,94,196,203,151,16,230,130]; 
-  const secretarray2=new Uint8Array(secretKeyArray2); 
+  const secretarray2=new Uint8Array(secretKeyArray2);
   const adminkeypair= Keypair.fromSecretKey(secretarray2);
+  console.log("admin",adminkeypair.publicKey.toString());
   const seed = 1;
   const [escrowPda, escrowBump] = PublicKey.findProgramAddressSync(
     [
@@ -1422,8 +1425,75 @@ it("Add Liquidity with Bin Array Management", async () => {
   let lowerBinId = activeBinId - 24;
   let width = 48;
   let positionKeypair = Keypair.generate();
+  
+  const connection=new Connection("https://api.devnet.solana.com");
+  const binStep=25;
+  const presetParams = await DLMM.getAllPresetParameters(connection);
+  const lb_pair_2=new Keypair();
+ const matchingPresetIndex = presetParams.presetParameter.findIndex(
+  p => p.account.binStep === binStep
+);
+const matchingPreset = presetParams.presetParameter[matchingPresetIndex];
+
+console.log("Using preset:");
+console.log("- Index:", matchingPresetIndex);
+console.log("- Bin Step:", matchingPreset.account.binStep);
+console.log("- Base Factor:", matchingPreset.account.baseFactor);
+
+// Derive with the SAME preset's baseFactor
+const [lb_pair, _bump] = deriveLbPair2(
+  tokenXMint,
+  tokenYMint,
+  new anchor.BN(binStep),
+  new anchor.BN(matchingPreset.account.baseFactor), // Use matching preset's baseFactor
+  METORA_PROGRAM_ID
+);
+console.log("lb_pair",lb_pair.toBase58());
+
+const poolAccount = await connection.getAccountInfo(lb_pair);
+if (poolAccount) {
+  console.log(" Pool already exists!");
+  console.log("Pool address:", lb_pair.toBase58());
+  return;
+}
+  console.log("Preset parameter",presetParams);
+  console.log("present parameter ",)
+  const [reserveX] = await PublicKey.findProgramAddress(
+    [lb_pair.toBuffer(), tokenXMint.toBuffer()],
+    METORA_PROGRAM_ID
+);
+const [reserveY] = await PublicKey.findProgramAddress(
+  [lb_pair.toBuffer(), tokenYMint.toBuffer()],
+  METORA_PROGRAM_ID
+);
+const [oracle] = PublicKey.findProgramAddressSync(
+  [Buffer.from("oracle"), lb_pair.toBuffer()],  
+  METORA_PROGRAM_ID
+);
+let [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+  const createPoolTx =await program.methods.lppool(activeBinId,binStep).accountsStrict({
+    lpAccount:lb_pair,
+    presetParameter:matchingPreset.publicKey,
+    oracle:oracle,
+minta:tokenXMint,
+mintb:tokenYMint,
+vaulta:reserveX,
+vaultb:reserveY,
+escrow:escrowPda,
+tokenProgram:TOKEN_PROGRAM_ID,
+systemProgram:SystemProgram.programId,
+associatedTokenProgram:ASSOCIATED_TOKEN_PROGRAM_ID,
+rent:anchor.web3.SYSVAR_RENT_PUBKEY,
+eventAuthority:eventAuthority,
+    member:adminkeypair.publicKey,
+    meteoraProgram:METORA_PROGRAM_ID,
+  }).signers([adminkeypair]).rpc();
+  console.log("create pool tx",createPoolTx);
+  await provider.connection.confirmTransaction(createPoolTx, "confirmed");
+  console.log("create pool success");
+
   console.log("Position:", positionKeypair.publicKey.toBase58());
-  let [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
+
   
   const createPositionTx = await program.methods
     .addPostion(lowerBinId, width)
@@ -1512,10 +1582,7 @@ it("Add Liquidity with Bin Array Management", async () => {
 
   const targetVaultX = await getAssociatedTokenAddress(targetPair.account.tokenXMint, escrowPda, true);
   const targetVaultY = await getAssociatedTokenAddress(targetPair.account.tokenYMint, escrowPda, true);
-  
 
-  
-  // === CHECK BALANCES ===
   const tokenXVaultAccount = await provider.connection.getTokenAccountBalance(targetVaultX);
   const tokenYVaultAccount = await provider.connection.getTokenAccountBalance(targetVaultY);
   
@@ -1542,8 +1609,8 @@ it("Add Liquidity with Bin Array Management", async () => {
     binLiquidityDist: [
       {
         binId: targetBinId,
-        distributionX: 5000, // 50%
-        distributionY: 5000, // 50%
+        distributionX: 5000, 
+        distributionY: 5000, 
       }
     ],
   };
