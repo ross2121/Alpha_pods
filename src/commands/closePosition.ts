@@ -169,7 +169,7 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
       console.log("proposal amount",amount);
       console.log("after amount",afteramount);
       console.log("before amount",beforeamount);
-      await deductamount(proposal?.id,amount,true);
+      await deductamount(proposal?.id,amount,false);
       await prisma.liquidityPosition.update({
         where: { id: positionId.toString() },
         data: { isActive: false }

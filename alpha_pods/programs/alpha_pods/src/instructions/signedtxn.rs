@@ -8,7 +8,6 @@ use crate::{InitializeAdmin, alpha_error};
 pub struct Signedtxn<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
-    
     #[account(
         mut,
         seeds = [b"escrow", escrow.admin.key().as_ref(), &escrow.seed.to_le_bytes()],
@@ -28,27 +27,20 @@ pub struct Signedtxn<'info> {
 
 impl<'info> Signedtxn<'info> {
     pub fn signedtxn(&mut self, instruction_data: Vec<u8>) -> Result<()> {
-        // Verify admin is the escrow admin
         require!(
             self.admin.key() == self.escrow.admin,
             alpha_error::UnauthorizedAdmin
         );
-
-        // Create CPI accounts
         let accounts = vec![
-            AccountMeta::new(self.escrow.key(), true),  // escrow is signer via PDA
+            AccountMeta::new(self.escrow.key(), true),  
             AccountMeta::new(self.recipient.key(), false),
             AccountMeta::new_readonly(system_program::ID, false),
         ];
-
-        // Create the instruction to execute
         let ix = Instruction {
             program_id: self.jupiter_program.key(),
             accounts,
             data: instruction_data,
         };
-
-        // Define signer seeds for the PDA
         let seeds = &[
             b"escrow".as_ref(),
             self.escrow.admin.as_ref(),
@@ -56,8 +48,6 @@ impl<'info> Signedtxn<'info> {
             &[self.escrow.bump],
         ];
         let signer_seeds: &[&[&[u8]]] = &[&seeds[..]];
-
-        // Execute the CPI with PDA signature
         anchor_lang::solana_program::program::invoke_signed(
             &ix,
             &[

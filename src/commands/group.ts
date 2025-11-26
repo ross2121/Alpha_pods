@@ -3,7 +3,6 @@ import { add_member, delete_member } from "./member_data";
 import { Keypair } from "@solana/web3.js";
 import { init } from "../contract/contract";
 import { decryptPrivateKey } from "../services/auth";
-
 export const handleMemberCount = async (ctx: any) => {
     if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
         const count = await ctx.getChatMembersCount();
@@ -12,7 +11,6 @@ export const handleMemberCount = async (ctx: any) => {
         ctx.reply('This command can only be used in a group.');
     }
 };
-
 export const handleMyInfo = async (ctx: any) => {
     if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
         const userId = ctx.from.id;

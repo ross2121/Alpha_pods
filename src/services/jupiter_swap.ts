@@ -1,5 +1,6 @@
 import axios from "axios";
 const ORDER_URL="https://lite-api.jup.ag/ultra/v1";
+//will do in  mainnet on devnet the jupiter swap doesnt work;
 
 export const getquote = async (inputMint: string, outputMint: string, amount: number) => {
   

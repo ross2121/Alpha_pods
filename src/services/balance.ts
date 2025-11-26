@@ -186,3 +186,56 @@ export const updatebalance=async(amount_out:number,amount_in:number,proposal_id:
       }
     }
     }
+    export const update_admin=async(amount_x:number,proposal_id:string)=>{
+      const  prisma=new PrismaClient();
+      const proposal=await prisma.proposal.findUnique({
+        where:{
+          id:proposal_id
+        }
+      });
+      if(!proposal){
+        return;
+      }
+      const escrow=await prisma.escrow.findUnique({
+        where:{
+          chatId:proposal.chatId
+        }
+      });
+      if(!escrow){
+        return;
+      }
+      for(let i=0;i<proposal.Members.length;i++){
+        const user=await prisma.user.findUnique({
+          where:{
+            telegram_id:proposal.Members[i]
+          }
+        });
+        if(!user){
+          continue;
+        }
+        if(user.role=="admin"){
+          const solDeposit=await prisma.deposit.findUnique({
+            where:{
+              telegram_id_escrowId_mint:{
+                telegram_id:proposal.Members[i],
+                escrowId:escrow.id,
+                mint:""
+              }
+            }
+          });
+          if(solDeposit){
+            await prisma.deposit.update({
+              where:{
+                id:solDeposit.id
+              },
+              data:{
+                amount:{
+                  increment:amount_x
+                }
+              }
+            });
+          }
+          break;
+      }
+    }
+    }

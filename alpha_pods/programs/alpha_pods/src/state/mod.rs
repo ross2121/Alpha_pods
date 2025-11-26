@@ -7,8 +7,6 @@ pub struct   InitializeAdmin{
   pub seed:u64,
   pub bump:u8
 }
-
-
 #[account]
 #[derive(InitSpace)]
 pub struct  Approval{

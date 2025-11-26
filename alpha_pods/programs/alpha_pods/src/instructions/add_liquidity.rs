@@ -1,7 +1,6 @@
         use crate::{InitializeAdmin, dlmm::{self, cpi, types::LiquidityParameter}};
         use anchor_lang::prelude::*;
         use anchor_spl::{associated_token::{AssociatedToken, Create, create}, token::{Token, TokenAccount}};
-
         #[derive(Accounts)]
         pub struct AddLiquidity<'info> {
             #[account(mut)]
@@ -43,14 +42,11 @@
             pub token_x_mint: UncheckedAccount<'info>,
             /// CHECK: Mint account of token Y
             pub token_y_mint: UncheckedAccount<'info>,
-
             #[account(address = dlmm::ID)]
             /// CHECK: DLMM program
             pub dlmm_program: UncheckedAccount<'info>,
-
             /// CHECK: DLMM program event authority for event CPI
             pub event_authority: UncheckedAccount<'info>,
-
             /// CHECK: Token program of mint X
             pub token_x_program: UncheckedAccount<'info>,
             /// CHECK: Token program of mint Y
@@ -140,7 +136,6 @@
                 
                 msg!("Successfully wrapped {} lamports to WSOL", amount_in);
             }
-            // Create vaulta only if it's not the WSOL account that was just created
             if self.vaulta.data_is_empty() && !is_token_x_sol{
                 let account=Create{
                     payer:self.vault.to_account_info(),
@@ -153,7 +148,6 @@
                 let cpi_ctx=CpiContext::new_with_signer(self.associated_token_program.to_account_info(), account, signer_seeds);
                 create(cpi_ctx)?;
             }   
-            // Create vaultb only if it's not the WSOL account that was just created
             if self.vaultb.data_is_empty() && !is_token_y_sol{
                 let account=Create{
                     payer:self.vault.to_account_info(),

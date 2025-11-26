@@ -12,8 +12,7 @@ pub struct InitializeBinArray<'info> {
     #[account(mut)]
         /// CHECK: This is the Meteora DLMM program ID
     pub bin_array: UncheckedAccount<'info>,
-    
-    /// The account paying for bin array creation
+
     #[account(
         mut,
         seeds = [b"escrow", escrow.admin.key().as_ref(), &escrow.seed.to_le_bytes()],
@@ -24,15 +23,13 @@ pub struct InitializeBinArray<'info> {
     pub vault:SystemAccount<'info>,
         /// CHECK: This is the Meteora DLMM program ID
     pub system_program:Program<'info,System>,
-    
-    /// The Meteora DLMM program
+
     /// CHECK: This is the Meteora DLMM program ID
     pub dlmm_program: UncheckedAccount<'info>,
 }
 
 impl<'info> InitializeBinArray<'info> {
     pub fn init_bin_array(&mut self, index: i64,bumps:&InitializeBinArrayBumps) -> Result<()> {
-        // Create the CPI accounts struct
         let accounts = dlmm::cpi::accounts::InitializeBinArray {
             lb_pair: self.lb_pair.to_account_info(),
             bin_array: self.bin_array.to_account_info(),

@@ -135,14 +135,12 @@ export const handleExportKeyWallet = async (ctx: any) => {
     `;
 
     try {
-      // Send to user's DM
       const sentMessage = await ctx.telegram.sendMessage(
         parseInt(userId),
         warningMessage,
         { parse_mode: "Markdown" }
       );
 
-      // Auto-delete after 60 seconds
       setTimeout(async () => {
         try {
           await ctx.telegram.deleteMessage(parseInt(userId), sentMessage.message_id);

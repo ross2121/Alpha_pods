@@ -33,7 +33,6 @@ export const user_middleware=async(ctx:Context,next:()=>Promise<void>)=>{
         }
     });
     if(!user || user.role=="admin"){
-       // Only answer callback query if it's a callback query update
        if (ctx.updateType === 'callback_query') {
          await ctx.answerCbQuery("Admin are not allowed to use this feature");
        } else {

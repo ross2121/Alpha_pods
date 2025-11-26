@@ -396,7 +396,7 @@ let [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
     systemProgram: SystemProgram.programId,
     associatedTokenProgram: ASSOCIATED_PROGRAM_ID
   }).rpc();
-  return createPoolTx;
+  return lb_pair;
 }
 export const removeLiqudity=async(binLiquidityReduction:any,poolPubkey:PublicKey,positionPubkey:PublicKey,matchingPair:any,
   escrowPda:PublicKey,escrow_vault_pda:PublicKey,vaulta:PublicKey,vaultb:PublicKey,tokenXMint:PublicKey,tokenYMint:PublicKey,

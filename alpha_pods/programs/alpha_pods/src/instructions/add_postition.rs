@@ -70,5 +70,6 @@ pub fn add_position(
 
     let cpi_context = CpiContext::new_with_signer(self.dlmm_program.to_account_info(), accounts,signer_seeds);
     dlmm::cpi::initialize_position(cpi_context, lower_bin_id, width)
+
 }
 }
