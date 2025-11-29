@@ -20,7 +20,7 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
    const connection=new Connection("https://api.devnet.solana.com");
    const dlmm=await DLMM.getLbPairs(connection);
    const escrowPda = new PublicKey(escrow_pda);
-   console.log("escrow",escrowPda);
+   console.log("escrow",escrowPda); 
    const [escrow_vault_pda,bump] = PublicKey.findProgramAddressSync(
      [
        Buffer.from("vault"),
@@ -52,9 +52,11 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
        );
       const amounttokena=await connection.getTokenAccountBalance(dlmm[i].account.reserveX);
       const amounttokenb=await connection.getTokenAccountBalance(dlmm[i].account.reserveY);
-      const amounttokena_number=Number(amounttokena.value.amount);
+      const amounttokena_number=Number(amounttokena.value.amount); 
       const amounttokenb_number=Number(amounttokenb.value.amount);
+      console.log("amounttokena_number",amounttokena_number);
       console.log("swap quote",swapQuote);
+      console.log
       const id=dlmm[i].account.activeId; 
       const price=Math.pow(1+(dlmm[i].account.binStep/10000),id);
       map.set(dlmm[i].publicKey.toBase58(),price);

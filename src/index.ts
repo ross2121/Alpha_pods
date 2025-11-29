@@ -47,14 +47,14 @@ bot.use(session());
 bot.use(stage.middleware());
 bot.telegram.setMyCommands([
   { command: 'start', description: 'Show main menu' },
-  { command: 'Swap', description: 'Create a swap proposal' },
+  { command: 'swap', description: 'Create a swap proposal' },
   { command: 'wallet', description: 'Manage wallet' },
   { command: 'add_liquidity', description: 'Add liquidity proposal' },
   { command: 'view_positions', description: 'View liquidity positions' },
   { command: 'close_position', description: 'Close a position' }
 ]).catch(err => console.error('Failed to set bot commands:', err));
 bot.command("start", handleStart);
-bot.command("Swap", admin_middleware, async (ctx) => {
+bot.command("swap", admin_middleware, async (ctx) => {
   await ctx.scene.enter('propose_wizard');
 });
 bot.command('membercount', handleMemberCount);
@@ -112,7 +112,7 @@ bot.action("market_info", async (ctx) => {
   await ctx.answerCbQuery();
   await handleMarket(ctx);
 });
-bot.action("Swap", admin_middleware, async (ctx) => {
+bot.action("swap", admin_middleware, async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.scene.enter('propose_wizard');
 });
