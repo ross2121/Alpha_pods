@@ -20,7 +20,7 @@ impl <'info> Deposit <'info>{
             to:self.vault.to_account_info(),
         }; 
        let cpi_ctx=CpiContext::new(self.system_program.to_account_info(),account);
-      // Amount is already in lamports from JavaScript
+
       transfer(cpi_ctx, amount)?;
       Ok(())
     }

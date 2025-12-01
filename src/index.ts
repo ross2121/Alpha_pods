@@ -121,11 +121,12 @@ bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.reply("⏳ **Executing Swap...**\n\nChecking member deposits and executing swap...", { parse_mode: 'Markdown' });
   try {
+    console.log("cehcd2");
     const result = await executedSwapProposal(proposalId);
     if(!result){
-  
+       await ctx.reply("NOt able to execute swap");
       return;
-      ctx.answerCbQuery("swap")
+    
     } 
     if (result.success) {
       await ctx.reply(

@@ -445,7 +445,7 @@ export const closePosition=async(lbPair:PublicKey,positionPubkey:PublicKey,binAr
 }
 export const swap=async(amount:number,minAmountOut:anchor.BN,poolPubkey:PublicKey,userTokenIn:PublicKey,userTokenOut:PublicKey,
 escrowPda:PublicKey,vaulta:PublicKey,vaultb:PublicKey,escrow_vault_pda:PublicKey,tokenxmint:PublicKey,
-tokenymint:PublicKey,reserveX:PublicKey,reserveY:PublicKey,oracle:PublicKey,binArrayAccounts:any
+tokenymint:PublicKey,reserveX:PublicKey,reserveY:PublicKey,oracle:PublicKey,binArrayAccounts:any,bitmapExtensionToUse:any
 )=>{
      
   const swapTx = await program.methods
@@ -459,7 +459,7 @@ tokenymint:PublicKey,reserveX:PublicKey,reserveY:PublicKey,oracle:PublicKey,binA
     tokenYMint: tokenymint,
     tokenYProgram: TOKEN_PROGRAM_ID,
     hostFeeIn: null,
-    binArrayBitmapExtension:null,
+    binArrayBitmapExtension:bitmapExtensionToUse,
     escrow: escrowPda,
     vaulta: vaulta,
     vaultb: vaultb,

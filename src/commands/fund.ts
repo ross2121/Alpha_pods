@@ -318,6 +318,7 @@ export const getfund = async (proposalid: string) => {
       }
     });
     if (!proposal) {
+        console.log("No proposal found");
       return;
     }
     const escrow = await prisma.escrow.findFirst({
@@ -327,6 +328,7 @@ export const getfund = async (proposalid: string) => {
     });
     
     if (!escrow) {
+        console.log("No escrow found");
       return;
     }
     

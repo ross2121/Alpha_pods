@@ -2,15 +2,15 @@ import { PrismaClient } from "@prisma/client";
 import * as anchor from "@coral-xyz/anchor";
 import { Connection, PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { getAssociatedTokenAddress, NATIVE_MINT, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { Program, AnchorProvider } from "@coral-xyz/anchor";
-import { AlphaPods } from "../idl/alpha_pods";
-import * as idl from "../idl/alpha_pods.json";
+
 import dotenv from "dotenv";
-import DLMM, { deriveEventAuthority } from "@meteora-ag/dlmm";
+import DLMM, { binIdToBinArrayIndex, deriveBinArrayBitmapExtension, deriveEventAuthority, isOverflowDefaultBinArrayBitmap } from "@meteora-ag/dlmm";
 import {  swap } from "../contract/contract";
 import { getfund } from "./fund";
 import { updatebalance } from "../services/balance";
 dotenv.config();
+import { PythHttpClient, getPythProgramKeyForCluster } from "@pythnetwork/client";
+
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
 const PROGRAM_ID=new PublicKey("2UxzDQnXYxnANW3ugTbjn3XhiSaqtfzpBKVqmh1nHL3A");
 const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
@@ -21,6 +21,7 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
    const dlmm=await DLMM.getLbPairs(connection);
    const escrowPda = new PublicKey(escrow_pda);
    console.log("escrow",escrowPda); 
+
    const [escrow_vault_pda,bump] = PublicKey.findProgramAddressSync(
      [
        Buffer.from("vault"),
@@ -36,69 +37,94 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
   console.log(`\nSearching through ${dlmm.length} total pools...`);
   
   const map=new Map<String,number>();
+let maxamount=0;
+let quote:any;
+let poolpublickey:any;
+let account=null;
   for (let i=0;i<dlmm.length;i++){
     if((dlmm[i].account.tokenXMint.equals(tokenxmint) && dlmm[i].account.tokenYMint.equals(token_y)) || (dlmm[i].account.tokenYMint.equals(NATIVE_MINT) && dlmm[i].account.tokenXMint.equals(token_y))){
       const istokenx=dlmm[i].account.tokenXMint.equals(NATIVE_MINT);
       const swapXforY=istokenx;
       const pool=await DLMM.create(connection,dlmm[i].publicKey);
-      const binArrays=await pool.getBinArrayForSwap(swapXforY, 20);
-      const swapQuote =pool.swapQuote(
-        new anchor.BN(amount),
-        swapXforY,
-        new anchor.BN(100),
-        binArrays,
-        false,
-        2
-       );
       const amounttokena=await connection.getTokenAccountBalance(dlmm[i].account.reserveX);
       const amounttokenb=await connection.getTokenAccountBalance(dlmm[i].account.reserveY);
       const amounttokena_number=Number(amounttokena.value.amount); 
       const amounttokenb_number=Number(amounttokenb.value.amount);
-      console.log("amounttokena_number",amounttokena_number);
-      console.log("swap quote",swapQuote);
-      console.log
-      const id=dlmm[i].account.activeId; 
-      const price=Math.pow(1+(dlmm[i].account.binStep/10000),id);
-      map.set(dlmm[i].publicKey.toBase58(),price);
-      console.log("price",price);
-      console.log("pair found",dlmm[i].account);
-  }}
-
-  let maxprice=0;
-  let maxpublickey=null;
-  let account=null;
-  for(let i=0;i<map.size;i++){
-    const key=Array.from(map.keys())[i];
-    const price=map.get(key);
-    if(!price){
-      continue;
-    }
-    if(price>maxprice){
-      maxprice=price;
-      maxpublickey=key;
-      account=dlmm[i].account;
-    }
-    console.log("price",price);
-    console.log("key",key);
-  }
-     if(!maxpublickey || !account){
-      return;
-          }  
-          maxpublickey=new PublicKey(maxpublickey);   
-          const istokenx=account.tokenXMint.equals(NATIVE_MINT);
-      const swapXforY=istokenx;
-      console.log(`\n[Pool ${poolsChecked}/${MIN_POOLS_TO_CHECK}] Checking: ${maxpublickey.toBase58()}`);
-      try{
-         const pool=await DLMM.create(connection,maxpublickey);
-         const binArrays=await pool.getBinArrayForSwap(swapXforY, 20);
-         const swapQuote =pool.swapQuote(
+      const binArrays=await pool.getBinArrayForSwap(swapXforY, 20);
+      if(istokenx){
+         if(amounttokena_number<amount){
+          console.log("true");
+          continue;
+         }
+      } else{
+          if(amounttokenb_number<amount){
+            console.log("true");
+            continue;
+          }
+      }
+      try {
+        const swapQuote = pool.swapQuote(
           new anchor.BN(amount),
           swapXforY,
           new anchor.BN(100),
           binArrays,
           false,
           2
-         );
+        );
+        
+        console.log("amounttokena_number", amounttokena_number);
+        console.log("swap quote", swapQuote);
+        const current = swapQuote.outAmount;
+        
+        if(Number(current) > maxamount){
+          maxamount = Number(current);  
+          poolpublickey = dlmm[i].publicKey;
+          quote = swapQuote;
+          account = dlmm[i].account;
+        }
+      } catch(quoteError: any) {
+        if(quoteError?.message?.includes("Insufficient liquidity")) {
+          console.log("Skipping pool - insufficient liquidity in bin arrays");
+          continue;
+        }
+        throw quoteError;
+      }
+  }}
+  let maxpublickey=null;
+console.log("final ",quote);
+     if(!account){
+      console.log("chedd");
+      return;
+          }  
+          maxpublickey=new PublicKey(poolpublickey);   
+          const istokenx=account.tokenXMint.equals(NATIVE_MINT);
+      const swapXforY=istokenx;
+      console.log(`\n[Pool ${poolsChecked}/${MIN_POOLS_TO_CHECK}] Checking: ${maxpublickey.toBase58()}`);
+      try{
+         const pool=await DLMM.create(connection,maxpublickey);
+         const binArrays=await pool.getBinArrayForSwap(swapXforY, 20);
+         const swapQuote =quote;
+         console.log("swap quote",swapQuote);
+    
+         const activeBinArrayIndex = binIdToBinArrayIndex(new anchor.BN(account.activeId));
+         let bitmapExtensionToUse: PublicKey | null = null;
+         
+         if (isOverflowDefaultBinArrayBitmap(activeBinArrayIndex)) {
+           bitmapExtensionToUse = deriveBinArrayBitmapExtension(maxpublickey, METORA_PROGRAM_ID)[0];
+           console.log("Pool requires bitmap extension:", bitmapExtensionToUse.toBase58());
+         } else {
+           console.log("Pool does not require bitmap extension");
+         }
+//         const rawBitmapExtension = pool.lbPair.binArrayBitmap;
+// let bitmapExtensionToUse = null; 
+
+
+// if (rawBitmapExtension ) {
+//   console.log("Pool requires Bitmap Extension:", rawBitmapExtension);
+//   bitmapExtensionToUse = rawBitmapExtension;
+// } else {
+//   bitmapExtensionToUse = null;
+// }
          console.log(` Quote successful: ${(swapQuote.minOutAmount.toNumber() / 1e9).toFixed(6)} tokens`); 
          const vaulta = await getAssociatedTokenAddress(account.tokenXMint, escrowPda, true);
          const vaultb = await getAssociatedTokenAddress(account.tokenYMint, escrowPda, true);
@@ -110,9 +136,10 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
          }));
         const userTokenIn = swapXforY ? vaulta : vaultb;
         const userTokenOut = swapXforY ? vaultb : vaulta;
-        const bitmapExtensionToUse = null;
-        
-       const swapTx=await swap(amount,swapQuote.minOutAmount,pool.pubkey,userTokenIn,userTokenOut,escrowPda,vaulta,vaultb,escrow_vault_pda,account.tokenXMint,account.tokenYMint,account.reserveX,account.reserveY,account.oracle,binArrayAccounts
+      //   if(bitmapExtensionToUse){
+      //   bitmapExtensionToUse=new PublicKey(bitmapExtensionToUse);
+      // }
+       const swapTx=await swap(amount,swapQuote.minOutAmount,pool.pubkey,userTokenIn,userTokenOut,escrowPda,vaulta,vaultb,escrow_vault_pda,account.tokenXMint,account.tokenYMint,account.reserveX,account.reserveY,account.oracle,binArrayAccounts,null
        );
      console.log(`\n SWAP SUCCESSFUL!`);
      console.log(`Transaction: ${swapTx}`);
@@ -126,7 +153,7 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
     const decimals = parsedData?.info?.decimals;
     console.log("token", parsedData);
      console.log("original",swapQuote.outAmount.toNumber()/decimals);
-     const humanAmount = swapQuote.outAmount.toNumber() / Math.pow(10, decimals);
+     const humanAmount = swapQuote.outAmount.toNumber() / Math.pow(10, decimals);  
      console.log("dadas",humanAmount);
       const amount_out=swapQuote.outAmount.toNumber()/decimals;
      console.log(`Pool: ${maxpublickey.toBase58()}`);
@@ -177,6 +204,7 @@ export const executedSwapProposal=async(proposal_id:string)=>{
         }
       });
       if(!proposal){
+        console.log("NO proposal found")
         return;
       }
       const escrow=await prisma.escrow.findUnique({
@@ -185,9 +213,9 @@ export const executedSwapProposal=async(proposal_id:string)=>{
         }
       });
       if(!escrow){
+        console.log("NO escrow  found")
         return;
       }
-     
       await getfund(proposal_id);
       const totalamount=proposal.Members.length*proposal.amount;
       const swapResult=await handlswap(
@@ -214,8 +242,20 @@ export const executedSwapProposal=async(proposal_id:string)=>{
       };
 
   }catch(error:any){
-     console.log("Execute Swap error");
+
+    console.error("Error message:", error?.message || error);
     
+    if (error?.stack) {
+      console.error("Stack trace:", error.stack);
+    }
+    
+    if (error?.logs) {
+      console.error("\n📋 Transaction logs:");
+      error.logs.forEach((log: string) => console.error("  ", log));
+    }
+    
+    throw error; // Re-th
+     
   }
   return {
     success: false,
