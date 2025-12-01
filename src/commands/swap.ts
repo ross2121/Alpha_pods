@@ -115,16 +115,6 @@ console.log("final ",quote);
          } else {
            console.log("Pool does not require bitmap extension");
          }
-//         const rawBitmapExtension = pool.lbPair.binArrayBitmap;
-// let bitmapExtensionToUse = null; 
-
-
-// if (rawBitmapExtension ) {
-//   console.log("Pool requires Bitmap Extension:", rawBitmapExtension);
-//   bitmapExtensionToUse = rawBitmapExtension;
-// } else {
-//   bitmapExtensionToUse = null;
-// }
          console.log(` Quote successful: ${(swapQuote.minOutAmount.toNumber() / 1e9).toFixed(6)} tokens`); 
          const vaulta = await getAssociatedTokenAddress(account.tokenXMint, escrowPda, true);
          const vaultb = await getAssociatedTokenAddress(account.tokenYMint, escrowPda, true);
@@ -136,10 +126,7 @@ console.log("final ",quote);
          }));
         const userTokenIn = swapXforY ? vaulta : vaultb;
         const userTokenOut = swapXforY ? vaultb : vaulta;
-      //   if(bitmapExtensionToUse){
-      //   bitmapExtensionToUse=new PublicKey(bitmapExtensionToUse);
-      // }
-       const swapTx=await swap(amount,swapQuote.minOutAmount,pool.pubkey,userTokenIn,userTokenOut,escrowPda,vaulta,vaultb,escrow_vault_pda,account.tokenXMint,account.tokenYMint,account.reserveX,account.reserveY,account.oracle,binArrayAccounts,null
+       const swapTx=await swap(amount,swapQuote.minOutAmount,pool.pubkey,userTokenIn,userTokenOut,escrowPda,vaulta,vaultb,escrow_vault_pda,account.tokenXMint,account.tokenYMint,account.reserveX,account.reserveY,account.oracle,binArrayAccounts,bitmapExtensionToUse
        );
      console.log(`\n SWAP SUCCESSFUL!`);
      console.log(`Transaction: ${swapTx}`);

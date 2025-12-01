@@ -307,6 +307,12 @@ export const createposition=async(lowerBinId:any,width:any,lppair:PublicKey,posi
 export const addbin=async(lowerBinArrayIndex:any,lb_pair:PublicKey,
   binArrayLower:PublicKey,escrowPda:PublicKey,escrow_vault_pda:PublicKey
 )=>{
+  const { ComputeBudgetProgram } = await import('@solana/web3.js');
+  
+  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({ 
+    units: 400_000  // Increase from default 200k to 400k
+  });
+  
   const  CreateBinArrayTx = await program.methods
   .addBin(new anchor.BN(lowerBinArrayIndex.toNumber()))
   .accountsStrict({
@@ -316,7 +322,7 @@ export const addbin=async(lowerBinArrayIndex:any,lb_pair:PublicKey,
     systemProgram: SystemProgram.programId,
     dlmmProgram: METORA_PROGRAM_ID,
     vault: escrow_vault_pda
-  })
+  }).preInstructions([computeBudgetIx])
   .rpc();
   return CreateBinArrayTx
 }

@@ -73,7 +73,7 @@ const findPoolsStep = async (ctx: LiquidityContext) => {
       return ctx.scene.leave();
     }
 
- 
+    console.log("Matching pairs",matchingPairs);
     let poolMessage = `Found ${matchingPairs.length} pool(s):\n\n`;
     matchingPairs.forEach((pair, index) => {
       const reserveX = parseFloat(pair.account.reserveX.toString()) / 1e9;
