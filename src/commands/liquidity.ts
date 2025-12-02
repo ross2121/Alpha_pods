@@ -20,6 +20,7 @@ import {  executedSwapProposal, handlswap } from "./swap";
 import { checkadminfund, deductamount, getfund } from "./fund";
 
 import { deposit_lp } from "../services/lpbalance";
+import axios from "axios";
 
 const prisma = new PrismaClient();
 const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
@@ -775,6 +776,10 @@ export const executeLP=async(proposal_id:string)=>{
       console.log("Vault B:", vaultb.toString(), "(tokenY:", poolTokenYMint.toBase58().slice(0, 8) + "...)");
       // console.log("dasdd",(liquidityParameter.amountX)/LAMPORTS_PER_SOL);
       console.log("check3",Number(liquidityParameter.amountY)/LAMPORTS_PER_SOL);
+      const pools=await DLMM.create(connection,matchingPair.publicKey);
+      
+       const api=await axios.get(`https://dlmm-api.meteora.ag/pair/${matchingPair.publicKey}/analytic/pair_tvl?num_of_days=1`);
+       console.log("Final ans ",api);
       const txSignature=await addliquidity(liquidityParameter,matchingPair.publicKey,binArrayLower,escrowPda,escrow_vault_pda,positionKeypair.publicKey,matchingPair,binArrayUpper,vaulta,vaultb,poolTokenXMint,poolTokenYMint,poolTokenXProgramId,poolTokenYProgramId);
       console.log(" Liquidity added successfully!");
       console.log("Transaction signature:", txSignature);
