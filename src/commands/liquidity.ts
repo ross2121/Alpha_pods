@@ -21,6 +21,7 @@ import { checkadminfund, deductamount, getfund } from "./fund";
 
 import { deposit_lp } from "../services/lpbalance";
 import axios from "axios";
+import { calculateTVL } from "./helper";
 
 const prisma = new PrismaClient();
 const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
@@ -584,12 +585,31 @@ export const executeLP=async(proposal_id:string)=>{
     );
     console.log("escrow vault",escrow_vault_pda);
     const allPairs = await DLMM.getLbPairs(connection);
-    let matchingPair = allPairs.find(pair => 
-      (pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
-      pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()) ||
-      (pair.account.tokenXMint.toBase58() === tokenYMint.toBase58() &&
-      pair.account.tokenYMint.toBase58() === tokenXMint.toBase58())
-    );
+    let max=0;
+    let matchingPair;
+    for(let i=0;i<allPairs.length;i++){
+      if(allPairs[i].account.tokenXMint.toBase58()==tokenXMint.toBase58()&& allPairs[i].account.tokenYMint.toBase58()==tokenYMint.toBase58()||allPairs[i].account.tokenXMint.toBase58()==tokenYMint.toBase58()&&allPairs[i].account.tokenYMint.toBase58()==tokenXMint.toBase58()){
+         try{
+           const amount=await calculateTVL(allPairs[i].publicKey.toBase58());
+           if(amount>max){
+            max=amount;
+             matchingPair=allPairs[i];
+           console.log("amount",amount);
+            }
+            console.log("mda",matchingPair);
+      } catch(e){
+        console.log("error",e);
+        continue;
+      }
+      }}
+    console.log("matchhin pair",matchingPair);
+    // let matchingPair = allPairs.find(pair => 
+    //   (pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
+    //   pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()) ||
+    //   (pair.account.tokenXMint.toBase58() === tokenYMint.toBase58() &&
+    //   pair.account.tokenYMint.toBase58() === tokenXMint.toBase58())
+    // );
+  
     console.log(matchingPair);
     if (!matchingPair) {
       console.log("cechh");

@@ -41,10 +41,13 @@ let maxamount=0;
 let quote:any;
 let poolpublickey:any;
 let account=null;
+let count=0;
   for (let i=0;i<dlmm.length;i++){
     if((dlmm[i].account.tokenXMint.equals(tokenxmint) && dlmm[i].account.tokenYMint.equals(token_y)) || (dlmm[i].account.tokenYMint.equals(NATIVE_MINT) && dlmm[i].account.tokenXMint.equals(token_y))){
+      count++;
       const istokenx=dlmm[i].account.tokenXMint.equals(NATIVE_MINT);
       const swapXforY=istokenx;
+      console.log("ddasd",dlmm[i]);
       const pool=await DLMM.create(connection,dlmm[i].publicKey);
       const amounttokena=await connection.getTokenAccountBalance(dlmm[i].account.reserveX);
       const amounttokenb=await connection.getTokenAccountBalance(dlmm[i].account.reserveY);
@@ -90,6 +93,7 @@ let account=null;
         throw quoteError;
       }
   }}
+  console.log("count",count);
   let maxpublickey=null;
 console.log("final ",quote);
      if(!account){
