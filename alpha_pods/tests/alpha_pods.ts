@@ -1644,18 +1644,24 @@ eventAuthority:eventAuthority,
   console.log("Active Bin ID:", activeBinId);
   
   const targetBinId = activeBinId;
-  
-  const liquidityParameter = {
-    amountX: amountX,
-    amountY: amountY,
-    binLiquidityDist: [
-      {
-        binId: targetBinId,
-        distributionX: 5000, 
-        distributionY: 5000, 
-      }
-    ],
-  };
+  const liquidityParameter={
+    amountX: new anchor.BN(amountX),  // BN, not number
+    amountY: new anchor.BN(amountY),  // BN, not number
+    activeId: activeBinId,            // i32
+    maxActiveBinSlippage: 10,         // i32 (slippage tolerance in bins)
+    strategyParameters: {             // Nested StrategyParameters
+      minBinId: activeBinId - 24,
+      maxBinId: activeBinId + 24,
+      strategyType: { spotBalanced: {} },  // Enum variant
+      parameteres: new Array(64).fill(0)   // number[], not any[]
+    }
+  }
+  // const liquidityParameter = {
+  //   min_bin_id: activeBinId - 24,  // Lower bound
+  //   max_bin_id: activeBinId + 24,  // Upper bound
+  //   strategy_type: { spotBalanced: {} },  // Use SpotBalanced
+  //   parameteres: new Array(64).fill(0) 
+  // };
   
   console.log("\nDistribution:");
   console.log("Target Bin ID:", targetBinId);
@@ -1665,10 +1671,11 @@ eventAuthority:eventAuthority,
     console.log("\nAdding liquidity to TARGET pool...");
   
     const sameBinArray = binArrayLower.equals(binArrayUpper);
+    
     console.log("lower",binArrayLower);
     console.log("uppe",binArrayUpper);
     const txSignature = await program.methods
-      .addLiquidity(liquidityParameter)
+      .addLiquidityByStrategy(liquidityParameter)
       .accountsStrict({
         lbPair: targetPair.publicKey,
         position: positionKeypair.publicKey,
@@ -1787,14 +1794,10 @@ decimalx=9;
   let valY_in_SOL = 0;
   console.log("decimal",decimals);
   if (isSolx) {
-    // X is SOL
     valX_in_SOL = amountX;
-    // Price is Y/X -> Y/SOL. So 1 Y = (1/Price) SOL
     valY_in_SOL = amountY * (1 / data.current_price);
   } else {
-    // Y is SOL (This matches your specific EURC-SOL case)
     valY_in_SOL = amountY;
-    // Price is SOL/X. So 1 X = Price * SOL
     valX_in_SOL = amountX * data.current_price;
   }
 console.log("vual",valX_in_SOL);

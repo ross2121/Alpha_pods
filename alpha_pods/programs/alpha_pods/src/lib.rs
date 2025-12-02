@@ -12,6 +12,7 @@ declare_id!("2UxzDQnXYxnANW3ugTbjn3XhiSaqtfzpBKVqmh1nHL3A");
 declare_program!(dlmm);
 #[program]
 pub mod alpha_pods {
+
     use super::*;
     pub fn initialize(ctx: Context<Initialize>, seed: u64) -> Result<()> {
         ctx.accounts.initialize(seed,ctx.bumps);
@@ -54,6 +55,9 @@ pub mod alpha_pods {
     }
     pub fn withdraw(ctx:Context<Withdraw>,amount:u64)->Result<()>{
         ctx.accounts.withdraw(amount, &ctx.bumps)
+    }
+    pub fn add_liquidity_by_strategy<'a,'b,'c,'info>(ctx:Context<'a,'b,'c,'info,AddLiquidityByStrategy<'info>>,liquidity_parameter:dlmm::types::LiquidityParameterByStrategy)->Result<()>{
+          ctx.accounts.add_liquidity_by_strategy(ctx.remaining_accounts,&ctx.bumps,liquidity_parameter)  
     }
     pub fn add_liquidity<'a, 'b, 'c, 'info>(
         ctx: Context<'a, 'b, 'c, 'info, AddLiquidity<'info>>,

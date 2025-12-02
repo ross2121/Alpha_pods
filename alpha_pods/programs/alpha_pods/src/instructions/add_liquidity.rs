@@ -1,4 +1,4 @@
-        use crate::{InitializeAdmin, dlmm::{self, cpi, types::LiquidityParameter}};
+        use crate::{InitializeAdmin, dlmm::{self, cpi, types::{LiquidityParameter, LiquidityParameterByStrategy}}};
         use anchor_lang::prelude::*;
         use anchor_spl::{associated_token::{AssociatedToken, Create, create}, token::{Token, TokenAccount}};
         #[derive(Accounts)]

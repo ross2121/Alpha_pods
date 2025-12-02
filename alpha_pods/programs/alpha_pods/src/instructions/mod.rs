@@ -16,7 +16,8 @@ pub use createPool::*;
 pub use signedtxn::*;
 pub mod createPool;
 pub mod add_liquidity;
-
+pub mod add_liquidty_by_strategy;
+pub use add_liquidty_by_strategy::*;
 pub use initialize_bin_array::*;
 pub use add_liquidity::*;
 pub  mod deposit_sol;
