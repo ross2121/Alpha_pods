@@ -1418,6 +1418,7 @@ it("Add Liquidity with Bin Array Management", async () => {
   const tokenXMint = NATIVE_MINT; 
   const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
   console.log("Finding LP Pair...");
+
   const secretKeyArray2 = [174,70,95,178,70,166,25,216,124,162,189,78,48,118,32,164,207,194,42,216,57,126,67,186,232,204,104,173,172,247,41,136,26,0,127,191,26,115,1,50,172,196,82,192,124,190,83,122,116,127,96,102,198,66,197,81,67,94,196,203,151,16,230,130]; 
   const secretarray2=new Uint8Array(secretKeyArray2);
   const adminkeypair= Keypair.fromSecretKey(secretarray2);
@@ -1437,6 +1438,7 @@ it("Add Liquidity with Bin Array Management", async () => {
     [Buffer.from("vault"), escrowPda.toBuffer()],
     program.programId
   );
+
   console.log("Escrow PDA:", escrowPda.toString());
   console.log("Escrow Vault PDA:", escrow_vault_pda.toString())
   const allPairs = await DLMM.getLbPairs(provider.connection);
@@ -1469,7 +1471,7 @@ it("Add Liquidity with Bin Array Management", async () => {
   let width = 48;
   let positionKeypair = Keypair.generate();
   const connection=new Connection("https://api.devnet.solana.com");
-  const binStep=1;
+  const binStep=75;
   const presetParams = await DLMM.getAllPresetParameters(connection);
  const matchingPresetIndex = presetParams.presetParameter.findIndex(
   p => p.account.binStep === binStep
@@ -1491,11 +1493,11 @@ const [lb_pair, _bump] = deriveLbPair2(
 console.log("lb_pair",lb_pair.toBase58());
 
 const poolAccount = await connection.getAccountInfo(lb_pair);
-if (poolAccount) {
-  console.log(" Pool already exists!");
-  console.log("Pool address:", lb_pair.toBase58());
-  return;
-}
+// if (poolAccount) {
+//   console.log(" Pool already exists!");
+//   console.log("Pool address:", lb_pair.toBase58());
+//   return;
+// }
   console.log("Preset parameter",presetParams.presetParameter[0].account);
   console.log("present parameter ",)
   const [reserveX] = await PublicKey.findProgramAddress(
@@ -1513,28 +1515,28 @@ const [oracle] = PublicKey.findProgramAddressSync(
 let [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
 
           
-  const createPoolTx =await program.methods.lppool(activeBinId,binStep).accountsStrict({
-    lpAccount:lb_pair,
-    presetParameter:matchingPreset.publicKey,
-    oracle:oracle,
-minta:tokenXMint,
-mintb:tokenYMint,
-vaulta:reserveX,
-vaultb:reserveY,
-escrow:escrowPda,
-tokenProgram:TOKEN_PROGRAM_ID,
-systemProgram:SystemProgram.programId,
-associatedTokenProgram:ASSOCIATED_TOKEN_PROGRAM_ID,
-rent:anchor.web3.SYSVAR_RENT_PUBKEY,
-eventAuthority:eventAuthority,
-    vault:escrow_vault_pda,
-    meteoraProgram:METORA_PROGRAM_ID,
-  }).rpc();
-  console.log("create pool tx",createPoolTx);
-  await provider.connection.confirmTransaction(createPoolTx, "confirmed");
-  console.log("create pool success");
+//   const createPoolTx =await program.methods.lppool(activeBinId,binStep).accountsStrict({
+//     lpAccount:lb_pair,
+//     presetParameter:matchingPreset.publicKey,
+//     oracle:oracle,
+// minta:tokenXMint,
+// mintb:tokenYMint,
+// vaulta:reserveX,
+// vaultb:reserveY,
+// escrow:escrowPda,
+// tokenProgram:TOKEN_PROGRAM_ID,
+// systemProgram:SystemProgram.programId,
+// associatedTokenProgram:ASSOCIATED_TOKEN_PROGRAM_ID,
+// rent:anchor.web3.SYSVAR_RENT_PUBKEY,
+// eventAuthority:eventAuthority,
+//     vault:escrow_vault_pda,
+//     meteoraProgram:METORA_PROGRAM_ID,
+//   }).rpc();
+//   console.log("create pool tx",createPoolTx);
+//   await provider.connection.confirmTransaction(createPoolTx, "confirmed");
+//   console.log("create pool success");
 
-  console.log("Position:", positionKeypair.publicKey.toBase58());
+//   console.log("Position:", positionKeypair.publicKey.toBase58());
 
   
   const createPositionTx = await program.methods
@@ -1644,14 +1646,16 @@ eventAuthority:eventAuthority,
   console.log("Active Bin ID:", activeBinId);
   
   const targetBinId = activeBinId;
+  // Position covers: [lowerBinId, upperBinId] = [activeBinId - 24, activeBinId + 23]
+  // Strategy must match this range exactly (upperBinId is already calculated above)
   const liquidityParameter={
     amountX: new anchor.BN(amountX),  // BN, not number
     amountY: new anchor.BN(amountY),  // BN, not number
     activeId: activeBinId,            // i32
     maxActiveBinSlippage: 10,         // i32 (slippage tolerance in bins)
     strategyParameters: {             // Nested StrategyParameters
-      minBinId: activeBinId - 24,
-      maxBinId: activeBinId + 24,
+      minBinId: lowerBinId,           // activeBinId - 24
+      maxBinId: upperBinId,           // activeBinId + 23 (matches position width)
       strategyType: { spotBalanced: {} },  // Enum variant
       parameteres: new Array(64).fill(0)   // number[], not any[]
     }
@@ -1674,6 +1678,7 @@ eventAuthority:eventAuthority,
     
     console.log("lower",binArrayLower);
     console.log("uppe",binArrayUpper);
+    const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 });
     const txSignature = await program.methods
       .addLiquidityByStrategy(liquidityParameter)
       .accountsStrict({
@@ -1697,7 +1702,7 @@ eventAuthority:eventAuthority,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
-      })
+      }).preInstructions([computeBudgetIx])
       .rpc();
       
     console.log("✅ Liquidity added successfully!");

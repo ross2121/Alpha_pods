@@ -47,7 +47,6 @@ let count=0;
       count++;
       const istokenx=dlmm[i].account.tokenXMint.equals(NATIVE_MINT);
       const swapXforY=istokenx;
-      console.log("ddasd",dlmm[i]);
       const pool=await DLMM.create(connection,dlmm[i].publicKey);
       const amounttokena=await connection.getTokenAccountBalance(dlmm[i].account.reserveX);
       const amounttokenb=await connection.getTokenAccountBalance(dlmm[i].account.reserveY);
@@ -75,8 +74,7 @@ let count=0;
           2
         );
         
-        console.log("amounttokena_number", amounttokena_number);
-        console.log("swap quote", swapQuote);
+        console.log("amounttokena_number", amounttokena_number)
         const current = swapQuote.outAmount;
         
         if(Number(current) > maxamount){
