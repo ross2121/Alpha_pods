@@ -33,9 +33,6 @@
         },
         {
           "name": "escrow",
-          "docs": [
-            "The account paying for bin array creation"
-          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -90,10 +87,7 @@
           "address": "11111111111111111111111111111111"
         },
         {
-          "name": "dlmm_program",
-          "docs": [
-            "The Meteora DLMM program"
-          ]
+          "name": "dlmm_program"
         }
       ],
       "args": [
@@ -242,6 +236,150 @@
           "type": {
             "defined": {
               "name": "LiquidityParameter"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "add_liquidity_by_strategy",
+      "discriminator": [
+        7,
+        3,
+        150,
+        127,
+        148,
+        40,
+        61,
+        200
+      ],
+      "accounts": [
+        {
+          "name": "lb_pair",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true
+        },
+        {
+          "name": "bin_array_bitmap_extension",
+          "optional": true
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.admin",
+                "account": "InitializeAdmin"
+              },
+              {
+                "kind": "account",
+                "path": "escrow.seed",
+                "account": "InitializeAdmin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reserve_x",
+          "writable": true
+        },
+        {
+          "name": "reserve_y",
+          "writable": true
+        },
+        {
+          "name": "bin_array_lower",
+          "writable": true
+        },
+        {
+          "name": "bin_array_upper",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vaulta",
+          "writable": true
+        },
+        {
+          "name": "vaultb",
+          "writable": true
+        },
+        {
+          "name": "token_x_mint"
+        },
+        {
+          "name": "token_y_mint"
+        },
+        {
+          "name": "dlmm_program",
+          "address": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo"
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "token_x_program"
+        },
+        {
+          "name": "token_y_program"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": [
+        {
+          "name": "liquidity_parameter",
+          "type": {
+            "defined": {
+              "name": "LiquidityParameterByStrategy"
             }
           }
         }
@@ -1792,6 +1930,106 @@
                 }
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "LiquidityParameterByStrategy",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount_x",
+            "type": "u64"
+          },
+          {
+            "name": "amount_y",
+            "type": "u64"
+          },
+          {
+            "name": "active_id",
+            "type": "i32"
+          },
+          {
+            "name": "max_active_bin_slippage",
+            "type": "i32"
+          },
+          {
+            "name": "strategy_parameters",
+            "type": {
+              "defined": {
+                "name": "StrategyParameters"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "StrategyParameters",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "min_bin_id",
+            "type": "i32"
+          },
+          {
+            "name": "max_bin_id",
+            "type": "i32"
+          },
+          {
+            "name": "strategy_type",
+            "type": {
+              "defined": {
+                "name": "StrategyType"
+              }
+            }
+          },
+          {
+            "name": "parameteres",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "StrategyType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "SpotOneSide"
+          },
+          {
+            "name": "CurveOneSide"
+          },
+          {
+            "name": "BidAskOneSide"
+          },
+          {
+            "name": "SpotBalanced"
+          },
+          {
+            "name": "CurveBalanced"
+          },
+          {
+            "name": "BidAskBalanced"
+          },
+          {
+            "name": "SpotImBalanced"
+          },
+          {
+            "name": "CurveImBalanced"
+          },
+          {
+            "name": "BidAskImBalanced"
           }
         ]
       }

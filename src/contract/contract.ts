@@ -254,6 +254,39 @@ export const withdraw=async(userid:string)=>{
 
   
 }
+export const addLiquidityByStrategy=async(liquidityParameter:any,lb_pair:PublicKey,
+  binArrayLower:PublicKey,escrowPda:PublicKey,escrow_vault_pda:PublicKey,
+  position_public_key:PublicKey,matchingPair:any,
+binArrayUpper:PublicKey,vaulta:PublicKey,vaultb:PublicKey,poolTokenXMint:PublicKey,
+poolTokenYMint:PublicKey,poolTokenXProgramId:PublicKey,poolTokenYProgramId:PublicKey
+)=>{  
+  const txSignature = await program.methods
+  .addLiquidity(liquidityParameter)
+  .accountsStrict({
+    lbPair: matchingPair.publicKey,
+    position: position_public_key,
+    binArrayBitmapExtension: null,
+    reserveX: matchingPair.account.reserveX,
+    reserveY: matchingPair.account.reserveY,
+    binArrayLower: binArrayLower,
+    binArrayUpper: binArrayUpper,
+    vaulta: vaulta,
+    vaultb: vaultb,
+    tokenXMint: poolTokenXMint,
+    tokenYMint: poolTokenYMint,
+    vault: escrow_vault_pda,
+    escrow: escrowPda,
+    dlmmProgram: METORA_PROGRAM_ID,
+    eventAuthority: eventAuthority,
+    tokenXProgram: poolTokenXProgramId,
+    tokenYProgram: poolTokenYProgramId,
+  tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+  associatedTokenProgram: ASSOCIATED_PROGRAM_ID
+  })
+  .rpc();
+  return txSignature 
+} 
 export const wallet_funds=async(userid:string)=>{
 const prisma=new  PrismaClient();
 console.log("userid",userid);

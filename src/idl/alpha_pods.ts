@@ -39,9 +39,6 @@ export type AlphaPods = {
         },
         {
           "name": "escrow",
-          "docs": [
-            "The account paying for bin array creation"
-          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -96,10 +93,7 @@ export type AlphaPods = {
           "address": "11111111111111111111111111111111"
         },
         {
-          "name": "dlmmProgram",
-          "docs": [
-            "The Meteora DLMM program"
-          ]
+          "name": "dlmmProgram"
         }
       ],
       "args": [
@@ -248,6 +242,150 @@ export type AlphaPods = {
           "type": {
             "defined": {
               "name": "liquidityParameter"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "addLiquidityByStrategy",
+      "discriminator": [
+        7,
+        3,
+        150,
+        127,
+        148,
+        40,
+        61,
+        200
+      ],
+      "accounts": [
+        {
+          "name": "lbPair",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true
+        },
+        {
+          "name": "binArrayBitmapExtension",
+          "optional": true
+        },
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.admin",
+                "account": "initializeAdmin"
+              },
+              {
+                "kind": "account",
+                "path": "escrow.seed",
+                "account": "initializeAdmin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reserveX",
+          "writable": true
+        },
+        {
+          "name": "reserveY",
+          "writable": true
+        },
+        {
+          "name": "binArrayLower",
+          "writable": true
+        },
+        {
+          "name": "binArrayUpper",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vaulta",
+          "writable": true
+        },
+        {
+          "name": "vaultb",
+          "writable": true
+        },
+        {
+          "name": "tokenXMint"
+        },
+        {
+          "name": "tokenYMint"
+        },
+        {
+          "name": "dlmmProgram",
+          "address": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "tokenXProgram"
+        },
+        {
+          "name": "tokenYProgram"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": [
+        {
+          "name": "liquidityParameter",
+          "type": {
+            "defined": {
+              "name": "liquidityParameterByStrategy"
             }
           }
         }
@@ -1798,6 +1936,106 @@ export type AlphaPods = {
                 }
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "liquidityParameterByStrategy",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amountX",
+            "type": "u64"
+          },
+          {
+            "name": "amountY",
+            "type": "u64"
+          },
+          {
+            "name": "activeId",
+            "type": "i32"
+          },
+          {
+            "name": "maxActiveBinSlippage",
+            "type": "i32"
+          },
+          {
+            "name": "strategyParameters",
+            "type": {
+              "defined": {
+                "name": "strategyParameters"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "strategyParameters",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "minBinId",
+            "type": "i32"
+          },
+          {
+            "name": "maxBinId",
+            "type": "i32"
+          },
+          {
+            "name": "strategyType",
+            "type": {
+              "defined": {
+                "name": "strategyType"
+              }
+            }
+          },
+          {
+            "name": "parameteres",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "strategyType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "spotOneSide"
+          },
+          {
+            "name": "curveOneSide"
+          },
+          {
+            "name": "bidAskOneSide"
+          },
+          {
+            "name": "spotBalanced"
+          },
+          {
+            "name": "curveBalanced"
+          },
+          {
+            "name": "bidAskBalanced"
+          },
+          {
+            "name": "spotImBalanced"
+          },
+          {
+            "name": "curveImBalanced"
+          },
+          {
+            "name": "bidAskImBalanced"
           }
         ]
       }

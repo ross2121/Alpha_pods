@@ -1091,7 +1091,7 @@ describe("alpha_pods", () => {
 //       console.log(`Target: SOL → ${outTokenMint.toBase58().slice(0, 12)}...`);
 //       try {
 //         const dlmmPools = await DLMM.create(connection, pool);
-
+  
 //         const binArrays = await dlmmPools.getBinArrayForSwap(swapXforY, 20);
         
 //         const swapQuote = dlmmPools.swapQuote(
@@ -1102,7 +1102,7 @@ describe("alpha_pods", () => {
 //           false,
 //           2
 //         );
-      
+  
 //         poolsWithQuotes++;
 //         console.log(`✓ Quote: ${(swapQuote.minOutAmount.toNumber() / 1e9).toFixed(6)} tokens`);
         
@@ -1585,7 +1585,7 @@ let [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
     }
 
     console.log(`⚠️  ${label} bin array missing (${binArrayIndex.toString()}), creating...`);
-    const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 });
+    const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 800_000 });
     try {
       const sig = await program.methods
         .addBin(binArrayIndex)
@@ -1637,33 +1637,53 @@ let [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
   console.log("Token X balance:", tokenXBalance.toString(), `(${targetPair.account.tokenXMint.toBase58().slice(0, 8)}...)`);
   console.log("Token Y balance:", tokenYBalance.toString(), `(${targetPair.account.tokenYMint.toBase58().slice(0, 8)}...)`);
 
-  const amountX = tokenXBalance.mul(new anchor.BN(90)).div(new anchor.BN(100));
-  const amountY = tokenYBalance.mul(new anchor.BN(90)).div(new anchor.BN(100));
+  const amountX = tokenXBalance.mul(new anchor.BN(30)).div(new anchor.BN(100));
+  const amountY = tokenYBalance.mul(new anchor.BN(30)).div(new anchor.BN(100));
   
-  console.log("\nLiquidity Parameters (50/50):");
+  console.log("\nLiquidity Parameters (30% of vault, split 50/50 between strategies):");
   console.log("Amount X to deposit:", amountX.toString());
   console.log("Amount Y to deposit:", amountY.toString());
   console.log("Active Bin ID:", activeBinId);
-  
+  const halfAmountX = amountX.div(new anchor.BN(2));
+const halfAmountY = amountY.div(new anchor.BN(2));
   const targetBinId = activeBinId;
+  // Spot strategy: narrow range around active bin (-1 to +1)
+  const spotMin = activeBinId - 1;
+  const spotMax = activeBinId + 1;
+  // Curve strategy: wider range around active bin (-5 to +5)
+  const curveMin = activeBinId - 5;
+  const curveMax = activeBinId + 5;
   // Position covers: [lowerBinId, upperBinId] = [activeBinId - 24, activeBinId + 23]
   // Strategy must match this range exactly (upperBinId is already calculated above)
   const liquidityParameter={
-    amountX: new anchor.BN(amountX),  // BN, not number
-    amountY: new anchor.BN(amountY),  // BN, not number
+    amountX: new anchor.BN(halfAmountX),  // BN, not number
+    amountY: new anchor.BN(halfAmountY),  // BN, not number
     activeId: activeBinId,            // i32
     maxActiveBinSlippage: 10,         // i32 (slippage tolerance in bins)
     strategyParameters: {             // Nested StrategyParameters
-      minBinId: lowerBinId,           // activeBinId - 24
-      maxBinId: upperBinId,           // activeBinId + 23 (matches position width)
+      minBinId: spotMin,              // activeBinId - 1 (narrow range for spot)
+      maxBinId: spotMax,              // activeBinId + 1
       strategyType: { spotBalanced: {} },  // Enum variant
       parameteres: new Array(64).fill(0)   // number[], not any[]
     }
   }
+  const liquidityParameter2={
+    amountX: new anchor.BN(halfAmountX),  // BN, not number
+    amountY: new anchor.BN(halfAmountY),  // BN, not number
+    activeId: activeBinId,            // i32
+    maxActiveBinSlippage: 10,         // i32 (slippage tolerance in bins)
+    strategyParameters: {             // Nested StrategyParameters
+      minBinId: curveMin,             // activeBinId - 5 (wider range for curve)
+      maxBinId: curveMax,             // activeBinId + 5
+      strategyType: { curveBalanced: {} },  // Enum variant
+      parameteres: new Array(64).fill(0)   // number[], not any[]
+    }
+  }
+  
   // const liquidityParameter = {
   //   min_bin_id: activeBinId - 24,  // Lower bound
   //   max_bin_id: activeBinId + 24,  // Upper bound
-  //   strategy_type: { spotBalanced: {} },  // Use SpotBalanced
+  //   strategy_type: {   : {} },  // Use SpotBalanced
   //   parameteres: new Array(64).fill(0) 
   // };
   
@@ -1678,7 +1698,7 @@ let [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
     
     console.log("lower",binArrayLower);
     console.log("uppe",binArrayUpper);
-    const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 });
+    const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 800_000 });
     const txSignature = await program.methods
       .addLiquidityByStrategy(liquidityParameter)
       .accountsStrict({
@@ -1707,7 +1727,33 @@ let [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
       
     console.log("✅ Liquidity added successfully!");
     console.log("Transaction signature:", txSignature);
-    
+    const txSignature2= await program.methods
+      .addLiquidityByStrategy(liquidityParameter2)
+      .accountsStrict({
+        lbPair: targetPair.publicKey,
+        position: positionKeypair.publicKey,
+        binArrayBitmapExtension: null,
+        reserveX: targetPair.account.reserveX,
+        reserveY: targetPair.account.reserveY,
+        binArrayLower: binArrayLower,
+        binArrayUpper: sameBinArray ? binArrayLower : binArrayUpper,
+        vaulta: targetVaultX,
+        vaultb: targetVaultY,
+        tokenXMint: targetPair.account.tokenXMint,
+        tokenYMint: targetPair.account.tokenYMint,
+        vault: escrow_vault_pda,
+        escrow: escrowPda,
+        dlmmProgram: METORA_PROGRAM_ID,
+        eventAuthority: eventAuthority,
+        tokenXProgram: tokenXProgramId,
+        tokenYProgram: tokenYProgramId,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+      }).preInstructions([computeBudgetIx])
+      .rpc();
+      await provider.connection.confirmTransaction(txSignature,"confirmed");
+      console.log("tx2",txSignature2);
     await provider.connection.confirmTransaction(txSignature, "confirmed");
     
     console.log("\nRemoving liquidity...");
@@ -1909,6 +1955,8 @@ console.log("dasdas",valY_in_SOL);
   // });
 
 });
+
+
 
 
      
