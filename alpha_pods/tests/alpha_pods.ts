@@ -1675,11 +1675,11 @@ const halfAmountY = amountY.div(new anchor.BN(2));
     strategyParameters: {             // Nested StrategyParameters
       minBinId: curveMin,             // activeBinId - 5 (wider range for curve)
       maxBinId: curveMax,             // activeBinId + 5
-      strategyType: { curveBalanced: {} },  // Enum variant
+      strategyType: { bidAskBalanced: {} },  // Enum variant
       parameteres: new Array(64).fill(0)   // number[], not any[]
     }
   }
-  
+  // curveBalanced   spotBalanced  
   // const liquidityParameter = {
   //   min_bin_id: activeBinId - 24,  // Lower bound
   //   max_bin_id: activeBinId + 24,  // Upper bound
