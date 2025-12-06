@@ -32,9 +32,24 @@ let strategies={
         StrategyType:{bidAskBalanced:{}},
     }
 }
-return strategies
+return strategies;
 }
-
+export const customstrategy=(strategies_type:strategies,binstep:number,amountx:BN,amounty:BN,lowerange:number,upperrange:number,tokenx_percentage:number,token_y_percentage:number,activeBinId:number )=>{
+const {minBinId,maxBinId}=percentageRangeToBinIds(activeBinId,binstep,lowerange,upperrange);
+const {amountX,amountY}=calculateTokenDistribution(amountx,amounty,tokenx_percentage,token_y_percentage);
+let strategies={
+  amountX,
+  amountY,
+  activeId:activeBinId,
+  maxActuveBinSlippage:10,
+  strategyParameters:{
+    minBinId,
+    maxBinId,
+    strategies_type:{strategies_type:{}}
+  }
+}
+return strategies;
+}
 interface strategies{
     curveBalanced:string 
       spotBalanced:string
