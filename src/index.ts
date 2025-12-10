@@ -64,7 +64,9 @@ bot.on("my_chat_member", handleMyChatMember);
 bot.on("left_chat_member", handleLeftChatMember);
 bot.on('new_chat_members', handleNewChatMembers);
 bot.action(/vote:(yes|no):(.+)/, user_middleware,handleVote);
+                    
 bot.action(/vote_liquidity:(yes|no):(.+)/, user_middleware, handleLiquidityVote);
+
 bot.action("add_liquidity", admin_middleware, async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.scene.enter('liquidity_wizard');

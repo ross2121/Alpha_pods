@@ -30,6 +30,7 @@ model Proposal {
   amount         Float
   yes            Int
   no             Int
+ Strategy       Strategy?
   messagId       BigInt
   chatId         BigInt
   createdAt      BigInt
@@ -42,6 +43,11 @@ model Proposal {
   @@unique([chatId, messagId])
 }
 
+enum  Strategy{
+  Simple
+  Complex
+  Custom
+}
 enum Status {
   Expired
   Running
@@ -77,6 +83,7 @@ model LiquidityPosition {
   tokenMint       String
   amount          String
   chatId          BigInt
+  Strategy        Strategy
   escrowId        String
   lowerBinId      Int
   upperBinId      Int

@@ -1,9 +1,16 @@
 import { BN } from "@coral-xyz/anchor";
 import { StrategyType } from "@meteora-ag/dlmm";
+import test from "node:test";
 
 export const  simplestrategy=(activebinId:number,binStep:number,amountx:BN,amounty:BN)=>{
     const { minBinId, maxBinId } = percentageRangeToBinIds(activebinId, binStep, -2, 2);
     const { amountX, amountY } = calculateTokenDistribution(amountx, amounty, 50, 50);
+    console.log("Simple Strategy");
+    console.log("check the strategy");
+    const test="check2";
+    const test2="check3";
+    const tes4="check5";
+  
   let strategies={
     amountX,
     amountY,
@@ -16,6 +23,7 @@ export const  simplestrategy=(activebinId:number,binStep:number,amountx:BN,amoun
       parameteres: new Array(64).fill(0)
     }
   }
+
   return strategies;
 }
 export const volatileStrategy=(activeBinId:number,binstep:number,amountx:BN,amounty:BN)=>{
@@ -29,7 +37,8 @@ let strategies={
     strategyParameters:{
         minBinId,
         maxBinId,
-        StrategyType:{bidAskBalanced:{}},
+        strategyType:{bidAskBalanced:{}},
+        parameteres: new Array(64).fill(0)
     }
 }
 return strategies;
@@ -45,7 +54,7 @@ let strategies={
   strategyParameters:{
     minBinId,
     maxBinId,
-    strategies_type:{strategies_type:{}}
+    strategiesType:{strategies_type:{}}
   }
 }
 return strategies;

@@ -13,8 +13,8 @@ import {
 import * as anchor from "@coral-xyz/anchor";
 
 import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority } from "@meteora-ag/dlmm";
-import { PrismaClient } from "@prisma/client";
-import { addbin, addliquidity, closePosition, createPool, createposition, deposit, removeLiqudity } from "../contract/contract";
+import { PrismaClient, Strategy } from "@prisma/client";
+import { addbin, addliquidity, addLiquidityByStrategy, closePosition, createPool, createposition, deposit, removeLiqudity } from "../contract/contract";
 
 import {  executedSwapProposal, handlswap } from "./swap";
 import { checkadminfund, deductamount, getfund } from "./fund";
@@ -22,6 +22,7 @@ import { checkadminfund, deductamount, getfund } from "./fund";
 import { deposit_lp } from "../services/lpbalance";
 import axios from "axios";
 import { calculateTVL } from "./helper";
+import { percentageRangeToBinIds, simplestrategy, volatileStrategy } from "../services/strategy";
 
 const prisma = new PrismaClient();
 const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
@@ -34,7 +35,6 @@ interface LiquiditySessionData extends Scenes.WizardSessionData {
   chatId?: number;
   __scenes?: any;
 }
-
 type LiquidityContext = Scenes.WizardContext<LiquiditySessionData>;
 const askMintStep = async (ctx: LiquidityContext) => {
   await ctx.reply(
@@ -46,14 +46,11 @@ const askMintStep = async (ctx: LiquidityContext) => {
   );
   return ctx.wizard.next();
 };
-
-
 const findPoolsStep = async (ctx: LiquidityContext) => {
   if (!ctx.message || !("text" in ctx.message)) {
     await ctx.reply("❌ Please provide a valid mint address.");
     return;
   }
-
   const mintAddress = ctx.message.text.trim();
   
   try {
@@ -560,7 +557,7 @@ export const handleClosePosition = async (ctx: Context) => {
 };
 
 
-export const executeLP=async(proposal_id:string)=>{
+export const executeLP=async(proposal_id:string,strategies?:Strategy)=>{
     const prisma=new PrismaClient();
     const lp=await prisma.proposal.findUnique({
       where:{
@@ -638,7 +635,6 @@ export const executeLP=async(proposal_id:string)=>{
     const width = 48;
     const positionKeypair = Keypair.generate();
     console.log("Position:", positionKeypair.publicKey.toBase58());
-                          
     const [eventAuthority] = deriveEventAuthority(METORA_PROGRAM_ID);
     const amount=await connection.getBalance(escrow_vault_pda);
       const beforsol=amount/LAMPORTS_PER_SOL;
@@ -684,7 +680,6 @@ export const executeLP=async(proposal_id:string)=>{
       console.log("Upper bin array doesn't exist, creating...");
       try {
         const createUpperBinArrayTx = await addbin(upperBinArrayIndex,matchingPair.publicKey,binArrayUpper,escrowPda,escrow_vault_pda)
-        await  connection.confirmTransaction(createUpperBinArrayTx, "confirmed");
         console.log(" Upper bin array created");
       } catch (err: any) {
         console.log("Note: Bin array creation error (may already exist):", err.message);
@@ -708,67 +703,32 @@ export const executeLP=async(proposal_id:string)=>{
     console.log("Proposal amount (SOL):", lp.amount);
     console.log("Number of members:", lp.Members.length);
     console.log("Total amount (lamports):", totalAmount.toString());
-    const halfAmount = totalAmount.div(new anchor.BN(2));
-    const swapAmountLamports = halfAmount.toNumber();
-    console.log("Half of total (to swap):",swapAmountLamports,"lamports");
-    console.log("Half of total (remaining SOL):",swapAmountLamports,"lamports");
-    console.log("Total amount:",totalAmount.toString(),"lamports");
-    
-    const swap=await handlswap(tokenYMint,swapAmountLamports,escrowPda.toString());
-    if(!swap?.amount_out){
-      console.log("Swap failed - no output amount")
-      return;
-    }
-    
     let amountX: anchor.BN;
     let amountY: anchor.BN;
     let distributionX: number;
-    let distributionY: number;
-    console.log("swap amount out (human):",swap.amount_out);
-    console.log("swap amount out (smallest unit):",swap.amount_out_smallest_unit);
-    const tokenAmountInSmallestUnit = swap.amount_out_smallest_unit;
-    
-    const remainingSOLLamports = swapAmountLamports;
-    console.log("Remaining SOL for liquidity (lamports):",remainingSOLLamports);
-    console.log("Token amount for liquidity (smallest unit):",tokenAmountInSmallestUnit);
-    
-    if (isWSOLTokenX) {
-      amountX = new anchor.BN(remainingSOLLamports); 
-      amountY = new anchor.BN(tokenAmountInSmallestUnit); 
-      distributionX = 10000;
-      distributionY = 10000;
-    } else if (isWSOLTokenY) {
-      amountX = new anchor.BN(tokenAmountInSmallestUnit); 
-      amountY = new anchor.BN(remainingSOLLamports);
-      distributionX = 10000;
-      distributionY = 10000;
-    } else {
-      throw new Error("Neither token in pool is WSOL");
-    }
-    
-    console.log("\nLiquidity Parameters:");
-    console.log("Amount X:", amountX.toString(), "lamports");
-    console.log("Amount Y:", amountY.toString(), "lamports");
-    console.log("WSOL is tokenX:", isWSOLTokenX, "tokenY:", isWSOLTokenY);
-    
-    const liquidityParameter = {
-      amountX: amountX,
-      amountY: amountY,
-      binLiquidityDist: [
-        {
-          binId: activeBinId,
-          distributionX: distributionX,
-          distributionY: distributionY,
-        }
-      ],
-    };
-    console.log("asmdas",amountX);
-    console.log("Das",amountY);
-    console.log("dasd",liquidityParameter);
+   
+    // console.log("\nLiquidity Parameters:");
+    // console.log("Amount X:", amountX.toString(), "lamports");
+    // console.log("Amount Y:", amountY.toString(), "lamports");
+    // console.log("WSOL is tokenX:", isWSOLTokenX, "tokenY:", isWSOLTokenY);
+    // const liquidityParameter = {
+    //   amountX: amountX,
+    //   amountY: amountY,
+    //   binLiquidityDist: [
+    //     {
+    //       binId: activeBinId,
+    //       distributionX: distributionX,
+    //       distributionY: distributionY,
+    //     }
+    //   ],
+    // };
+    // console.log("asmdas",amountX);
+    // console.log("Das",amountY);
+    // console.log("dasd",liquidityParameter);
     
     console.log("Bin ID:", activeBinId);
-    console.log("Distribution X:", distributionX / 100, "%");
-    console.log("Distribution Y:", distributionY / 100, "%");
+    // console.log("Distribution X:", distributionX / 100, "%");
+    // console.log("Distribution Y:", distributionY / 100, "%");
     
     try {
       console.log("\nAdding liquidity...");
@@ -794,17 +754,71 @@ export const executeLP=async(proposal_id:string)=>{
       console.log("Vault A:", vaulta.toString(), "(tokenX:", poolTokenXMint.toBase58().slice(0, 8) + "...)");
       console.log("Vault B:", vaultb.toString(), "(tokenY:", poolTokenYMint.toBase58().slice(0, 8) + "...)");
       // console.log("dasdd",(liquidityParameter.amountX)/LAMPORTS_PER_SOL);
-      console.log("check3",Number(liquidityParameter.amountY)/LAMPORTS_PER_SOL);
-  
-      const txSignature=await addliquidity(liquidityParameter,matchingPair.publicKey,binArrayLower,escrowPda,escrow_vault_pda,positionKeypair.publicKey,matchingPair,binArrayUpper,vaulta,vaultb,poolTokenXMint,poolTokenYMint,poolTokenXProgramId,poolTokenYProgramId);
-      console.log(" Liquidity added successfully!");
-      console.log("Transaction signature:", txSignature);
-      await  connection.confirmTransaction(txSignature, "confirmed");
+      // console.log("check3",Number(liquidityParameter.amountY)/LAMPORTS_PER_SOL);
+      const binStep = matchingPair.account.binStep;
+      let txSignature;
+      let strategy:any;
+      if(strategies === "Simple"){
+        const halfAmount = totalAmount.div(new anchor.BN(2));
+        const swapAmountLamports = halfAmount.toNumber();
+        console.log("Half of total (to swap):",swapAmountLamports,"lamports");
+        console.log("Half of total (remaining SOL):",swapAmountLamports,"lamports");
+        console.log("Total amount:",totalAmount.toString(),"lamports");
+        const swap=await handlswap(tokenYMint,swapAmountLamports,escrowPda.toString());
+        if(!swap?.amount_out){
+          console.log("Swap failed - no output amount")
+          return;
+        } 
+        console.log("swap amount out (human):",swap.amount_out);
+        console.log("swap amount out (smallest unit):",swap.amount_out_smallest_unit);
+        const tokenAmountInSmallestUnit = swap.amount_out_smallest_unit;
+        const remainingSOLLamports = swapAmountLamports;
+        console.log("Remaining SOL for liquidity (lamports):",remainingSOLLamports);
+        console.log("Token amount for liquidity (smallest unit):",tokenAmountInSmallestUnit);
+        if (isWSOLTokenX) {
+          amountX = new anchor.BN(remainingSOLLamports); 
+          amountY = new anchor.BN(tokenAmountInSmallestUnit); 
+        } else if (isWSOLTokenY) {
+          amountX = new anchor.BN(tokenAmountInSmallestUnit); 
+          amountY = new anchor.BN(remainingSOLLamports);
+        } else {
+          throw new Error("Neither token in pool is WSOL");
+        }
+        const getparameter = simplestrategy(activeBinId, binStep, amountX, amountY);
+        console.log("paranete",getparameter);
+           txSignature = await addLiquidityByStrategy(getparameter, matchingPair.publicKey, binArrayLower, escrowPda, escrow_vault_pda, positionKeypair.publicKey, matchingPair, binArrayUpper, vaulta, vaultb, poolTokenXMint, poolTokenYMint, poolTokenXProgramId, poolTokenYProgramId);
+           strategy="Simple"
+        console.log("txn strategies",txSignature);
+      }else if(strategies=="Complex"){
+          if(poolTokenYMint.equals(NATIVE_MINT)){
+          console.log("Pool token x mint is sol");
+        const getparameter =volatileStrategy(activeBinId, binStep,new anchor.BN(0),totalAmount);
+        // const {mintbinid,maxbinid}=percentageRangeToBinIds(activeBinId,matchingPair.keypair);
+        // const {amountx,amounty}=calculateTVL(amountX,amountY);
+        console.log("test",tokenXMint);
+        console.log("test2",tokenYMint);
+        console.log("check",totalAmount);
+          txSignature = await addLiquidityByStrategy(getparameter, matchingPair.publicKey, binArrayLower, escrowPda, escrow_vault_pda, positionKeypair.publicKey, matchingPair, binArrayUpper, vaulta, vaultb, poolTokenXMint, poolTokenYMint, poolTokenXProgramId, poolTokenYProgramId);
+        console.log("txn strategis",txSignature);
+        strategy="Complex"
+      }else{
+           const swap=await handlswap(tokenYMint,totalAmount.toNumber(),escrowPda.toBase58());  
+          const amountinlowest=swap?.amount_out_smallest_unit;
+          console.log("amount in",amountinlowest);
+          const getparameter =volatileStrategy(activeBinId, binStep,new anchor.BN(0),new anchor.BN(amountinlowest));
+          console.log("parameter",getparameter);
+          txSignature = await addLiquidityByStrategy(getparameter, matchingPair.publicKey, binArrayLower, escrowPda, escrow_vault_pda, positionKeypair.publicKey, matchingPair, binArrayUpper, vaulta, vaultb, poolTokenXMint, poolTokenYMint, poolTokenXProgramId, poolTokenYProgramId);
+        console.log("txn strategis",txSignature);
+        strategy="Complex"
+      }
+      }
+      
       await deposit_lp(lp.amount,proposal_id);
       await prisma.liquidityPosition.create({
         data: {
           lowerBinId: lowerBinId,
           upperBinId: upperBinId,
+          Strategy:strategy,
           tokenMint: lp.mint,
           chatId: lp.chatId,
           poolAddress: matchingPair.publicKey.toString(),
@@ -819,8 +833,6 @@ export const executeLP=async(proposal_id:string)=>{
         positionAddress: positionKeypair.publicKey.toString(),
         poolAddress: matchingPair.publicKey.toString()
       }
-    
-      
     } catch (error: any) {
     
       
@@ -830,7 +842,7 @@ export const executeLP=async(proposal_id:string)=>{
       }
       
       if (error.message) {
-        console.error("\n💬 Error Message:", error.message);
+        console.error("\n Error Message:", error.message);
       }
       
       throw error;
@@ -857,7 +869,7 @@ export const executeLP=async(proposal_id:string)=>{
           return;
         }
         await getfund(proposal_id);
-        const swapResult: any = await executeLP(proposal_id)
+        const swapResult: any = await executeLP(proposal_id,proposal.Strategy||"Simple")
         console.log("swap",swapResult);
         
         

@@ -260,8 +260,20 @@ export const addLiquidityByStrategy=async(liquidityParameter:any,lb_pair:PublicK
 binArrayUpper:PublicKey,vaulta:PublicKey,vaultb:PublicKey,poolTokenXMint:PublicKey,
 poolTokenYMint:PublicKey,poolTokenXProgramId:PublicKey,poolTokenYProgramId:PublicKey
 )=>{  
+  // let strategies={
+  //   amountX,
+  //   amountY,
+  //   activeId: activebinId,
+  //   maxActiveBinSlippage: 10,
+  //   strategyParameters: {
+  //     minBinId,
+  //     maxBinId,
+  //     strategyType: { spotBalanced: {} },
+  //     parameteres: new Array(64).fill(0)
+  //   }
+  // }
   const txSignature = await program.methods
-  .addLiquidity(liquidityParameter)
+  .addLiquidityByStrategy(liquidityParameter)
   .accountsStrict({
     lbPair: matchingPair.publicKey,
     position: position_public_key,

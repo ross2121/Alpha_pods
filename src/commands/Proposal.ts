@@ -23,9 +23,7 @@ const getTokenInfo = async (mintAddress: any) => {
           },
         }),
       });
-      
       const { result } = await response.json();
-      
       if (!result || !result.token_info) {
         return {
           symbol: "Unknown Token",
@@ -56,8 +54,6 @@ interface MyWizardSession extends Scenes.WizardSessionData {
 }
 export interface MyContext extends Scenes.WizardContext<MyWizardSession> {}
 const prisma =new PrismaClient();
-
-
 export const createProposeWizard = (bot: any) => new Scenes.WizardScene<MyContext>(
     'propose_wizard',
     async (ctx) => {
@@ -272,7 +268,6 @@ export const createliqudityWizards= (bot: any) => new Scenes.WizardScene<MyConte
     },
     new Composer<MyContext>(Scenes.WizardScene.on('text',async(ctx)=>{         
          if (!ctx.message || !('text' in ctx.message)) {
-            console.log("check3");
             await ctx.reply('Invalid input. Please send the mint address as text.');
             return; 
         }
@@ -280,10 +275,8 @@ export const createliqudityWizards= (bot: any) => new Scenes.WizardScene<MyConte
             const public_key = new PublicKey(ctx.message.text);
             console.log("Valid PublicKey:", public_key.toBase58());
             const source = ((ctx.wizard.state as any)?.from || 'liquidity') as 'liquidity' | 'swap';
-            const header = source === 'swap' ? '🌀 Propose Swap' : '🏊 Propose Liquidity Addition';
-            const body = source === 'swap'
-              ? 'This will create a swap proposal for members to vote on.'
-              : 'This will create a liquidity proposal for members to vote on.';
+            const header = '🏊 Propose Liquidity Addition';
+            const body = 'This will create a liquidity proposal for members to vote on.';
             await ctx.reply(`${header}\n\n${body}\n\nMint set to:\n\`${public_key.toBase58()}\``, { parse_mode: 'Markdown' });
         } catch (error) {
             await ctx.reply('❌ Invalid mint address. Please provide a valid Solana public key.');
@@ -300,42 +293,87 @@ export const createliqudityWizards= (bot: any) => new Scenes.WizardScene<MyConte
       await ctx.reply(`Great! The token you have chosen is ${symbol} . Now, enter the minimum liquidty amount in SOL:`);
       return ctx.wizard.next();
     })),
-    async (ctx) => {
+    async(ctx)=>{
         if (!ctx.message || !('text' in ctx.message)) {
             await ctx.reply('Invalid input. Please send the amount as text.');
             return; 
         }
-        const amount = parseFloat(ctx.message.text);
-        const mint = (ctx.wizard.state as MyWizardSession['state']).mint; 
-        if (!mint || isNaN(amount) || amount <= 0) {
-            await ctx.reply('That is not a valid amount. Please enter a positive number (e.g., 1.5).');
+        const amount=parseFloat(ctx.message.text);
+        const state=(ctx.wizard.state as MyWizardSession['state']);
+        if (!state.mint || isNaN(amount) || amount <= 0) {
+            await ctx.reply('That is not a valid amount. Please enter a positive number.');
             return;
         }
-      ;
-        (ctx.wizard.state as MyWizardSession['state']).amount = amount;
-        const voteKeyboard = Markup.inlineKeyboard([
-            Markup.button.callback(`👍 Yes (0)`, `vote:yes:${mint}`),
-            Markup.button.callback(`👎 No (0)`, `vote:no:${mint}`)
+        const mint = (ctx.wizard.state as MyWizardSession['state']).mint;
+        state.mint=mint;
+        state.amount = amount;
+        const strategyKeyboard = Markup.inlineKeyboard([
+            Markup.button.callback(`Simple Strategy`, `strat:simple`), 
+            Markup.button.callback(`Complex Strategy`, `strat:complex`)
         ]);
-      const proposalText=  await ctx.reply(
+        await ctx.reply(
+            `Amount set to ${amount} SOL.\n\nNow, choose the **Strategy** you want to execute:`,
+            {
+                ...strategyKeyboard,
+                parse_mode: 'Markdown'
+            }
+        );
+        return ctx.wizard.next();
+
+    },
+    async (ctx) => {
+        if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
+            await ctx.reply('Please click one of the button above to select a strategy');
+            return; 
+        }
+        const action=ctx.callbackQuery.data;
+        const state=ctx.wizard.state as MyWizardSession['state'];
+        let strategyName:any = "Unknown";
+    if (action === 'strat:simple') strategyName = "Simple";
+    else if (action === 'strat:complex') strategyName = "Complex";
+    else {
+        await ctx.reply("Invalid selection.");
+        return;
+    }
+       
+        const voteKeyboard = Markup.inlineKeyboard([
+            Markup.button.callback(`👍 Yes (0)`, `vote:yes:${state.mint}`),
+            Markup.button.callback(`👎 No (0)`, `vote:no:${state.mint}`)
+        ]);
+        const proposalMsg = await ctx.reply(
             `New Proposal! 🗳️\n\n` +
-            `**Mint:** \`${mint}\`\n` +
-            `**Minimum Amount:** \`${amount} SOL\`\n\n` +
+            `**Mint:** \`${state.mint}\`\n` +
+            `**Amount:** \`${state.amount} SOL\`\n` +
+            `**Strategy:** \`${strategyName}\`\n\n` + // Now we have the strategy!
             `Should we proceed with this liquidity?`,
             {
                 ...voteKeyboard,
                 parse_mode: 'Markdown'
             }
         );
+    
+        // const strategykeyboard=Markup.inlineKeyboard([
+        //     Markup.button.callback(`Simple Strategy`,`strategy:Simple`),
+        //    Markup.button.callback("Complex Strategy",`strategy:Complex`)
+        // ])
+        // const StrateyType=await ctx.reply(
+        //         `Choose the type of strategy you want to execute`,
+        //         {
+        //             ...strategykeyboard,
+        //             parse_mode:'Markdown'
+        //         }
+        // );
+        //   console.log("strategu",StrateyType);
         const creatorTelegramId = ctx.from?.id?.toString() || "";
         const proposal = await prisma.proposal.create({
            data:{
-             mint: mint,
-            amount: amount,
+             mint: state.mint,
+            amount: state.amount,
             yes: 0,
             no: 0,
-            chatId:BigInt(proposalText.chat.id),
-            messagId:BigInt(proposalText.message_id),
+            Strategy:strategyName|| "Simple",
+            chatId:BigInt(proposalMsg.chat.id),
+            messagId:BigInt(proposalMsg.message_id),
             createdAt:BigInt(Date.now()),
             Votestatus: "Running",
             ProposalStatus: "Running",
@@ -357,7 +395,6 @@ export const createliqudityWizards= (bot: any) => new Scenes.WizardScene<MyConte
                    console.log("Proposal not found in database");
                    return;
                }
-               
                const expiredText =
                `Proposal EXPIRED ⛔\n\n` +
                `**Mint:** \`${expiredproposal.mint}\`\n` +
