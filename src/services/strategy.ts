@@ -4,7 +4,7 @@ import test from "node:test";
 
 export const  simplestrategy=(activebinId:number,binStep:number,amountx:BN,amounty:BN)=>{
     const { minBinId, maxBinId } = percentageRangeToBinIds(activebinId, binStep, -2, 2);
-    const { amountX, amountY } = calculateTokenDistribution(amountx, amounty, 50, 50);
+    const { amountX, amountY } = calculateTokenDistribution(amountx, amounty, 100, 100);
     console.log("Simple Strategy");
     console.log("check the strategy");
     const test="check2";

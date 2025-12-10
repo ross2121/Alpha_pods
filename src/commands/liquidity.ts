@@ -784,6 +784,7 @@ export const executeLP=async(proposal_id:string,strategies?:Strategy)=>{
         } else {
           throw new Error("Neither token in pool is WSOL");
         }
+        console.log("AMount x",Number(amountX),Number(amountY));
         const getparameter = simplestrategy(activeBinId, binStep, amountX, amountY);
         console.log("paranete",getparameter);
            txSignature = await addLiquidityByStrategy(getparameter, matchingPair.publicKey, binArrayLower, escrowPda, escrow_vault_pda, positionKeypair.publicKey, matchingPair, binArrayUpper, vaulta, vaultb, poolTokenXMint, poolTokenYMint, poolTokenXProgramId, poolTokenYProgramId);
