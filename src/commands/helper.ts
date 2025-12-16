@@ -25,7 +25,7 @@ export const calculateTVL=async(pooladdress:String)=>{
       decimalx=mintinfo.decimals;
       decimaly=9;
     }
-    
+
     console.log("ded",decimalx);
     const amountX = data.reserve_x_amount / Math.pow(10, decimalx);
     const amountY = data.reserve_y_amount / Math.pow(10, decimaly);

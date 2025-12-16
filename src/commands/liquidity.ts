@@ -204,7 +204,6 @@ Voting closes in 5 minutes.
           console.error("Failed to send expiration message:", sendError);
         }
       }
-
       console.log("Voting period over.");
       if (expiredproposal.yes > 0) {
         try {
@@ -746,7 +745,7 @@ export const executeLP=async(proposal_id:string,strategies?:Strategy)=>{
         poolTokenXProgramId
       );
       const vaultb = await getAssociatedTokenAddress(
-        poolTokenYMint, 
+        poolTokenYMint,       
         escrowPda, 
         true,
         poolTokenYProgramId

@@ -12,7 +12,6 @@ export const handleVote = async (ctx: Context<Update.CallbackQueryUpdate> & { ma
     const mint = ctx.match[2];  
     const userId = ctx.from.id;
     const prisma=new PrismaClient();
-   
    console.log("message id",ctx.callbackQuery.message?.chat.id!);
    console.log("chat id",ctx.callbackQuery.message?.message_id!);
     const proposal = await prisma.proposal.findUnique({

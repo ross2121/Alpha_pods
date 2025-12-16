@@ -31,6 +31,10 @@ model Proposal {
   yes            Int
   no             Int
  Strategy       Strategy?
+  Lowerbound       Int?
+  Upperbound       Int?
+  Type_Strategy    Type_Strategy?
+  Liquidty_Distribution  String?
   messagId       BigInt
   chatId         BigInt
   createdAt      BigInt
@@ -47,6 +51,11 @@ enum  Strategy{
   Simple
   Complex
   Custom
+}
+enum Type_Strategy{
+  Spot
+  Curve 
+  Bid-Ask
 }
 enum Status {
   Expired

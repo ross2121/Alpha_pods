@@ -42,7 +42,7 @@ let quote:any;
 let poolpublickey:any;
 let account=null;
 let count=0;
-  for (let i=0;i<dlmm.length;i++){
+  for (let i=0;i<dlmm.length;i++){  
     if((dlmm[i].account.tokenXMint.equals(tokenxmint) && dlmm[i].account.tokenYMint.equals(token_y)) || (dlmm[i].account.tokenYMint.equals(NATIVE_MINT) && dlmm[i].account.tokenXMint.equals(token_y))){
       count++;
       const istokenx=dlmm[i].account.tokenXMint.equals(NATIVE_MINT);
@@ -82,7 +82,10 @@ let count=0;
           poolpublickey = dlmm[i].publicKey;
           quote = swapQuote;
           account = dlmm[i].account;
-        }
+          const test=console.log("testing");
+          
+          const test23=console.log("tes")
+        } 
       } catch(quoteError: any) {
         if(quoteError?.message?.includes("Insufficient liquidity")) {
           console.log("Skipping pool - insufficient liquidity in bin arrays");

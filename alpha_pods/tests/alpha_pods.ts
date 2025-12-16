@@ -1668,18 +1668,18 @@ const halfAmountY = amountY.div(new anchor.BN(2));
     }
   }
   const liquidityParameter2={
-    amountX: new anchor.BN(halfAmountX),  // BN, not number
-    amountY: new anchor.BN(halfAmountY),  // BN, not number
-    activeId: activeBinId,            // i32
-    maxActiveBinSlippage: 10,         // i32 (slippage tolerance in bins)
-    strategyParameters: {             // Nested StrategyParameters
-      minBinId: curveMin,             // activeBinId - 5 (wider range for curve)
+    amountX: new anchor.BN(halfAmountX),
+    amountY: new anchor.BN(halfAmountY), 
+    activeId: activeBinId,            
+    maxActiveBinSlippage: 10,         
+    strategyParameters: {            
+      minBinId: curveMin,             
       maxBinId: curveMax,             // activeBinId + 5
       strategyType: { bidAskBalanced: {} },  // Enum variant
       parameteres: new Array(64).fill(0)   // number[], not any[]
     }
   }
-  // curveBalanced   spotBalanced  
+  // curveBalanced   spotBalanced  bidAskBalanced
   // const liquidityParameter = {
   //   min_bin_id: activeBinId - 24,  // Lower bound
   //   max_bin_id: activeBinId + 24,  // Upper bound
