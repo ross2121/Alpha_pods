@@ -269,12 +269,10 @@ const createProposalAndStartTimer = async (ctx: MyContext, bot: any, state: MyWi
         Markup.button.callback(`👍 Yes (0)`, `vote:yes:${state.mint}`),
         Markup.button.callback(`👎 No (0)`, `vote:no:${state.mint}`)
     ]);
-    
     let proposalText = `New Proposal! 🗳️\n\n` +
         `**Mint:** \`${state.mint}\`\n` +
         `**Amount:** \`${state.amount} SOL\`\n` +
         `**Strategy:** \`${strategyName}\`\n`;
-    
 
     if (strategyName === "Custom" && state.typeStrategy) {
         proposalText += `**Type:** \`${state.typeStrategy}\`\n` +
@@ -282,7 +280,6 @@ const createProposalAndStartTimer = async (ctx: MyContext, bot: any, state: MyWi
             `**Upper Bound:** \`${state.upperbound}\`\n` +
             `**Distribution:** \`${state.distribution}\`\n`;
     }
-    
     proposalText += `\nShould we proceed with this liquidity?`;
     
     const proposalMsg = await ctx.reply(proposalText, {
@@ -306,13 +303,11 @@ const createProposalAndStartTimer = async (ctx: MyContext, bot: any, state: MyWi
         Members: [creatorTelegramId],
         mintb: "LIQUIDITY_PROPOSAL"
     };
-
-    // Add custom strategy fields if present
     if (strategyName === "Custom") {
         proposalData.Lowerbound = state.lowerbound || 0;
         proposalData.Upperbound = state.upperbound || 0;
         proposalData.Liquidty_Distribution = state.distribution || "50::50";
-        proposalData.Type_Strategy = state.typeStrategy || "Spot";
+        proposalData.Type_Strategy = state.typeStrategy || "spotBalanced";
     }
 
     const proposal = await prisma.proposal.create({ data: proposalData });
@@ -458,12 +453,10 @@ Click the button below to continue:
 
 export const createliqudityWizards = (bot: any) => new Scenes.WizardScene<MyContext>(
     'liquidity_wizard',
-    // Step 0: Ask for mint
     async (ctx) => {
         await ctx.reply('Please enter the mint you want to liquidate:');
         return ctx.wizard.next();
     },
-    // Step 1: Handle mint, ask for amount
     new Composer<MyContext>(Scenes.WizardScene.on('text', async (ctx) => {
         if (!ctx.message || !('text' in ctx.message)) {
             await ctx.reply('Invalid input. Please send the mint address as text.');
@@ -488,7 +481,6 @@ export const createliqudityWizards = (bot: any) => new Scenes.WizardScene<MyCont
         await ctx.reply(`Great! The token you have chosen is ${symbol}. Now, enter the minimum liquidity amount in SOL:`);
         return ctx.wizard.next();
     })),
-    // Step 2: Handle amount, ask for strategy
     async (ctx) => {
         if (!ctx.message || !('text' in ctx.message)) {
             await ctx.reply('Invalid input. Please send the amount as text.');
@@ -516,7 +508,6 @@ export const createliqudityWizards = (bot: any) => new Scenes.WizardScene<MyCont
         );
         return ctx.wizard.next();
     },
-    // Step 3: Handle strategy selection
     async (ctx) => {
         if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
             await ctx.reply('Please click one of the buttons above to select a strategy');
@@ -551,7 +542,6 @@ export const createliqudityWizards = (bot: any) => new Scenes.WizardScene<MyCont
             return;
         }
     },
-    // Step 4: Handle type strategy selection (custom only), ask for lower bound
     async (ctx) => {
         if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
             await ctx.reply('Please click one of the buttons above to select a strategy type');
@@ -562,20 +552,18 @@ export const createliqudityWizards = (bot: any) => new Scenes.WizardScene<MyCont
         const state = ctx.wizard.state as MyWizardSession['state'];
 
         if (action === 'strategy:spot') {
-            state.typeStrategy = "Spot";
+            state.typeStrategy = "spotBalanced";
         } else if (action === 'strategy:bid-ask') {
-            state.typeStrategy = "Bid_Ask";
+            state.typeStrategy = "bidAskBalanced";
         } else if (action === 'strategy:curve') {
-            state.typeStrategy = "Curve";
+            state.typeStrategy = "curveBalanced";
         } else {
             await ctx.reply("Invalid selection.");
             return;
-        }
-
+        } 
         await ctx.reply('Enter the lower bound you want to execute:');
         return ctx.wizard.next();
     },
-    // Step 5: Handle lower bound, ask for upper bound
     async (ctx) => {
         if (!ctx.message || !('text' in ctx.message)) {
             await ctx.reply('Invalid input. Please send the lower bound as text.');
@@ -592,7 +580,7 @@ export const createliqudityWizards = (bot: any) => new Scenes.WizardScene<MyCont
         await ctx.reply('Enter the upper bound you want to execute:');
         return ctx.wizard.next();
     },
-    // Step 6: Handle upper bound, ask for distribution
+    
     async (ctx) => {
         if (!ctx.message || !('text' in ctx.message)) {
             await ctx.reply('Invalid input. Please send the upper bound as text.');
@@ -623,7 +611,6 @@ export const createliqudityWizards = (bot: any) => new Scenes.WizardScene<MyCont
         });
         return ctx.wizard.next();
     },
-    // Step 7: Handle distribution, create proposal
     async (ctx) => {
         if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
             await ctx.reply('Please click one of the buttons above to select a distribution');
@@ -645,8 +632,6 @@ export const createliqudityWizards = (bot: any) => new Scenes.WizardScene<MyCont
             await ctx.reply("Invalid selection.");
             return;
         }
-
-        // Create proposal with custom strategy details
         await createProposalAndStartTimer(ctx, bot, state, "Custom");
         return ctx.scene.leave();
     }

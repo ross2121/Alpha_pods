@@ -53,9 +53,10 @@ enum  Strategy{
   Custom
 }
 enum Type_Strategy{
-  Spot
-  Curve 
-  Bid-Ask
+  spotBalanced
+  bidAskBalanced
+  curveBalanced
+  
 }
 enum Status {
   Expired

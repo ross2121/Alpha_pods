@@ -14,7 +14,7 @@ import * as anchor from "@coral-xyz/anchor";
 
 import DLMM, { binIdToBinArrayIndex, deriveBinArray, deriveEventAuthority } from "@meteora-ag/dlmm";
 import { PrismaClient, Strategy } from "@prisma/client";
-import { addbin, addliquidity, addLiquidityByStrategy, closePosition, createPool, createposition, deposit, removeLiqudity } from "../contract/contract";
+import { addbin, addliquidity, addLiquidityByStrategy, closePosition, createPool, createposition, deposit, removeLiqudity, swap } from "../contract/contract";
 
 import {  executedSwapProposal, handlswap } from "./swap";
 import { checkadminfund, deductamount, getfund } from "./fund";
@@ -22,7 +22,7 @@ import { checkadminfund, deductamount, getfund } from "./fund";
 import { deposit_lp } from "../services/lpbalance";
 import axios from "axios";
 import { calculateTVL } from "./helper";
-import { percentageRangeToBinIds, simplestrategy, volatileStrategy } from "../services/strategy";
+import { customstrategy, percentageRangeToBinIds, simplestrategy, volatileStrategy } from "../services/strategy";
 
 const prisma = new PrismaClient();
 const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
@@ -556,7 +556,7 @@ export const handleClosePosition = async (ctx: Context) => {
 };
 
 
-export const executeLP=async(proposal_id:string,strategies?:Strategy)=>{
+export const executeLP=async(proposal_id:string)=>{
     const prisma=new PrismaClient();
     const lp=await prisma.proposal.findUnique({
       where:{
@@ -756,8 +756,8 @@ export const executeLP=async(proposal_id:string,strategies?:Strategy)=>{
       // console.log("check3",Number(liquidityParameter.amountY)/LAMPORTS_PER_SOL);
       const binStep = matchingPair.account.binStep;
       let txSignature;
-      let strategy:any;
-      if(strategies === "Simple"){
+
+      if(lp.Strategy=== "Simple"){
         const halfAmount = totalAmount.div(new anchor.BN(2));
         const swapAmountLamports = halfAmount.toNumber();
         console.log("Half of total (to swap):",swapAmountLamports,"lamports");
@@ -787,9 +787,9 @@ export const executeLP=async(proposal_id:string,strategies?:Strategy)=>{
         const getparameter = simplestrategy(activeBinId, binStep, amountX, amountY);
         console.log("paranete",getparameter);
            txSignature = await addLiquidityByStrategy(getparameter, matchingPair.publicKey, binArrayLower, escrowPda, escrow_vault_pda, positionKeypair.publicKey, matchingPair, binArrayUpper, vaulta, vaultb, poolTokenXMint, poolTokenYMint, poolTokenXProgramId, poolTokenYProgramId);
-           strategy="Simple"
+           
         console.log("txn strategies",txSignature);
-      }else if(strategies=="Complex"){
+      }else if(lp.Strategy=="Complex"){
           if(poolTokenYMint.equals(NATIVE_MINT)){
           console.log("Pool token x mint is sol");
         const getparameter =volatileStrategy(activeBinId, binStep,new anchor.BN(0),totalAmount);
@@ -799,33 +799,84 @@ export const executeLP=async(proposal_id:string,strategies?:Strategy)=>{
         console.log("test2",tokenYMint);
         console.log("check",totalAmount);
           txSignature = await addLiquidityByStrategy(getparameter, matchingPair.publicKey, binArrayLower, escrowPda, escrow_vault_pda, positionKeypair.publicKey, matchingPair, binArrayUpper, vaulta, vaultb, poolTokenXMint, poolTokenYMint, poolTokenXProgramId, poolTokenYProgramId);
-        console.log("txn strategis",txSignature);
-        strategy="Complex"
-      }else{
-           const swap=await handlswap(tokenYMint,totalAmount.toNumber(),escrowPda.toBase58());  
-          const amountinlowest=swap?.amount_out_smallest_unit;
-          console.log("amount in",amountinlowest);
-          const getparameter =volatileStrategy(activeBinId, binStep,new anchor.BN(0),new anchor.BN(amountinlowest));
-          console.log("parameter",getparameter);
+        console.log("txn strategis",txSignature);    
+      }
+      else{
+        console.log("Pool token x mint is sol");
+        const getparameter =volatileStrategy(activeBinId, binStep,totalAmount,new anchor.BN(0));
+        // const {mintbinid,maxbinid}=percentageRangeToBinIds(activeBinId,matchingPair.keypair);
+        // const {amountx,amounty}=calculateTVL(amountX,amountY);
+        console.log("test",tokenXMint);
+        console.log("test2",tokenYMint);
+        console.log("check",totalAmount);
           txSignature = await addLiquidityByStrategy(getparameter, matchingPair.publicKey, binArrayLower, escrowPda, escrow_vault_pda, positionKeypair.publicKey, matchingPair, binArrayUpper, vaulta, vaultb, poolTokenXMint, poolTokenYMint, poolTokenXProgramId, poolTokenYProgramId);
+        console.log("txn strategis",txSignature);    
+      }
+    }
+      else{
+          const distribution=lp.Liquidty_Distribution;
+          console.log("distribution")
+          if(!distribution){
+            console.log("No distribution")
+            return;
+          }
+          const numbers: number[] = distribution.split("::").map(Number);
+          let amountout;
+          let solamount;
+          let parameter;
+          console.log("Number",numbers);
+          if(poolTokenYMint.equals(NATIVE_MINT)){
+            console.log("token Y is native minrt")
+            const amountpercentage=numbers[0];
+            console.log("Amount percentage",amountpercentage);
+            const amount:number=100/amountpercentage;
+            console.log("amount",amount);
+            const lamportsamount=totalAmount.toNumber()/LAMPORTS_PER_SOL;
+            const tokenamount=lamportsamount/amount;
+            console.log("token amiunt",tokenamount);
+            solamount=lamportsamount-tokenamount;
+            console.log("sol amount",solamount);
+console.log("mint",matchingPair.account.tokenXMint);
+             const swap=await handlswap(matchingPair.account.tokenXMint,tokenamount*LAMPORTS_PER_SOL,escrowPda.toBase58());
+             console.log("Swap",swap);
+             amountout=swap?.amount_out_smallest_unit;
+             parameter=customstrategy(lp.Type_Strategy||"",binStep,new anchor.BN(amountout),new anchor.BN(solamount*LAMPORTS_PER_SOL),lp.Lowerbound||0,lp.Upperbound||0,numbers[0],numbers[1],activeBinId);
+          }else{
+            console.log("token X is native minrt")
+            const amountpercentage=numbers[1];
+            console.log("Amount percentage",amountpercentage);
+            const amount:number=100/amountpercentage;
+            console.log("amount",amount);
+            const lamportsamount=totalAmount.toNumber()/LAMPORTS_PER_SOL;
+            const tokenamount=lamportsamount/amount;
+            console.log("token amiunt",tokenamount);
+            solamount=lamportsamount-tokenamount;
+            console.log("sol amount",solamount);
+            const swap=await handlswap(matchingPair.account.tokenYMint,tokenamount*LAMPORTS_PER_SOL,escrowPda.toBase58());
+            console.log("Swap",swap);
+            amountout=swap?.amount_out_smallest_unit;
+            console.log("amount out",amountout);
+            parameter= customstrategy(lp.Type_Strategy||"",binStep,new anchor.BN(solamount*LAMPORTS_PER_SOL),new anchor.BN(amountout),lp.Lowerbound||0,lp.Upperbound||0,numbers[0],numbers[1],activeBinId);
+          }
+
+          console.log("parameter",parameter);
+          txSignature = await addLiquidityByStrategy(parameter, matchingPair.publicKey, binArrayLower, escrowPda, escrow_vault_pda, positionKeypair.publicKey, matchingPair, binArrayUpper, vaulta, vaultb, poolTokenXMint, poolTokenYMint, poolTokenXProgramId, poolTokenYProgramId);
         console.log("txn strategis",txSignature);
-        strategy="Complex"
       }
-      }
-      
       await deposit_lp(lp.amount,proposal_id);
       await prisma.liquidityPosition.create({
         data: {
           lowerBinId: lowerBinId,
           upperBinId: upperBinId,
-          Strategy:strategy,
+          Strategy:lp.Strategy||"Simple",
           tokenMint: lp.mint,
           chatId: lp.chatId,
           poolAddress: matchingPair.publicKey.toString(),
           positionAddress: positionKeypair.publicKey.toString(),
           amount: totalAmount.toString(),
           escrowId: escrowRow.id,
-          isActive: true
+          isActive: true,
+        
         }
       });
       return {
@@ -869,7 +920,7 @@ export const executeLP=async(proposal_id:string,strategies?:Strategy)=>{
           return;
         }
         await getfund(proposal_id);
-        const swapResult: any = await executeLP(proposal_id,proposal.Strategy||"Simple")
+        const swapResult: any = await executeLP(proposal_id)
         console.log("swap",swapResult);
         
         

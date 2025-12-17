@@ -37,18 +37,26 @@ let strategies={
 }
 return strategies;
 }
-export const customstrategy=(strategies_type:strategies,binstep:number,amountx:BN,amounty:BN,lowerange:number,upperrange:number,tokenx_percentage:number,token_y_percentage:number,activeBinId:number )=>{
+export const customstrategy=(strategies_type:string,binstep:number,amountx:BN,amounty:BN,lowerange:number,upperrange:number,tokenx_percentage:number,token_y_percentage:number,activeBinId:number )=>{
 const {minBinId,maxBinId}=percentageRangeToBinIds(activeBinId,binstep,lowerange,upperrange);
-const {amountX,amountY}=calculateTokenDistribution(amountx,amounty,tokenx_percentage,token_y_percentage);
+const {amountX,amountY}=calculateTokenDistribution(amountx,amounty,100,100);
+console.log("amount x",Number(amountX));
+console.log("amount y",Number(amountY));
+console.log("amount before",Number(amountx));
+console.log("amount y before",Number(amounty));
+const amountxbn=new BN(amountx);
+const amountybn=new BN(amounty);
+
 let strategies={
   amountX,
   amountY,
   activeId:activeBinId,
-  maxActuveBinSlippage:10,
+  maxActiveBinSlippage:10,
   strategyParameters:{
     minBinId,
     maxBinId,
-    strategiesType:{strategies_type:{}}
+    strategyType: { [strategies_type]: {} },
+    parameteres: new Array(64).fill(0)
   }
 }
 return strategies;
