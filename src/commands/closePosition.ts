@@ -175,21 +175,25 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
         data: { isActive: false }
       });
   
+      const solscanRemoveLiqUrl = `https://solscan.io/tx/${removeLiquidityTx}?cluster=devnet`;
+      const solscanCloseTxUrl = `https://solscan.io/tx/${closeTx}?cluster=devnet`;
+      const solscanPositionUrl = `https://solscan.io/account/${position.positionAddress}?cluster=devnet`;
+      
       const successMessage = `
-   **Position Closed Successfully!**
-  
-  **Details:**
-  • Position: \`${position.positionAddress}\`
-  • Liquidity removed and position closed
-  
-  **Transactions:**
-  • Remove Liquidity: \`${removeLiquidityTx}\`
-  • Close Position: \`${closeTx}\`
-  
-  Funds have been returned to the escrow vault! 
+✅ **Position Closed Successfully!**
+
+**Details:**
+• Position: [${position.positionAddress}](${solscanPositionUrl})
+• Liquidity removed and position closed
+
+**Transactions:**
+• Remove Liquidity: [View on Solscan](${solscanRemoveLiqUrl})
+• Close Position: [View on Solscan](${solscanCloseTxUrl})
+
+💰 Funds have been returned to the escrow vault!
       `;
   
-      await ctx.reply(successMessage, { parse_mode: "Markdown" });
+      await ctx.reply(successMessage, { parse_mode: "Markdown", link_preview_options: { is_disabled: true } });
     
     } catch (error: any) {
       console.error("Error closing position:", error);

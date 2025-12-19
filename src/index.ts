@@ -131,16 +131,18 @@ bot.action(/execute_swap:(.+)/, admin_middleware, async (ctx) => {
     
     } 
     if (result.success) {
+      const solscanUrl = `https://solscan.io/tx/${result.transaction}?cluster=devnet`;
       await ctx.reply(
         `✅ **Swap Executed Successfully!**\n\n` +
         `All members have been funded and swap completed!\n\n` +
-        `Transaction: \`${result.transaction}\`\n\n` +
+        `**Transaction:**\n` +
+        `[${result.transaction}](${solscanUrl})\n\n` +
         `🎉 Tokens are now in the escrow!`,
-        { parse_mode: 'Markdown' }
+        { parse_mode: 'Markdown', link_preview_options: { is_disabled: true } }
       );
     } else {
       await ctx.reply(
-        ` **Swap Failed**\n\n` +
+        `❌ **Swap Failed**\n\n` +
         `Error: ${result.message}\n\n` +
         `Please check member deposits and try again.`,
         { parse_mode: 'Markdown' }
@@ -156,30 +158,42 @@ bot.action(/execute_liquidity:(.+)/, admin_middleware, async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.reply("⏳ **Executing Liquidity...**\n\nChecking member deposits and executing liquidity...", { parse_mode: 'Markdown' });
   try {
-    const result = await  executedliquidity(proposalId);
+    const result = await executedliquidity(proposalId);
     if(!result){
-      await ctx.reply("Swap failed")
+      await ctx.reply("Liquidity execution failed")
       return;
     }
     if (result.success) {
-      await ctx.reply(
-        `✅ **Liquidty Executed Successfully!**\n\n` +
-        `All members have been funded and swap completed!\n\n` +
-        `Transaction: \`${result.transaction}\`\n\n` +
-        `🎉 Tokens are now in the escrow!`,
-        { parse_mode: 'Markdown' }
-      );
+      const solscanTxUrl = `https://solscan.io/tx/${result.transaction}?cluster=devnet`;
+      const solscanPositionUrl = result.positionAddress ? `https://solscan.io/account/${result.positionAddress}?cluster=devnet` : null;
+      const solscanPoolUrl = result.poolAddress ? `https://solscan.io/account/${result.poolAddress}?cluster=devnet` : null;
+      
+      let message = `✅ **Liquidity Executed Successfully!**\n\n` +
+        `All members have been funded and liquidity added!\n\n` +
+        `**Transaction:**\n[${"Solscan"}](${solscanTxUrl})\n\n`;
+      
+      if (result.positionAddress) {
+        message += `**Position:**\n[${result.positionAddress}](${solscanPositionUrl})\n\n`;
+      }
+      
+      if (result.poolAddress) {
+        message += `**Pool:**\n[${result.poolAddress}](${solscanPoolUrl})\n\n`;
+      }
+      
+      message += `🎉 Liquidity is now active!`;
+      
+      await ctx.reply(message, { parse_mode: 'Markdown', link_preview_options: { is_disabled: true } });
     } else {
       await ctx.reply(
-        ` **Swap Failed**\n\n` +
+        `❌ **Liquidity Failed**\n\n` +
         `Error: ${result.message}\n\n` +
         `Please check member deposits and try again.`,
         { parse_mode: 'Markdown' }
       );
     }
   } catch (error: any) {
-    console.error("Swap execution error:", error);
-    await ctx.reply(`❌ Swap execution failed: ${error.message}`);
+    console.error("Liquidity execution error:", error);
+    await ctx.reply(`❌ Liquidity execution failed: ${error.message}`);
   }
 });
 bot.launch()

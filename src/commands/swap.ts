@@ -246,7 +246,7 @@ export const executedSwapProposal=async(proposal_id:string)=>{
       error.logs.forEach((log: string) => console.error("  ", log));
     }
     
-    throw error; // Re-th
+    throw error; 
      
   }
   return {

@@ -928,7 +928,9 @@ console.log("mint",matchingPair.account.tokenXMint);
         return {
           success: true,
           message: "Liquidity executed successfully!",
-          transaction: swapResult?.txn|| null,
+          transaction: swapResult?.txn || null,
+          positionAddress: swapResult?.positionAddress || null,
+          poolAddress: swapResult?.poolAddress || null,
         };
     }catch(error:any){
        console.log("Execute Swap error");
