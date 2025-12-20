@@ -2,6 +2,14 @@
 
 **Alpha Pods** is a Telegram-based collaborative trading platform built on Solana that enables groups of traders to pool funds and make investment decisions together through secure, transparent, and democratic processes.
 
+## 🎬 Demo Video
+
+https://github.com/user-attachments/assets/demo-video
+
+https://github.com/ross2121/Alpha_pods/raw/main/Public/Untitled%20design%20(1).mp4
+
+> Click the link above to watch the demo video, or [Watch on Loom](https://www.loom.com/share/7233009d2eab4080a7a991d2251f6759)
+
 ## 📚 Resources
 
 - **Video Demo:** [Watch Demo](https://www.loom.com/share/7233009d2eab4080a7a991d2251f6759)
@@ -17,7 +25,7 @@
 
 1. **Create a Telegram Group**
    - Open Telegram and create a new group for your trading pod.
-
+ 
 2. **Add the Alpha Pods Bot**
    - Search for `@Alpha_Pods_bot` in Telegram and add it to your newly created group.
 
@@ -129,7 +137,7 @@ Our advanced indexing system tracks and analyzes the liquidity provision strateg
 
 ## 🏗️ Architecture
 
-![Architecture Diagram](https://via.placeholder.com/800x400?text=Alpha+Pods+Architecture)
+![Architecture Diagram](Public/Screenshot%20from%202025-10-31%2009-19-02.png)
 
 ## ❌ Problems We Solve
 
