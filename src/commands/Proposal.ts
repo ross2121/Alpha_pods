@@ -486,10 +486,17 @@ export const createliqudityWizards = (bot: any) => new Scenes.WizardScene<MyCont
             await ctx.reply('Invalid input. Please send the amount as text.');
             return;
         }
-        const amount = parseFloat(ctx.message.text);
         const state = (ctx.wizard.state as MyWizardSession['state']);
-        if (!state.mint || isNaN(amount) || amount <= 0) {
-            await ctx.reply('That is not a valid amount. Please enter a positive number.');
+        
+        // Check if mint was set properly - if not, the session may have been lost
+        if (!state.mint) {
+            await ctx.reply('Session expired or invalid. Please use /cancel to reset and try again with /add_liquidity');
+            return ctx.scene.leave();
+        }
+        
+        const amount = parseFloat(ctx.message.text);
+        if (isNaN(amount) || amount <= 0) {
+            await ctx.reply('That is not a valid amount. Please enter a positive number (e.g., 0.1).');
             return;
         }
         state.amount = amount;

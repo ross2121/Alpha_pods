@@ -51,8 +51,16 @@ bot.telegram.setMyCommands([
   { command: 'wallet', description: 'Manage wallet' },
   { command: 'add_liquidity', description: 'Add liquidity proposal' },
   { command: 'view_positions', description: 'View liquidity positions' },
-  { command: 'close_position', description: 'Close a position' }
+  { command: 'close_position', description: 'Close a position' },
+  { command: 'cancel', description: 'Cancel current operation and reset' }
 ]).catch(err => console.error('Failed to set bot commands:', err));
+
+// Cancel command - exits any active wizard/scene
+bot.command("cancel", async (ctx) => {
+  await ctx.scene.leave();
+  await ctx.reply("Operation cancelled. You can start fresh now.\n\nUse /start to see available commands.");
+});
+
 bot.command("start", handleStart);
 bot.command("swap", admin_middleware, async (ctx) => {
   await ctx.scene.enter('propose_wizard');
