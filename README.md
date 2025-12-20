@@ -4,11 +4,12 @@
 
 ## 🎬 Demo Video
 
-https://github.com/user-attachments/assets/demo-video
 
-https://github.com/ross2121/Alpha_pods/raw/main/Public/Untitled%20design%20(1).mp4
 
-> Click the link above to watch the demo video, or [Watch on Loom](https://www.loom.com/share/7233009d2eab4080a7a991d2251f6759)
+
+
+https://github.com/user-attachments/assets/3e6e46e4-9343-4804-8b50-2794873a730f
+
 
 ## 📚 Resources
 
@@ -137,7 +138,8 @@ Our advanced indexing system tracks and analyzes the liquidity provision strateg
 
 ## 🏗️ Architecture
 
-![Architecture Diagram](Public/Screenshot%20from%202025-10-31%2009-19-02.png)
+
+<img width="1113" height="755" alt="Screenshot from 2025-10-31 09-19-02" src="https://github.com/user-attachments/assets/73da158f-4f88-434f-90d1-afabd13ffec1" />
 
 ## ❌ Problems We Solve
 
