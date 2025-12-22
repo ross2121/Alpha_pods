@@ -1,7 +1,7 @@
 import { Keypair } from "@solana/web3.js";
 import crypto from "crypto";
 import bs58 from "bs58";
-
+import * as jose from 'jose';
 const algorithm = 'aes-256-cbc';
 
 export const generateWallet = () => {
@@ -35,3 +35,31 @@ export const decryptPrivateKey = (encrypted: string, ivHex: string): Uint8Array 
     
     return bs58.decode(decrypted);
 };
+export const getjsks = async (req: any, res: any) => {
+  try {
+    const Secret_Key = process.env.SECRET_KEY?.split(",").map(Number);
+    
+    if (!Secret_Key) {
+      console.log("No secret key");
+      return res.status(400).json({ error: "SECRET_KEY not configured" });
+    }
+    const secretKey = new Uint8Array(Secret_Key);
+    const superadmin = Keypair.fromSecretKey(secretKey);
+    console.log("Superadmin", superadmin.publicKey.toString());
+    const publicKeyBytes = superadmin.publicKey.toBytes();
+    const jwk = {
+      kty: "OKP",           
+      crv: "Ed25519",      
+      x: Buffer.from(publicKeyBytes).toString('base64url'), 
+      kid: "alpha-pods-key-001",
+      use: "sig",
+      alg: "EdDSA"
+    };
+
+    console.log("JWK created:", jwk);
+    res.json({ keys: [jwk] });
+  } catch (error: any) {
+    console.error("Error in getjsks:", error);
+    res.status(500).json({ error: error.message });
+  }
+}

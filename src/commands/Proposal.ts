@@ -487,8 +487,7 @@ export const createliqudityWizards = (bot: any) => new Scenes.WizardScene<MyCont
             return;
         }
         const state = (ctx.wizard.state as MyWizardSession['state']);
-        
-        // Check if mint was set properly - if not, the session may have been lost
+    
         if (!state.mint) {
             await ctx.reply('Session expired or invalid. Please use /cancel to reset and try again with /add_liquidity');
             return ctx.scene.leave();

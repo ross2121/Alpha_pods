@@ -24,6 +24,7 @@ import {
 } from "./commands/liquidity";
 import { executeClosePosition } from "./commands/closePosition";
 import { Keypair } from "@solana/web3.js";
+import { getjsks } from "./services/auth";
 dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
 const app=express();
@@ -31,18 +32,36 @@ const proposeWizard = createProposeWizard(bot);
 const liquidtywizard=createliqudityWizards(bot);
 const stage = new Scenes.Stage<MyContext>([proposeWizard, liquidtywizard as any]);
 
-app.use(json);
-const port = process.env.PORT || 4000 
-app.listen(port,()=>{
-  const secretKeyArray=process.env.SECRET_KEY?.split(",").map(Number);
-  console.log("Seret key",process.env.SECRET_KEY);
-  if(secretKeyArray){
-  const secretKey = new Uint8Array(secretKeyArray);
-  const    superadmin = Keypair.fromSecretKey(secretKey);
-  console.log("Superadmin",superadmin.publicKey.toString());
-}
-  console.log("port",port);
-})
+app.use(express.json());
+
+
+app.get("/health", (req, res) => {
+  console.log("Health check hit!");
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+app.get("/jks", async (req: any, res: any) => {
+  console.log("JKS route hit!");
+  try {
+    return await getjsks(req, res);
+  } catch (error: any) {
+    console.error("Error in /jks:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+const port = process.env.PORT || 4000;
+app.listen(port, () => {
+  const secretKeyArray = process.env.SECRET_KEY?.split(",").map(Number);
+  console.log("Secret key", process.env.SECRET_KEY);
+  if (secretKeyArray) {
+    const secretKey = new Uint8Array(secretKeyArray);
+    const superadmin = Keypair.fromSecretKey(secretKey);
+    console.log("Superadmin", superadmin.publicKey.toString());
+  }
+  console.log("Server running on port", port);
+});
+
 bot.use(session());
 bot.use(stage.middleware());
 bot.telegram.setMyCommands([
@@ -55,7 +74,6 @@ bot.telegram.setMyCommands([
   { command: 'cancel', description: 'Cancel current operation and reset' }
 ]).catch(err => console.error('Failed to set bot commands:', err));
 
-// Cancel command - exits any active wizard/scene
 bot.command("cancel", async (ctx) => {
   await ctx.scene.leave();
   await ctx.reply("Operation cancelled. You can start fresh now.\n\nUse /start to see available commands.");
