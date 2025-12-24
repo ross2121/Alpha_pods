@@ -14,14 +14,13 @@ datasource db {
 }
 
 model User {
-  id                    String  @id @unique @default(uuid())
+  id                    BigInt  @id @unique 
   telegram_id           String  @unique
   name                  String
   public_key            String  @unique
+  Privy_id              String
   role                  Role
-  encrypted_private_key String
-  encryption_iv         String
-  deposits     Deposit[] 
+  deposits              Deposit[] 
 }
 
 model Proposal {
@@ -74,13 +73,13 @@ model Escrow {
 }
 
 model Deposit {
-  id        String @id @unique @default(uuid())
+  id          String  @id @unique @default(uuid())
   telegram_id String
-  amount    Float
-  mint      String?
-  escrowId  String
-    userId      String
-  escrow    Escrow @relation(fields: [escrowId], references: [id])
+  amount      Float
+  mint        String?
+  escrowId    String
+  userId      BigInt
+  escrow      Escrow  @relation(fields: [escrowId], references: [id])
   user        User    @relation(fields: [userId], references: [id])
  
   @@unique([telegram_id, escrowId, mint])

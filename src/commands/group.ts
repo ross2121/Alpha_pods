@@ -92,20 +92,22 @@ export const handleMyChatMember = async (ctx: any) => {
             }
             await add_member(admin.user.id.toString(), admin.user.first_name, "admin");
             const prisma=new PrismaClient();
+            
             const creator=await prisma.user.findUnique({
                 where:{
                     telegram_id:admin.user.id.toString()
                 }
             });
             if(!creator){
+                console.log("No user found");
                 return;
             }
-            const key=decryptPrivateKey(creator.encrypted_private_key, creator.encryption_iv);
-            const keypair=Keypair.fromSecretKey(key);
+            // const key=decryptPrivateKey(creator.encrypted_private_key, creator.encryption_iv);
+            // const keypair=Keypair.fromSecretKey(key);
             const chatId = ctx.chat?.id || ctx.myChatMember?.chat?.id;
             console.log("Chat ID:", chatId);
             
-            await init(keypair, chatId);
+            await init(admin.user.id, chatId);
 
         }
     }

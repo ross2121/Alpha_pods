@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client"
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import dotenv from "dotenv";
 import { deposit } from "../contract/contract";
-import { decryptPrivateKey } from "../services/auth";
+import { decryptPrivateKey, privyauthorization, privytoken } from "../services/auth";
 dotenv.config();
 export const getminimumfund = async (proposal_id: string, bot: any)=> {
     const prisma = new PrismaClient();
@@ -230,17 +230,26 @@ You can get SOL from exchanges like:
     }
     if(!deposits){
         console.log("deposit")
-        const seretkey=decryptPrivateKey(admin.encrypted_private_key,admin.encryption_iv);
-        const keypair=Keypair.fromSecretKey(seretkey);
-        await deposit(1,keypair,proposal.chatId,admin.id);
+        // const seretkey=decryptPrivateKey(admin.encrypted_private_key,admin.encryption_iv);
+        // const keypair=Keypair.fromSecretKey(seretkey);
+        const privywallet=await privyauthorization(admin.id);
+        if(!privywallet){
+            console.log("Not able to serilize wallet");
+            return;
+        }
+        const privy=await privytoken();
+        if(!privy){
+            return;
+        }
+        
+        await deposit(1,proposal.chatId,admin.id);
         return true;
     }
     if(deposits?.amount<1){
         const amount=1-deposits.amount;
         console.log("amount",amount);
-        const seretkey=decryptPrivateKey(admin.encrypted_private_key,admin.encryption_iv);
-        const keypair=Keypair.fromSecretKey(seretkey);
-        await deposit(amount,keypair,proposal.chatId,admin.id);
+       
+        await deposit(amount,proposal.chatId,admin.id);
     }
      return true;
 }
@@ -364,9 +373,9 @@ export const getfund = async (proposalid: string) => {
       }
       
       try {
-        const private_key = decryptPrivateKey(user.encrypted_private_key, user.encryption_iv);
-        const keypair = Keypair.fromSecretKey(private_key);
-        await deposit(amount, keypair, proposal.chatId, user.id);
+        // const private_key = decryptPrivateKey(user.encrypted_private_key, user.encryption_iv);
+        // const keypair = Keypair.fromSecretKey(private_key);
+        await deposit(amount, proposal.chatId, user.id);
         console.log(` Deposited ${amount} SOL for user ${user.telegram_id}`);
       } catch (e) {
         console.log(`Error depositing for user ${user.telegram_id}:`, e);

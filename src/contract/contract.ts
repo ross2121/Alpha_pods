@@ -9,6 +9,7 @@ import { AlphaPods } from "../idl/alpha_pods";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, TOKEN_PROGRAM_ID, transfer } from "@solana/spl-token";
 import DLMM, { deriveEventAuthority, deriveLbPair2 } from "@meteora-ag/dlmm";
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
+import { privyauthorization, privytoken } from "../services/auth";
 dotenv.config();
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
 const secretKeyArray=process.env.SECRET_KEY?.split(",").map(Number);
@@ -25,16 +26,27 @@ commitment: "confirmed",
 })
 const program = new Program<AlphaPods>(idl as AlphaPods, provider)
 export const init = async (
-    adminKeypair: Keypair,
+    userid:number,
     chat_id:BigInt
 ) => {
     try {
+      const prisma=new PrismaClient();
+      const user=await prisma.user.findUnique({
+        where:{
+          id:userid
+        }
+      })
+      if(!user){
+          console.log("No user found");
+         return;
+      }
+      const admin_publickey=new PublicKey(user.public_key);
         const escrowSeed =Math.floor(Math.random() * 1000000)
     
         const [escrowPda, escrowBump] = PublicKey.findProgramAddressSync(
             [
                 Buffer.from("escrow"),
-                adminKeypair.publicKey.toBuffer(),
+                admin_publickey.toBuffer(),
                 Buffer.from(new anchor.BN(escrowSeed).toArrayLike(Buffer, "le", 8)),
             ],
             program.programId
@@ -52,31 +64,31 @@ export const init = async (
         const tx = await program.methods
             .initialize(new anchor.BN(escrowSeed))
             .accountsStrict({
-                admin: adminKeypair.publicKey,
+                admin: admin_publickey,
                 creator:superadmin.publicKey,
                 escrow: escrowPda,
                 systemProgram: SystemProgram.programId,
             })
-            .signers([adminKeypair,superadmin])
-            .rpc();
-       const prisma=new PrismaClient();
+            .signers([superadmin])
+            .transaction()
+       
        const amount=0.1 * LAMPORTS_PER_SOL;
-       try{const getlateshblockhash=await connection.getLatestBlockhash();
-      const tranfer=new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey:superadmin.publicKey,
-          toPubkey:vault_pda,
-          lamports:amount
-        })
-      )
-      tranfer.recentBlockhash = getlateshblockhash.blockhash;
-      tranfer.feePayer = superadmin.publicKey;
-      const signature=await sendAndConfirmTransaction(
-        connection,
-        tranfer,
-        [superadmin]
-      )
-      console.log("sign",signature);
+       try{
+        const { blockhash } = await connection.getLatestBlockhash();
+        tx.recentBlockhash = blockhash;
+
+      tx.feePayer = new PublicKey(user.public_key);
+      const privy=await privytoken();
+      if(!privy){
+        return;
+      }
+      const sign = await privy.walletApi.solana.signAndSendTransaction({
+          walletId: user.Privy_id,
+          transaction: tx,
+          caip2: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" 
+        });
+    
+      console.log("sign",sign);
     }catch(e:any){
         console.profile(e);
       }
@@ -86,7 +98,7 @@ export const init = async (
             escrow_pda:escrowPda.toString(),
             seed:escrowSeed.toString(),
             chatId: Number(chat_id),
-             creator_pubkey:adminKeypair.publicKey.toString()
+             creator_pubkey:admin_publickey.toString()
 
         }
        })
@@ -106,7 +118,7 @@ const prisma = new PrismaClient();
 const lamportsToSol = (lamports: anchor.BN): number => {
   return lamports.toNumber() / LAMPORTS_PER_SOL;
 };
-export const deposit = async (amountInSol: number, member: Keypair, chatid: BigInt,userid:string) => {
+export const deposit = async (amountInSol: number, chatid: BigInt,userid:bigint) => {
   const escrowRow = await prisma.escrow.findUnique({
     where: {
       chatId: Number(chatid),
@@ -130,17 +142,34 @@ export const deposit = async (amountInSol: number, member: Keypair, chatid: BigI
     program.programId
   );
   const amountInLamports = new anchor.BN(Math.floor(amountInSol * anchor.web3.LAMPORTS_PER_SOL));
-  const sig = await program.methods
+  const privywallet=await privyauthorization(userid);
+  if(!privywallet){
+      console.log("Not able to serilize wallet");
+      return;
+  }
+  const privy=await privytoken();
+  if(!privy){
+      return;
+  }
+
+  const tx =await program.methods
     .deposit(amountInLamports)
     .accountsStrict({
-      member: member.publicKey,
+      member: new PublicKey(user.public_key),
       escrow: escrowPda,
       vault: escrowVaultPda,
       systemProgram: SystemProgram.programId,
-    })
-    .signers([member])
-    .rpc();
-  console.log("tx",sig);
+    }).transaction();
+    const { blockhash } = await connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+  tx.feePayer = new PublicKey(user.public_key);
+const rpc = await privy.walletApi.solana.signAndSendTransaction({
+      walletId: user.Privy_id,
+      transaction: tx,
+      caip2: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" 
+    });
+
+  console.log("tx", rpc);
   const deposit = await prisma.deposit.findUnique({
     where: {
      telegram_id_escrowId_mint:{
@@ -176,14 +205,14 @@ console.log("check1");
     });
   }
 
-  return sig;
+  return rpc;
 };
 
-export const withdraw=async(userid:string)=>{
+export const withdraw=async(userid:bigint)=>{
   const prisma=new PrismaClient();
   const Deposit=await prisma.deposit.findMany({
       where:{
-          id:userid
+          userId:userid
       }
   })
   for(let i=0;i<Deposit.length;i++){
@@ -299,7 +328,7 @@ poolTokenYMint:PublicKey,poolTokenXProgramId:PublicKey,poolTokenYProgramId:Publi
   .rpc();
   return txSignature 
 } 
-export const wallet_funds=async(userid:string)=>{
+export const wallet_funds=async(userid:bigint)=>{
 const prisma=new  PrismaClient();
 console.log("userid",userid);
 const userdeposit=await prisma.deposit.findMany({

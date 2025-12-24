@@ -109,15 +109,15 @@ export const handleExportKeyWallet = async (ctx: any) => {
       return;
     }
 
-    const secretKey = decryptPrivateKey(user.encrypted_private_key, user.encryption_iv);
-    const privateKeyBase58 = bs58.encode(secretKey);
+    // const secretKey = decryptPrivateKey(user.encrypted_private_key, user.encryption_iv);
+    // const privateKeyBase58 = bs58.encode(secretKey);
 
     const warningMessage = `
 ⚠️ **PRIVATE KEY - KEEP THIS SECRET!** ⚠️
 
 **Your Wallet Details:**
 • Public Key: \`${user.public_key}\`
-• Private Key: \`${privateKeyBase58}\`
+• Private Key: \`${"Not right now"}\`
 
 🔒 **SECURITY WARNING:**
 • NEVER share this key with anyone
