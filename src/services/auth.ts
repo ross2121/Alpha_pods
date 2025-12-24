@@ -5,7 +5,6 @@ import * as jose from 'jose';
 import { PrivyClient } from "@privy-io/server-auth";
 const algorithm = 'aes-256-cbc';
 
-// Get the signing keypair from environment
 const getSigningKeypair = (): Keypair => {
   const secretKeyArray = process.env.SECRET_KEY?.split(",").map(Number);
   if (!secretKeyArray) {
@@ -45,12 +44,8 @@ export const decryptPrivateKey = (encrypted: string, ivHex: string): Uint8Array 
     
     return bs58.decode(decrypted);
 };
-// Sign JWT using Ed25519 (EdDSA) with proper claims
 export const getjwt = async (userid: bigint): Promise<string> => {
   const keypair = getSigningKeypair();
-  
-  // Create JWK from Ed25519 keypair for signing
-  // Ed25519 secret key is 64 bytes: first 32 are private seed, last 32 are public
   const jwkPrivate = {
     kty: "OKP" as const,
     crv: "Ed25519" as const,
@@ -60,16 +55,16 @@ export const getjwt = async (userid: bigint): Promise<string> => {
   
   const privateKey = await jose.importJWK(jwkPrivate, 'EdDSA');
 
-  // Create JWT with proper claims
+
   const token = await new jose.SignJWT({
-    sub: userid.toString(),  // Subject (user ID) - Privy uses this
+    sub: userid.toString(),  
   })
     .setProtectedHeader({ 
       alg: 'EdDSA',
-      kid: 'alpha-pods-key-001'  // Must match JWKS kid
+      kid: 'alpha-pods-key-001'  
     })
     .setIssuedAt()
-    .setExpirationTime('1h')  // Token expires in 1 hour
+    .setExpirationTime('1h')  
     .setIssuer('alpha-pods')
     .sign(privateKey);
 
