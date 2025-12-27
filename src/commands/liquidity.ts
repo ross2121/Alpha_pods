@@ -601,9 +601,23 @@ export const executeLP=async(proposal_id:string)=>{
     const fees = allPairs[i].fees_24h ?? 0;
     const liquidity = Number(allPairs[i].liquidity) || 0;
     const volume = allPairs[i].trade_volume_24h ?? 0;
-    
+
     console.log(`Pool ${i}: fees=${fees}, liquidity=${liquidity}, volume=${volume}`);
-    const score=await YeildScore(fees, liquidity, volume);
+    let reserve_x;
+    let reserve_y;
+    let mint;
+    if(allPairs[i].mint_x === NATIVE_MINT.toBase58()){
+        reserve_x=allPairs[i].reserve_y_amount;
+        reserve_y=allPairs[i].reserve_x_amount;
+        mint=allPairs[i].mint_y; 
+    }else{
+        reserve_x=allPairs[i].reserve_x_amount;
+         reserve_y=allPairs[i].reserve_y_amount;
+          mint=allPairs[i].mint_x;
+      }
+       console.log("Reserve x",reserve_x);
+      console.log("Reserver Y",reserve_y);
+      const score=await YeildScore(fees, Number(volume),reserve_x,reserve_y,mint,allPairs[i].current_price);
     console.log("Score",score);
     if(score>=max){
        max=score;

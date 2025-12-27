@@ -26,7 +26,6 @@ export const calculateTVL=async(pooladdress:String)=>{
       decimalx=mintinfo.decimals;
       decimaly=9;
     }
-
     console.log("ded",decimalx);
     const amountX = data.reserve_x_amount / Math.pow(10, decimalx);
     const amountY = data.reserve_y_amount / Math.pow(10, decimaly);
@@ -45,22 +44,28 @@ export const calculateTVL=async(pooladdress:String)=>{
   console.log("dasdas",valY_in_SOL);
     return valX_in_SOL + valY_in_SOL;
   }
-  export const YeildScore=async(fees:number,liquidity:number,volume:number)=>{
-    // Handle null, undefined, or invalid values
-    if (!fees || !liquidity || fees < 0 || liquidity <= 0 || isNaN(fees) || isNaN(liquidity)) {
+  export const YeildScore=async(fees:number,volume:number,reserve_x_amount:number,reserve_y_amount:number,mint_y:string,current_Price:number)=>{
+    if (!fees ||  fees < 0  || isNaN(fees) ) {
       return 0;
     }
-    
-    // Handle volume - can be 0 but not negative
+    const connection=new Connection("https://api.devnet.solana.com");
     const safeVolume = volume && volume >= 0 ? volume : 0;
-    
-    // Calculate components with safety checks
-    const fee = (fees / liquidity) * 100;
-    const tvl = liquidity > 0 ? Math.log10(liquidity) : 0;
-    const efficiency = liquidity > 0 ? safeVolume / liquidity : 0;
-    
+    const solRaw =reserve_y_amount;
+    const tokenRaw =reserve_x_amount;
+    const mintinfo=await getMint(connection,new PublicKey(mint_y));
+    const decimaly=mintinfo.decimals;
+    const solReal = solRaw / Math.pow(10, 9);
+const tokenReal = tokenRaw / Math.pow(10, decimaly);
+const tokenValueInSol = tokenReal * current_Price;
+const totalLiquidityInSol = solReal + tokenValueInSol;
+const solPriceUsd = 190; 
+const totalLiquidityUsd = totalLiquidityInSol * solPriceUsd;
+    const fee = (fees / totalLiquidityUsd) * 100;
+    const tvl = totalLiquidityUsd > 0 ? Math.log10(totalLiquidityUsd) : 0;
+    const efficiency = totalLiquidityUsd > 0 ? safeVolume / totalLiquidityUsd : 0;
+  
     const score = fee * tvl * efficiency;
     
-    // Return 0 if result is invalid
+  
     return isNaN(score) || !isFinite(score) ? 0 : score;
   }
