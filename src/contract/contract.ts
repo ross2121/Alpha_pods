@@ -1,4 +1,3 @@
-
 import * as anchor from "@coral-xyz/anchor";
 import { Program, AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, Keypair, SystemProgram, Connection, LAMPORTS_PER_SOL, Transaction, sendAndConfirmTransaction } from "@solana/web3.js"
@@ -24,13 +23,13 @@ const wallet=new anchor.Wallet(superadmin);
 const provider = new anchor.AnchorProvider(connection, wallet, {
 commitment: "confirmed",
 })
+const prisma=new PrismaClient();
 const program = new Program<AlphaPods>(idl as AlphaPods, provider)
 export const init = async (
     userid:number,
     chat_id:BigInt
 ) => {
     try {
-      const prisma=new PrismaClient();
       const user=await prisma.user.findUnique({
         where:{
           id:userid
@@ -42,7 +41,6 @@ export const init = async (
       }
       const admin_publickey=new PublicKey(user.public_key);
         const escrowSeed =Math.floor(Math.random() * 1000000)
-    
         const [escrowPda, escrowBump] = PublicKey.findProgramAddressSync(
             [
                 Buffer.from("escrow"),
@@ -117,7 +115,7 @@ export const init = async (
     }
 };
 
-const prisma = new PrismaClient();
+
 const lamportsToSol = (lamports: anchor.BN): number => {
   return lamports.toNumber() / LAMPORTS_PER_SOL;
 };
@@ -150,7 +148,6 @@ export const deposit = async (amountInSol: number, chatid: BigInt,userid:bigint)
       console.log("Not able to authorize wallet");
       return;
   }
-
   const tx =await program.methods
     .deposit(amountInLamports)
     .accountsStrict({
@@ -208,7 +205,7 @@ console.log("check1");
 };
 
 export const withdraw=async(userid:bigint)=>{
-  const prisma=new PrismaClient();
+ 
   const Deposit=await prisma.deposit.findMany({
       where:{
           userId:userid
@@ -268,7 +265,17 @@ export const withdraw=async(userid:bigint)=>{
          systemProgram:SystemProgram.programId,
          mint:Deposit[i].mint || "",
          memberAta:user_mint
-       }).rpc();
+       }).transaction();
+       const privy = await privyauthorization(userid);
+  if(!privy){
+      console.log("Not able to authorize wallet");
+      return;
+  }
+       const sign = await privy.walletApi.solana.signAndSendTransaction({
+        walletId: user.Privy_id,
+        transaction: tx,
+        caip2: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" 
+      });
        await prisma.deposit.update({
          where:{
            id:Deposit[i].id
@@ -328,7 +335,7 @@ poolTokenYMint:PublicKey,poolTokenXProgramId:PublicKey,poolTokenYProgramId:Publi
   return txSignature 
 } 
 export const wallet_funds=async(userid:bigint)=>{
-const prisma=new  PrismaClient();
+
 console.log("userid",userid);
 const userdeposit=await prisma.deposit.findMany({
   where:{
