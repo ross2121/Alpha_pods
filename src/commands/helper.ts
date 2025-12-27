@@ -1,6 +1,7 @@
 import { getMint, NATIVE_MINT } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
 import axios from "axios";
+import { log } from "console";
 
 export const calculateTVL=async(pooladdress:String)=>{
     const api = await axios.get(
@@ -43,4 +44,23 @@ export const calculateTVL=async(pooladdress:String)=>{
   console.log("vual",valX_in_SOL);
   console.log("dasdas",valY_in_SOL);
     return valX_in_SOL + valY_in_SOL;
+  }
+  export const YeildScore=async(fees:number,liquidity:number,volume:number)=>{
+    // Handle null, undefined, or invalid values
+    if (!fees || !liquidity || fees < 0 || liquidity <= 0 || isNaN(fees) || isNaN(liquidity)) {
+      return 0;
+    }
+    
+    // Handle volume - can be 0 but not negative
+    const safeVolume = volume && volume >= 0 ? volume : 0;
+    
+    // Calculate components with safety checks
+    const fee = (fees / liquidity) * 100;
+    const tvl = liquidity > 0 ? Math.log10(liquidity) : 0;
+    const efficiency = liquidity > 0 ? safeVolume / liquidity : 0;
+    
+    const score = fee * tvl * efficiency;
+    
+    // Return 0 if result is invalid
+    return isNaN(score) || !isFinite(score) ? 0 : score;
   }

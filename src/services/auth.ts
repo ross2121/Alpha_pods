@@ -85,6 +85,7 @@ const token=await getjwt(userid);
 console.log("Tokem",token);
 const privy=await privytoken();
 if(!privy){
+  console.log("no Privy found");
   return;
 }  
 const {authorizationKey}=await privy.walletApi.generateUserSigner({

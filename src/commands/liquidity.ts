@@ -20,9 +20,10 @@ import {  executedSwapProposal, handlswap } from "./swap";
 import { checkadminfund, deductamount, getfund } from "./fund";
 
 import { deposit_lp } from "../services/lpbalance";
-import axios from "axios";
-import { calculateTVL } from "./helper";
+import axios, { all } from "axios";
+import { calculateTVL, YeildScore } from "./helper";
 import { customstrategy, percentageRangeToBinIds, simplestrategy, volatileStrategy } from "../services/strategy";
+import { MeteoraPoolType } from "../services/type";
 
 const prisma = new PrismaClient();
 const METORA_PROGRAM_ID = new PublicKey("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
@@ -580,57 +581,82 @@ export const executeLP=async(proposal_id:string)=>{
       PROGRAM_ID
     );
     console.log("escrow vault",escrow_vault_pda);
-    const allPairs = await DLMM.getLbPairs(connection);
     let max=0;
-    let matchingPair;
-    for(let i=0;i<allPairs.length;i++){
-      if(allPairs[i].account.tokenXMint.toBase58()==tokenXMint.toBase58()&& allPairs[i].account.tokenYMint.toBase58()==tokenYMint.toBase58()||allPairs[i].account.tokenXMint.toBase58()==tokenYMint.toBase58()&&allPairs[i].account.tokenYMint.toBase58()==tokenXMint.toBase58()){
-         try{
-           const amount=await calculateTVL(allPairs[i].publicKey.toBase58());
-           if(amount>max){
-            max=amount;
-             matchingPair=allPairs[i];
-           console.log("amount",amount);
-            }
-      } catch(e: any){
-        console.log("Skipping pool - TVL calculation failed:", e?.message || e?.toString() || "Unknown error");
-        continue;
-      }
-      }}
-    console.log("matchhin pair",matchingPair);
-    // let matchingPair = allPairs.find(pair => 
-    //   (pair.account.tokenXMint.toBase58() === tokenXMint.toBase58() &&
-    //   pair.account.tokenYMint.toBase58() === tokenYMint.toBase58()) ||
-    //   (pair.account.tokenXMint.toBase58() === tokenYMint.toBase58() &&
-    //   pair.account.tokenYMint.toBase58() === tokenXMint.toBase58())
-    // );
+    let matchingPoolApi:MeteoraPoolType | null = null;
+    let first;
+    let second;
+    if(tokenXMint.toBase58()[0]<tokenYMint.toBase58()[0]){
+         first=tokenXMint.toBase58();
+         second=tokenYMint.toBase58();
+    }else{
+      first=tokenYMint.toBase58();
+      second=tokenXMint.toBase58();
+    }
+    console.log("First",first);
+    console.log("Second",second);
+    const Poolapi=await fetch(`https://devnet-dlmm-api.meteora.ag/pair/group_pair/${first}-${second}`)
+    const allPairs:MeteoraPoolType[]=await Poolapi.json();
   
-    console.log(matchingPair);
-    if (!matchingPair) {
-      console.log("cechh");
-      console.log("creating pool");
-      const before=await connection.getBalance(escrow_vault_pda);
-      const beforesol=before/LAMPORTS_PER_SOL;
-      const lb_pair=await createPool(1,1,escrowPda,escrow_vault_pda,tokenXMint,tokenYMint);
-      await new Promise(resolve => setTimeout(resolve, 2000)); 
-      const after=await connection.getBalance(escrow_vault_pda,"confirmed");
-      const aftersol=after/LAMPORTS_PER_SOL;
-      const balance=beforesol-aftersol;
-      await deductamount(proposal_id,balance,false);
-      if(!lb_pair){
-        throw new Error("Failed to create pool")
-      }
-      matchingPair=lb_pair.toString() as any;
+  for (let i=0;i<allPairs.length;i++){
+    const fees = allPairs[i].fees_24h ?? 0;
+    const liquidity = Number(allPairs[i].liquidity) || 0;
+    const volume = allPairs[i].trade_volume_24h ?? 0;
+    
+    console.log(`Pool ${i}: fees=${fees}, liquidity=${liquidity}, volume=${volume}`);
+    const score=await YeildScore(fees, liquidity, volume);
+    console.log("Score",score);
+    if(score>=max){
+       max=score;
+       matchingPoolApi=allPairs[i];
     }
-    if(!matchingPair){
-      throw new Error("No matching pair found")
+  }
+  console.log("matching pari",matchingPoolApi);
+  let matchingPair: Awaited<ReturnType<typeof DLMM.getLbPairs>>[0];
+  let poolTokenXProgramId: PublicKey;
+  let poolTokenYProgramId: PublicKey;
+  let activeBinId: number;
+
+  if(!matchingPoolApi){
+    console.log("No matching pool found from API, creating new pool");
+    const before=await connection.getBalance(escrow_vault_pda);
+    const beforesol=before/LAMPORTS_PER_SOL;
+    const lb_pair=await createPool(1,1,escrowPda,escrow_vault_pda,tokenXMint,tokenYMint);
+    await new Promise(resolve => setTimeout(resolve, 2000)); 
+    const after=await connection.getBalance(escrow_vault_pda,"confirmed");
+    const aftersol=after/LAMPORTS_PER_SOL;
+    const balance=beforesol-aftersol;
+    await deductamount(proposal_id,balance,false);
+    if(!lb_pair){
+      throw new Error("Failed to create pool")
     }
+    // Fetch the DLMM pair object for the newly created pool
+    const allDLMMPairs = await DLMM.getLbPairs(connection);
+    const createdPair = allDLMMPairs.find(p => p.publicKey.equals(lb_pair));
+    if(!createdPair){
+      throw new Error("Failed to fetch created pool data");
+    }
+    matchingPair = createdPair;
     const poolTokenXMintInfo = await connection.getAccountInfo(matchingPair.account.tokenXMint);
     const poolTokenYMintInfo = await connection.getAccountInfo(matchingPair.account.tokenYMint);
-    const poolTokenXProgramId = poolTokenXMintInfo?.owner || TOKEN_PROGRAM_ID;
-    const poolTokenYProgramId = poolTokenYMintInfo?.owner || TOKEN_PROGRAM_ID;
-    const activeBinId = matchingPair.account.activeId;
-    const lowerBinId = activeBinId - 24;
+    poolTokenXProgramId = poolTokenXMintInfo?.owner || TOKEN_PROGRAM_ID;
+    poolTokenYProgramId = poolTokenYMintInfo?.owner || TOKEN_PROGRAM_ID;
+    activeBinId = matchingPair.account.activeId;
+  } else {
+    // Fetch DLMM pair object from the API pool address
+    const poolAddress = new PublicKey(matchingPoolApi.address);
+    const allDLMMPairs = await DLMM.getLbPairs(connection);
+    const foundPair = allDLMMPairs.find(p => p.publicKey.equals(poolAddress));
+    if(!foundPair){
+      throw new Error("Failed to fetch DLMM pair data for pool: " + matchingPoolApi.address);
+    }
+    matchingPair = foundPair;
+    const poolTokenXMintInfo = await connection.getAccountInfo(new PublicKey(matchingPoolApi.mint_x));
+    const poolTokenYMintInfo = await connection.getAccountInfo(new PublicKey(matchingPoolApi.mint_y));
+    poolTokenXProgramId = poolTokenXMintInfo?.owner || TOKEN_PROGRAM_ID;
+    poolTokenYProgramId = poolTokenYMintInfo?.owner || TOKEN_PROGRAM_ID;
+    activeBinId = matchingPair.account.activeId;
+  }
+  const lowerBinId = activeBinId - 24;
     const width = 48;
     const positionKeypair = Keypair.generate();
     console.log("Position:", positionKeypair.publicKey.toBase58());

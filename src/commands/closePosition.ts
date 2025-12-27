@@ -181,15 +181,15 @@ export const executeClosePosition = async (ctx: Context, positionId: string) => 
       
       const successMessage = `
 ✅ **Position Closed Successfully!**
-
-**Details:**
+  
+  **Details:**
 • Position: [${position.positionAddress}](${solscanPositionUrl})
-• Liquidity removed and position closed
-
-**Transactions:**
+  • Liquidity removed and position closed
+  
+  **Transactions:**
 • Remove Liquidity: [View on Solscan](${solscanRemoveLiqUrl})
 • Close Position: [View on Solscan](${solscanCloseTxUrl})
-
+  
 💰 Funds have been returned to the escrow vault!
       `;
   

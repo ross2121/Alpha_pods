@@ -156,6 +156,7 @@ export const deposit = async (amountInSol: number, chatid: BigInt,userid:bigint)
       vault: escrowVaultPda,
       systemProgram: SystemProgram.programId,
     }).transaction();
+
     const { blockhash } = await connection.getLatestBlockhash();
     tx.recentBlockhash = blockhash;
   tx.feePayer = new PublicKey(user.public_key);
@@ -295,18 +296,12 @@ export const addLiquidityByStrategy=async(liquidityParameter:any,lb_pair:PublicK
 binArrayUpper:PublicKey,vaulta:PublicKey,vaultb:PublicKey,poolTokenXMint:PublicKey,
 poolTokenYMint:PublicKey,poolTokenXProgramId:PublicKey,poolTokenYProgramId:PublicKey
 )=>{  
-  // let strategies={
-  //   amountX,
-  //   amountY,
-  //   activeId: activebinId,
-  //   maxActiveBinSlippage: 10,
-  //   strategyParameters: {
-  //     minBinId,
-  //     maxBinId,
-  //     strategyType: { spotBalanced: {} },
-  //     parameteres: new Array(64).fill(0)
-  //   }
-  // }
+  const { ComputeBudgetProgram } = await import('@solana/web3.js');
+  
+  const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({ 
+    units: 600_000  
+  });
+  
   const txSignature = await program.methods
   .addLiquidityByStrategy(liquidityParameter)
   .accountsStrict({
@@ -331,6 +326,7 @@ poolTokenYMint:PublicKey,poolTokenXProgramId:PublicKey,poolTokenYProgramId:Publi
     systemProgram: SystemProgram.programId,
   associatedTokenProgram: ASSOCIATED_PROGRAM_ID
   })
+  .preInstructions([computeBudgetIx])
   .rpc();
   return txSignature 
 } 
