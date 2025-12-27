@@ -10,6 +10,7 @@ import { getfund } from "./fund";
 import { updatebalance } from "../services/balance";
 dotenv.config();
 import { PythHttpClient, getPythProgramKeyForCluster } from "@pythnetwork/client";
+import { MeteoraPoolType } from "../services/type";
 
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
 const PROGRAM_ID=new PublicKey("2UxzDQnXYxnANW3ugTbjn3XhiSaqtfzpBKVqmh1nHL3A");
@@ -21,7 +22,6 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
    const dlmm=await DLMM.getLbPairs(connection);
    const escrowPda = new PublicKey(escrow_pda);
    console.log("escrow",escrowPda); 
-
    const [escrow_vault_pda,bump] = PublicKey.findProgramAddressSync(
      [
        Buffer.from("vault"),
@@ -35,31 +35,38 @@ export const handlswap=async(token_y:PublicKey,amount:number,escrow_pda:string)=
    const MIN_POOLS_TO_CHECK = 30;
    const errors: string[] = [];
   console.log(`\nSearching through ${dlmm.length} total pools...`);
-  
   const map=new Map<String,number>();
 let maxamount=0;
 let quote:any;
 let poolpublickey:any;
 let account=null;
 let count=0;
-  for (let i=0;i<dlmm.length;i++){  
-    if((dlmm[i].account.tokenXMint.equals(tokenxmint) && dlmm[i].account.tokenYMint.equals(token_y)) || (dlmm[i].account.tokenYMint.equals(NATIVE_MINT) && dlmm[i].account.tokenXMint.equals(token_y))){
+let first;
+let second;
+if(tokenxmint.toBase58()[0]<token_y.toBase58()[0]){
+     first=tokenxmint.toBase58();
+     second=token_y.toBase58();
+}else{
+  first=token_y.toBase58();
+  second=tokenxmint.toBase58();
+}
+const Poolapi=await fetch(`https://devnet-dlmm-api.meteora.ag/pair/group_pair/${first}-${second}`)
+const allPairs:MeteoraPoolType[]=await Poolapi.json();
+  for (let i=0;i<allPairs.length;i++){ 
       count++;
-      const istokenx=dlmm[i].account.tokenXMint.equals(NATIVE_MINT);
+      const istokenx=new PublicKey(allPairs[i].mint_x).equals(NATIVE_MINT);
       const swapXforY=istokenx;
-      const pool=await DLMM.create(connection,dlmm[i].publicKey);
-      const amounttokena=await connection.getTokenAccountBalance(dlmm[i].account.reserveX);
-      const amounttokenb=await connection.getTokenAccountBalance(dlmm[i].account.reserveY);
-      const amounttokena_number=Number(amounttokena.value.amount); 
-      const amounttokenb_number=Number(amounttokenb.value.amount);
+      const pool=await DLMM.create(connection,new PublicKey(allPairs[i].address));
+      const amounttokena=allPairs[i].reserve_x_amount;
+      const amounttokenb=allPairs[i].reserve_y_amount;
       const binArrays=await pool.getBinArrayForSwap(swapXforY, 20);
       if(istokenx){
-         if(amounttokena_number<amount){
+         if(amounttokena<amount){
           console.log("true");
           continue;
          }
       } else{
-          if(amounttokenb_number<amount){
+          if(amounttokenb<amount){
             console.log("true");
             continue;
           }
@@ -73,18 +80,14 @@ let count=0;
           false,
           2
         );
-        
-        console.log("amounttokena_number", amounttokena_number)
         const current = swapQuote.outAmount;
-        
         if(Number(current) > maxamount){
           maxamount = Number(current);  
-          poolpublickey = dlmm[i].publicKey;
+          poolpublickey =allPairs[i].address;
           quote = swapQuote;
-          account = dlmm[i].account;
-          const test=console.log("testing");
-          
-          const test23=console.log("tes")
+          const allDLMMPairs = await DLMM.getLbPairs(connection);
+    const createdPair = allDLMMPairs.find(p => p.publicKey.equals(new PublicKey(allPairs[i].address)));
+          account = createdPair?.account;
         } 
       } catch(quoteError: any) {
         if(quoteError?.message?.includes("Insufficient liquidity")) {
@@ -93,7 +96,8 @@ let count=0;
         }
         throw quoteError;
       }
-  }}
+  
+}
   console.log("count",count);
   let maxpublickey=null;
 console.log("final ",quote);
