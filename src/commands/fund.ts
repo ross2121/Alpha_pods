@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client"
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import dotenv from "dotenv";
 import { deposit } from "../contract/contract";
-import { decryptPrivateKey, privyauthorization, privytoken } from "../services/auth";
+import { decryptPrivateKey } from "../services/auth";
 dotenv.config();
 export const getminimumfund = async (proposal_id: string, bot: any)=> {
     const prisma = new PrismaClient();
@@ -232,16 +232,6 @@ You can get SOL from exchanges like:
         console.log("deposit")
         // const seretkey=decryptPrivateKey(admin.encrypted_private_key,admin.encryption_iv);
         // const keypair=Keypair.fromSecretKey(seretkey);
-        const privywallet=await privyauthorization(admin.id);
-        if(!privywallet){
-            console.log("Not able to serilize wallet");
-            return;
-        }
-        const privy=await privytoken();
-        if(!privy){
-            return;
-        }
-        
         await deposit(1,proposal.chatId,admin.id);
         return true;
     }

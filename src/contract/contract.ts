@@ -9,7 +9,7 @@ import { AlphaPods } from "../idl/alpha_pods";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, TOKEN_PROGRAM_ID, transfer } from "@solana/spl-token";
 import DLMM, { deriveEventAuthority, deriveLbPair2 } from "@meteora-ag/dlmm";
 import { ASSOCIATED_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/utils/token";
-import { privyauthorization, privytoken } from "../services/auth";
+import { privyauthorization } from "../services/auth";
 dotenv.config();
 const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com");
 const secretKeyArray=process.env.SECRET_KEY?.split(",").map(Number);
@@ -69,17 +69,18 @@ export const init = async (
                 escrow: escrowPda,
                 systemProgram: SystemProgram.programId,
             })
-            .signers([superadmin])
             .transaction()
-       
+        
        const amount=0.1 * LAMPORTS_PER_SOL;
        try{
         const { blockhash } = await connection.getLatestBlockhash();
         tx.recentBlockhash = blockhash;
 
-      tx.feePayer = new PublicKey(user.public_key);
-      const privy=await privytoken();
+      tx.feePayer = new PublicKey(superadmin.publicKey);
+      tx.partialSign(superadmin);
+      const privy = await privyauthorization(BigInt(userid));
       if(!privy){
+        console.log("Not able to authorize wallet");
         return;
       }
       const sign = await privy.walletApi.solana.signAndSendTransaction({
@@ -89,11 +90,7 @@ export const init = async (
         });
     
       console.log("sign",sign);
-    }catch(e:any){
-        console.profile(e);
-      }
-
-       await prisma.escrow.create({
+      await prisma.escrow.create({
         data:{
             escrow_pda:escrowPda.toString(),
             seed:escrowSeed.toString(),
@@ -102,6 +99,12 @@ export const init = async (
 
         }
        })
+    }catch(e:any){
+        console.log("Error creating privy",e);
+        return;
+      }
+
+       
         console.log("Initialize transaction signature:", tx);
         
         
@@ -142,13 +145,9 @@ export const deposit = async (amountInSol: number, chatid: BigInt,userid:bigint)
     program.programId
   );
   const amountInLamports = new anchor.BN(Math.floor(amountInSol * anchor.web3.LAMPORTS_PER_SOL));
-  const privywallet=await privyauthorization(userid);
-  if(!privywallet){
-      console.log("Not able to serilize wallet");
-      return;
-  }
-  const privy=await privytoken();
+  const privy = await privyauthorization(userid);
   if(!privy){
+      console.log("Not able to authorize wallet");
       return;
   }
 

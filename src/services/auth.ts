@@ -91,7 +91,7 @@ const {authorizationKey}=await privy.walletApi.generateUserSigner({
   userJwt:token
 });
 privy.walletApi.updateAuthorizationKey(authorizationKey);
-return true;
+return privy;
 }
 export const getjsks = async (req: any, res: any) => {
   try {
