@@ -14,7 +14,6 @@ https://github.com/user-attachments/assets/3e6e46e4-9343-4804-8b50-2794873a730f
 ## 📚 Resources
 
 - **Video Demo:** [Watch Demo](https://www.loom.com/share/7233009d2eab4080a7a991d2251f6759)
-- **Pitch Video:** [Watch Pitch](https://www.loom.com/share/2adbd73c7f8b469da13430fce81ad79d)
 - **Smart Contract:** [FeozaXSwZZexg48Fup4xLZFN2c9nUsSvtHbWz3V3GQuq](https://explorer.solana.com/address/FeozaXSwZZexg48Fup4xLZFN2c9nUsSvtHbWz3V3GQuq?cluster=devnet)
 - **GitHub Repository:** [ross2121/Alpha_pods](https://github.com/ross2121/Alpha_pods)
 - **Deployed Bot:** [@Alpha_Pods_bot](https://t.me/Alpha_Pods_bot) (Currently on devnet)
