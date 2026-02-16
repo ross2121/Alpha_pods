@@ -24,6 +24,7 @@
     "@prisma/client": "6.17.1",
     "@privy-io/server-auth": "^1.32.5",
     "@pythnetwork/client": "^2.22.1",
+    "@realms-today/spl-governance": "^0.3.33",
     "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.98.4",
     "@telegraf/session": "^2.0.0-beta.7",
