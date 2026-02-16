@@ -34,6 +34,8 @@ const getTokenInfo = async (mintAddress: any) => {
         };
       }
       
+
+      
       return result.token_info;
     } catch (error) {
       console.error("Error fetching token info:", error);
@@ -79,7 +81,7 @@ export const createProposeWizard = (bot: any) => new Scenes.WizardScene<MyContex
             const public_key = new PublicKey(ctx.message.text);
             console.log("Valid PublicKey:", public_key.toBase58());
         } catch (error) {
-            await ctx.reply('❌ Invalid mint address. Please provide a valid Solana public key.');
+            await ctx.reply('Invalid mint address. Please provide a valid Solana public key.');
             return;
         }
 

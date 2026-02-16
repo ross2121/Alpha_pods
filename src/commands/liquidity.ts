@@ -643,7 +643,6 @@ export const executeLP=async(proposal_id:string)=>{
     if(!lb_pair){
       throw new Error("Failed to create pool")
     }
-    // Fetch the DLMM pair object for the newly created pool
     const allDLMMPairs = await DLMM.getLbPairs(connection);
     const createdPair = allDLMMPairs.find(p => p.publicKey.equals(lb_pair));
     if(!createdPair){
@@ -656,7 +655,6 @@ export const executeLP=async(proposal_id:string)=>{
     poolTokenYProgramId = poolTokenYMintInfo?.owner || TOKEN_PROGRAM_ID;
     activeBinId = matchingPair.account.activeId;
   } else {
-    // Fetch DLMM pair object from the API pool address
     const poolAddress = new PublicKey(matchingPoolApi.address);
     const allDLMMPairs = await DLMM.getLbPairs(connection);
     const foundPair = allDLMMPairs.find(p => p.publicKey.equals(poolAddress));

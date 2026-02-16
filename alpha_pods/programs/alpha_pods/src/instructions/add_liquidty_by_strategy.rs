@@ -79,7 +79,6 @@ pub fn add_liquidity_by_strategy(
     
     let needs_wrapping = is_token_x_sol || is_token_y_sol;
     if needs_wrapping {
-        msg!("Wrapping {} lamports of SOL to WSOL", amount_in);
         let wsol_vault = if is_token_x_sol {
             &self.vaulta
         } else {
@@ -203,7 +202,7 @@ let bin_array_upper_ai = self
     ];
 
     let cpi_context = CpiContext::new_with_signer(self.dlmm_program.to_account_info(), accounts, signer_seeds)
-        .with_remaining_accounts(remaining_accounts.to_vec());
+        .with_remaining_accounts(remaining_accounts.to_vec()); 
     dlmm::cpi::add_liquidity_by_strategy(cpi_context, liqudity_parameter)
 }
 }

@@ -25,6 +25,7 @@ import {
 import { executeClosePosition } from "./commands/closePosition";
 import { Keypair } from "@solana/web3.js";
 import { getjsks } from "./services/auth";
+import { timeStamp } from "console";
 dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
 const app=express();
@@ -37,6 +38,7 @@ app.use(express.json());
 
 app.get("/health", (req, res) => {
   console.log("Health check hit!");
+  res.json({status:"ok",timeStamp:new Date})
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 

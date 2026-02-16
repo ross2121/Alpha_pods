@@ -21,7 +21,7 @@ export const  simplestrategy=(activebinId:number,binStep:number,amountx:BN,amoun
   return strategies;
 }
 export const volatileStrategy=(activeBinId:number,binstep:number,amountx:BN,amounty:BN)=>{
-const {minBinId,maxBinId}=percentageRangeToBinIds(activeBinId,binstep,-75,0);
+const {minBinId,maxBinId}=percentageRangeToBinIds(activeBinId,binstep,-20,0);
 const {amountX,amountY}=calculateTokenDistribution(amountx,amounty,0,100);
 let strategies={
     amountX,
@@ -72,13 +72,9 @@ export function percentageRangeToBinIds(
     lowerPercent: number,
     upperPercent: number
   ): { minBinId: number; maxBinId: number } {
-    // Each bin represents (binStep / 10000) price change
-    // For binStep 75: each bin = 0.75% price change
-    const binsPerPercent = 100 / binStep; //  100/75 = 1.33 bins per 1%
-    
+    const binsPerPercent = 100 / binStep; 
     const minBinId = Math.floor(activeBinId + (lowerPercent * binsPerPercent));
     const maxBinId = Math.ceil(activeBinId + (upperPercent * binsPerPercent));
-    
     return { minBinId, maxBinId };
   }
   export function calculateTokenDistribution(

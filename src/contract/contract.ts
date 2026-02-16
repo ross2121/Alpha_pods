@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program, AnchorProvider } from "@coral-xyz/anchor";
-import { PublicKey, Keypair, SystemProgram, Connection, LAMPORTS_PER_SOL, Transaction, sendAndConfirmTransaction } from "@solana/web3.js"
+import { PublicKey, Keypair, SystemProgram, Connection, LAMPORTS_PER_SOL, Transaction, sendAndConfirmTransaction, ComputeBudgetProgram } from "@solana/web3.js"
 import dotenv from "dotenv";
 import * as idl from "../idl/alpha_pods.json";
 import { PrismaClient } from "@prisma/client";
@@ -296,18 +296,16 @@ export const addLiquidityByStrategy=async(liquidityParameter:any,lb_pair:PublicK
 binArrayUpper:PublicKey,vaulta:PublicKey,vaultb:PublicKey,poolTokenXMint:PublicKey,
 poolTokenYMint:PublicKey,poolTokenXProgramId:PublicKey,poolTokenYProgramId:PublicKey
 )=>{  
-  const { ComputeBudgetProgram } = await import('@solana/web3.js');
-  
   const computeBudgetIx = ComputeBudgetProgram.setComputeUnitLimit({ 
-    units: 600_000  
+    units: 1_400_000
   });
-  
+
   const txSignature = await program.methods
   .addLiquidityByStrategy(liquidityParameter)
   .accountsStrict({
     lbPair: matchingPair.publicKey,
     position: position_public_key,
-    binArrayBitmapExtension: null,
+    binArrayBitmapExtension: null,                        
     reserveX: matchingPair.account.reserveX,
     reserveY: matchingPair.account.reserveY,
     binArrayLower: binArrayLower,
