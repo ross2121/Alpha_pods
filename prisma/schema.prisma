@@ -12,17 +12,17 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
 model User {
   id                    BigInt  @id @unique 
   telegram_id           String  @unique
+  discord_id            String?
   name                  String
   public_key            String  @unique
   Privy_id              String
   role                  Role
   deposits              Deposit[] 
+  subscriptions         Subscription[]
 }
-
 model Proposal {
   id             String   @id @unique @default(uuid())
   mint           String
@@ -71,6 +71,18 @@ model Escrow {
   deposits          Deposit[]
   liquidityPositions LiquidityPosition[]
 }
+/// On-chain SPL Governance / Realms metadata
+model Realm {
+  id      String  @id @default(uuid())
+  pubkey  String  @unique
+  name    String
+  cluster String
+
+  proposals     GovernanceProposal[]
+  delegateStats DelegateStats[]
+  subscriptions Subscription[]
+  delegations   Delegation[]
+}
 
 model Deposit {
   id          String  @id @unique @default(uuid())
@@ -102,8 +114,115 @@ model LiquidityPosition {
   escrow          Escrow   @relation(fields: [escrowId], references: [id])
 }
 
-
 enum Role {
   admin
   user
+}
+
+/// Delegate profile visible in the discovery dashboard
+model Delegate {
+  id              String   @id @default(uuid())
+  wallet_pubkey   String   @unique
+  display_name    String
+  bio             String?
+  avatar_url      String?
+  tags            Json?
+  telegram_handle String?
+  discord_handle  String?
+
+  stats       DelegateStats[]
+  delegations Delegation[] @relation("DelegateDelegations")
+}
+
+/// Per‑realm aggregated stats for a delegate
+model DelegateStats {
+  id                 String   @id @default(uuid())
+  delegate           Delegate @relation(fields: [delegateId], references: [id])
+  delegateId         String
+  realm              Realm    @relation(fields: [realmId], references: [id])
+  realmId            String
+  total_votes        Int      @default(0)
+  participation_rate Float    @default(0)
+  alignment_scores   Json?
+}
+
+/// Indexed SPL Governance proposal
+model GovernanceProposal {
+  id                          String                  @id @default(uuid())
+  realm                       Realm                   @relation(fields: [realmId], references: [id])
+  realmId                     String
+  governance_pubkey           String
+  proposal_pubkey             String                  @unique
+  title                       String
+  description                 String
+  state                       GovernanceProposalState
+  voting_start                DateTime?
+  voting_end                  DateTime?
+  is_upgrade_authority_change Boolean                 @default(false)
+  estimated_value_usd         Float?
+  category                    ProposalCategory
+
+  votes GovernanceVote[]
+}
+
+/// Individual on-chain vote record
+model GovernanceVote {
+  id           String              @id @default(uuid())
+  proposal     GovernanceProposal  @relation(fields: [proposalId], references: [id])
+  proposalId   String
+  voter_pubkey String
+  side         VoteSide
+  slot         BigInt
+  tx_signature String
+
+  @@index([voter_pubkey])
+}
+
+/// User's alert config per realm
+model Subscription {
+  id                         String  @id @default(uuid())
+  user                       User    @relation(fields: [userId], references: [id])
+  userId                     BigInt
+  realm                      Realm   @relation(fields: [realmId], references: [id])
+  realmId                    String
+  min_value_usd              Float?
+  notify_on_authority_change Boolean @default(true)
+  notify_on_new_proposal     Boolean @default(true)
+  notify_on_final_result     Boolean @default(true)
+
+  @@unique([userId, realmId])
+}
+
+/// Delegations of voting power within a realm
+model Delegation {
+  id               String    @id @default(uuid())
+  realm            Realm     @relation(fields: [realmId], references: [id])
+  realmId          String
+  delegator_wallet String
+  delegate         Delegate  @relation("DelegateDelegations", fields: [delegateId], references: [id])
+  delegateId       String
+
+  @@unique([delegator_wallet, realmId])
+}
+
+enum GovernanceProposalState {
+  Draft
+  Voting
+  Succeeded
+  Defeated
+  Executed
+  Cancelled
+}
+
+enum ProposalCategory {
+  Treasury
+  UpgradeAuthority
+  Parameter
+  Other
+}
+
+enum VoteSide {
+  Yes
+  No
+  Abstain
 }
