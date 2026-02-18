@@ -1,50 +1,68 @@
 import {
-    withCreateRealm,
-    MintMaxVoteWeightSource,
-  } from '@realms-today/spl-governance';
-  import {
-    Connection,
-    Keypair,
-    PublicKey,
-    sendAndConfirmTransaction,
-    Transaction,
-    TransactionInstruction,
-  } from '@solana/web3.js';
-  import * as anchor from '@coral-xyz/anchor';
-  import bs58 from 'bs58';
-  import BN from 'bn.js';
-   
-  export const createdao=async()=>{
-  const connection = new Connection('https://api.devnet.solana.com');
-  const decode=bs58.decode("53aqP3YEA1yDPYZ9GrsASVPXEB1LBXCG1WtwGve4VeyiogG3zqTvDBJSxeM49ov62JG84ZFd1vxmqfkrProBzGAd")
-  const payer = Keypair.fromSecretKey(decode);
-  
-  const communityMint = new PublicKey('AuzCK8jdZQ9Dvud9DnFbZ8KuUeuhqZJ2BDoAwzGEmEWd');
-  const councilMint =undefined
-  
-  // You can use the default shared instance or deploy your own
-  const programId = new PublicKey('GovER5Lthms3bLBqWub97yVrMmEogzX7xNjdXpPPCVZw');
-  const programVersion = 3;
-  
-  const realmName = 'My DAO3s2ss3';
-  
-  const instructions: TransactionInstruction[] = [];
-  
-  const realmAddress = await withCreateRealm(
-    instructions,
-    programId,
-    programVersion,
-    realmName,
-    payer.publicKey,          // realm authority
-    communityMint,
-    payer.publicKey,          // payer
-    councilMint,              // optional council mint (undefined if none)
-    MintMaxVoteWeightSource.FULL_SUPPLY_FRACTION,
-    new BN(1) as any,                // min community weight to create governance
-  );
-  
-  const tx = new Transaction().add(...instructions);
-  await sendAndConfirmTransaction(connection, tx, [payer]);
-  console.log("tx",realmAddress);
-}
-createdao();
+  withCreateRealm,
+  MintMaxVoteWeightSource,
+} from '@realms-today/spl-governance';
+import {
+  Connection,
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
+} from '@solana/web3.js';
+import BN from 'bn.js';
+import { PrismaClient, Role } from '@prisma/client';
+import dotenv from 'dotenv';
+import { privyauthorization } from '../services/auth';
+import { createdao } from '../services/createdao';
+
+dotenv.config();
+
+const prisma = new PrismaClient();
+
+
+export const handleCreateDaoCommand = async (ctx: any) => {
+  try {
+    const telegramId = ctx.from?.id?.toString();
+    if (!telegramId) {
+      await ctx.reply('❌ Unable to identify admin user.');
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { telegram_id: telegramId },
+    });
+
+    if (!user || user.role !== Role.admin) {
+      await ctx.reply('❌ Only an admin user can create a DAO realm.');
+      return;
+    }
+    const realmAuthority = new PublicKey(user.public_key); 
+    const realmName = 'My DAO3s2ss3';
+
+    await ctx.reply('⏳ Creating DAO realm on devnet as group admin (Privy)...');
+
+    const { realmAddress, signature } = await createdao(
+      realmName,
+      realmAuthority,
+      BigInt(user.id),
+      user.Privy_id
+    );
+    const solscanUrl = `https://solscan.io/tx/${signature}?cluster=devnet`;
+
+    await ctx.reply(
+      `✅ *DAO Created Successfully!*\n\n` +
+        `*Realm authority (admin):*\n\`${realmAuthority.toBase58()}\`\n\n` +
+        `*Realm address:*\n\`${realmAddress.toBase58()}\`\n\n` +
+        `*Transaction:*\n[${signature}](${solscanUrl})`,
+      {
+        parse_mode: 'Markdown',
+        link_preview_options: { is_disabled: true },
+      }
+    );
+  } catch (error: any) {
+    console.error('Failed to create DAO realm:', error);
+    await ctx.reply(
+      `❌ Failed to create DAO realm:\n\`${error?.message || String(error)}\``,
+      { parse_mode: 'Markdown' }
+    );
+  }
+};

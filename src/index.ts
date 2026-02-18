@@ -16,6 +16,7 @@ import { handleStart } from "./commands/start";
 import {  executedSwapProposal } from "./commands/swap";
 import { executedliquidity } from "./commands/liquidity";
 import { handleWallet, handleWithdrawWallet, handleExportKeyWallet } from "./commands/wallet";
+import { handleCreateDaoCommand } from "./commands/dao";
 
 import { 
     handleViewPositions, 
@@ -73,6 +74,7 @@ bot.telegram.setMyCommands([
   { command: 'add_liquidity', description: 'Add liquidity proposal' },
   { command: 'view_positions', description: 'View liquidity positions' },
   { command: 'close_position', description: 'Close a position' },
+  { command: 'createdao', description: 'Create a governance realm (admin only)' },
   { command: 'cancel', description: 'Cancel current operation and reset' }
 ]).catch(err => console.error('Failed to set bot commands:', err));
 
@@ -82,6 +84,7 @@ bot.command("cancel", async (ctx) => {
 });
 
 bot.command("start", handleStart);
+bot.command("createdao", admin_middleware, handleCreateDaoCommand);
 bot.command("swap", admin_middleware, async (ctx) => {
   await ctx.scene.enter('propose_wizard');
 });
