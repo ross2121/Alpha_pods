@@ -45,12 +45,12 @@ import {
       programId,
       programVersion,
       realmName,
-      realmAuthority, // group admin (Privy wallet) as realm authority
+      realmAuthority, 
       communityMint,
-      realmAuthority, // admin also acts as payer
+      realmAuthority, 
       councilMint,
       MintMaxVoteWeightSource.FULL_SUPPLY_FRACTION,
-      new BN(1) as any // min community weight to create governance
+      new BN(1) as any 
     );
   
     const tx = new Transaction().add(...instructions);

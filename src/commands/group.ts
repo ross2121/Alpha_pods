@@ -106,8 +106,9 @@ export const handleMyChatMember = async (ctx: any) => {
             // const keypair=Keypair.fromSecretKey(key);
             const chatId = ctx.chat?.id || ctx.myChatMember?.chat?.id;
             console.log("Chat ID:", chatId);
+            console.log(`[handleMyChatMember] Calling init with user.id=${creator.id}, chatId=${chatId}`);
             
-            await init(admin.user.id, chatId);
+            await init(Number(creator.id), BigInt(chatId));
 
         }
     }

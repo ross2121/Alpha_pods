@@ -29,16 +29,28 @@ export const init = async (
     userid:number,
     chat_id:BigInt
 ) => {
+    console.log(`[init] Starting escrow initialization for userid=${userid}, chatId=${chat_id}`);
     try {
       const user=await prisma.user.findUnique({
         where:{
-          id:userid
+          id:BigInt(userid)
         }
       })
       if(!user){
-          console.log("No user found");
+          console.log(`[init] ERROR: No user found with id=${userid}`);
          return;
       }
+      console.log(`[init] User found: ${user.telegram_id}, Public Key: ${user.public_key}`);
+      
+      // Check if escrow already exists for this chat
+      const existingEscrow = await prisma.escrow.findUnique({
+        where: { chatId: Number(chat_id) }
+      });
+      if (existingEscrow) {
+        console.log(`[init] Escrow already exists for chatId=${chat_id}, skipping creation`);
+        return;
+      }
+      
       const admin_publickey=new PublicKey(user.public_key);
         const escrowSeed =Math.floor(Math.random() * 1000000)
         const [escrowPda, escrowBump] = PublicKey.findProgramAddressSync(
@@ -55,10 +67,11 @@ export const init = async (
             escrowPda.toBuffer()
           ],program.programId
         )
-        console.log("Escrow PDA:", escrowPda.toBase58());
-        console.log("vault pda",vault_pda);
-        console.log("Escrow Bump:", escrowBump);
-        console.log("Seed:", escrowSeed);
+        console.log(`[init] Escrow PDA: ${escrowPda.toBase58()}`);
+        console.log(`[init] Vault PDA: ${vault_pda.toBase58()}`);
+        console.log(`[init] Escrow Bump: ${escrowBump}`);
+        console.log(`[init] Seed: ${escrowSeed}`);
+        
         const tx = await program.methods
             .initialize(new anchor.BN(escrowSeed))
             .accountsStrict({
@@ -69,48 +82,53 @@ export const init = async (
             })
             .transaction()
         
-       const amount=0.1 * LAMPORTS_PER_SOL;
        try{
         const { blockhash } = await connection.getLatestBlockhash();
         tx.recentBlockhash = blockhash;
 
-      tx.feePayer = new PublicKey(superadmin.publicKey);
-      tx.partialSign(superadmin);
-      const privy = await privyauthorization(BigInt(userid));
-      if(!privy){
-        console.log("Not able to authorize wallet");
-        return;
-      }
-      const sign = await privy.walletApi.solana.signAndSendTransaction({
-          walletId: user.Privy_id,
-          transaction: tx,
-          caip2: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" 
-        });
-    
-      console.log("sign",sign);
-      await prisma.escrow.create({
-        data:{
-            escrow_pda:escrowPda.toString(),
-            seed:escrowSeed.toString(),
-            chatId: Number(chat_id),
-             creator_pubkey:admin_publickey.toString()
-
+        tx.feePayer = new PublicKey(superadmin.publicKey);
+        tx.partialSign(superadmin);
+        
+        console.log(`[init] Authorizing Privy wallet for user ${userid}`);
+        const privy = await privyauthorization(BigInt(userid));
+        if(!privy){
+          console.log(`[init] ERROR: Not able to authorize Privy wallet for user ${userid}`);
+          return;
         }
-       })
-    }catch(e:any){
-        console.log("Error creating privy",e);
+        console.log(`[init] Privy authorized, signing transaction with wallet ${user.Privy_id}`);
+        
+        const sign = await privy.walletApi.solana.signAndSendTransaction({
+            walletId: user.Privy_id,
+            transaction: tx,
+            caip2: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" 
+          });
+      
+        console.log(`[init] Transaction signed and sent: ${sign}`);
+        console.log(`[init] Creating escrow record in database...`);
+        
+        await prisma.escrow.create({
+          data:{
+              escrow_pda:escrowPda.toString(),
+              seed:escrowSeed.toString(),
+              chatId: Number(chat_id),
+              creator_pubkey:admin_publickey.toString()
+          }
+        });
+        
+        console.log(`[init] ✅ Escrow created successfully! PDA: ${escrowPda.toBase58()}, ChatId: ${chat_id}`);
+        return { success: true, escrowPda: escrowPda.toBase58(), signature: sign };
+        
+      }catch(e:any){
+        console.error(`[init] ERROR in transaction signing/creation:`, e);
+        console.error(`[init] Error stack:`, e.stack);
         return;
       }
-
-       
-        console.log("Initialize transaction signature:", tx);
         
-        
-    } catch (error) {
-        console.error("Error initializing escrow:", error);
+    } catch (error: any) {
+        console.error(`[init] ERROR initializing escrow:`, error);
+        console.error(`[init] Error stack:`, error.stack);
         return {
             success: false,
-    
         };
     }
 };

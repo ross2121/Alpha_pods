@@ -179,13 +179,16 @@ export const checkadminfund=async(proposal_id:string,bot:any)=>{
             }
         }
     });
-    const connection=new Connection("https://api.devnet.solana.com");
-    const amount=await connection.getBalance(new PublicKey(admin.public_key));
-      const sol=amount/LAMPORTS_PER_SOL;
-      if(sol<1){
-      setTimeout(async()=>{
-const shortfall=1-sol;
-        const fundingMessage = `
+    const url = process.env.RPC_URL || "https://api.devnet.solana.com";
+    const connection = new Connection(url);
+    const amount = await connection.getBalance(new PublicKey(admin.public_key));
+    const sol = amount / LAMPORTS_PER_SOL;
+    
+    console.log(`[checkadminfund] Admin wallet: ${admin.public_key}, Balance: ${sol} SOL, Required: 1 SOL`);
+    
+    if (sol < 1) {
+      const shortfall = 1 - sol;
+      const fundingMessage = `
 🚨 **Funding Required for Approved Proposal** 🚨
 
 The proposal you voted "Yes" for has been approved! However, your wallet needs more SOL to participate.
@@ -193,7 +196,7 @@ The proposal you voted "Yes" for has been approved! However, your wallet needs m
 **Proposal Details:**
 • Mint: \`${proposal!.mint}\`
 • Required Amount: ${proposal!.amount} SOL
-• Your Current Balance: ${deposits?.amount.toFixed(4)} SOL
+• Your Current Balance: ${sol.toFixed(4)} SOL
 • Shortfall: ${shortfall.toFixed(4)} SOL
 
 **Your Wallet Address:**
@@ -208,40 +211,49 @@ You can get SOL from exchanges like:
 • Or any other Solana-compatible exchange
 
 **Note:** This proposal has already been approved by the community vote!
-            `;
-            try {
-                await bot.telegram.sendMessage(
-                    parseInt(admin.telegram_id),
-                    fundingMessage,
-                    { parse_mode: 'Markdown' }
-                );
-                console.log(`Funding message sent to user ${admin.telegram_id}`);
-            } catch (error) {
-                console.error(`Failed to send funding message to user ${admin.telegram_id}:`, error);
-            }
-            
-      },10000)
+      `;
+      try {
+        await bot.telegram.sendMessage(
+          parseInt(admin.telegram_id),
+          fundingMessage,
+          { parse_mode: 'Markdown' }
+        );
+        console.log(`Funding message sent to user ${admin.telegram_id}`);
+      } catch (error) {
+        console.error(`Failed to send funding message to user ${admin.telegram_id}:`, error);
+      }
+      console.log(`[checkadminfund] Admin has insufficient funds: ${sol} SOL < 1 SOL`);
+      return false;
     }
-    const updated_sol=await connection.getBalance(new PublicKey(admin.public_key));
-    const sols=updated_sol/LAMPORTS_PER_SOL;
-    if(sols<1){
-        console.log("dadsadsd 1")
-       return false;
-    }
-    if(!deposits){
-        console.log("deposit")
-        // const seretkey=decryptPrivateKey(admin.encrypted_private_key,admin.encryption_iv);
-        // const keypair=Keypair.fromSecretKey(seretkey);
-        await deposit(1,proposal.chatId,admin.id);
+    console.log(`[checkadminfund] Checking deposits. Current deposit: ${deposits?.amount || 0} SOL`);
+    
+    if (!deposits) {
+      console.log(`[checkadminfund] No deposit found, creating deposit of 1 SOL`);
+      try {
+        await deposit(1, proposal.chatId, admin.id);
+        console.log(`[checkadminfund] Deposit created successfully`);
         return true;
+      } catch (error: any) {
+        console.error(`[checkadminfund] Failed to create deposit:`, error);
+        return false;
+      }
     }
-    if(deposits?.amount<1){
-        const amount=1-deposits.amount;
-        console.log("amount",amount);
-       
-        await deposit(amount,proposal.chatId,admin.id);
+    
+    if (deposits.amount < 1) {
+      const amount = 1 - deposits.amount;
+      console.log(`[checkadminfund] Deposit insufficient (${deposits.amount} SOL), adding ${amount} SOL`);
+      try {
+        await deposit(amount, proposal.chatId, admin.id);
+        console.log(`[checkadminfund] Deposit topped up successfully`);
+        return true;
+      } catch (error: any) {
+        console.error(`[checkadminfund] Failed to top up deposit:`, error);
+        return false;
+      }
     }
-     return true;
+    
+    console.log(`[checkadminfund] Admin has sufficient funds: wallet=${sol} SOL, deposit=${deposits.amount} SOL`);
+    return true;
 }
 export const deductamount=async(proposal_id:string,amounts:number,isdepositing:boolean)=>{
     const prisma=new PrismaClient();
