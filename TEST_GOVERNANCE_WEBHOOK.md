@@ -120,11 +120,82 @@ After running the curl test, you should have:
 
 ---
 
+---
+
+## Step 3: Testing ProposalVoted Events
+
+### Test Vote Event
+
+**Prerequisites:** You need a proposal already indexed (from Step 2 above).
+
+```bash
+curl -X POST http://localhost:8000/webhooks/governance \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "PROPOSAL_VOTED",
+    "proposal": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "voter": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+    "vote": 1,
+    "slot": 123456789,
+    "signature": "5j7s8K9mN2pQrS4tU6vW8xY0zA1bC3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW3xY5z"
+  }'
+```
+
+**Expected result:**
+- HTTP response: `{ ok: true, indexed: true }`
+- Server logs: `✓ Indexed ProposalVoted: ... voted Yes on ...`
+- Database: New `GovernanceVote` record created
+- If proposal was `Draft`, it's updated to `Voting` state
+
+### Test Different Vote Types
+
+**Vote "No":**
+```bash
+curl -X POST http://localhost:8000/webhooks/governance \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "PROPOSAL_VOTED",
+    "proposal": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "voter": "AnotherVoterPubkey123456789012345678901234567890",
+    "vote": 0,
+    "slot": 123456790,
+    "signature": "AnotherTxSignature123456789012345678901234567890"
+  }'
+```
+
+**Vote "Abstain" (numeric 2 or string):**
+```bash
+curl -X POST http://localhost:8000/webhooks/governance \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "PROPOSAL_VOTED",
+    "proposal": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "voter": "YetAnotherVoterPubkey123456789012345678901234567",
+    "vote": 2,
+    "slot": 123456791,
+    "signature": "YetAnotherTxSignature123456789012345678901234567"
+  }'
+```
+
+### Verify Votes in Database
+
+```sql
+-- Check all votes for a proposal
+SELECT 
+  gv.*,
+  gp.title as proposal_title,
+  gp.state as proposal_state
+FROM "GovernanceVote" gv
+JOIN "GovernanceProposal" gp ON gv."proposalId" = gp.id
+WHERE gp.proposal_pubkey = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU';
+```
+
+---
+
 ## Next Steps (After You Approve)
 
 Once this works, we'll add:
-- **ProposalVoted** event parsing → creates `GovernanceVote` records
-- **ProposalExecuted/Cancelled** → updates proposal state
+- **ProposalExecuted/Cancelled** → updates proposal state to Executed/Cancelled
 - **RealmCreated** event parsing
 - Enrichment: fetch full proposal details from on-chain (title, description, instructions)
 
