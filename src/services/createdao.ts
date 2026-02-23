@@ -21,18 +21,14 @@ import {
     realmName: string,
     realmAuthority: PublicKey,
     userId: bigint,
-    privyWalletId: string
+    privyWalletId: string,
+    communityMint: PublicKey,
+    councilMint?: PublicKey
   ) => {
     const connection = new Connection(
       process.env.RPC_URL || 'https://api.devnet.solana.com',
       { commitment: 'confirmed' }
     );
-  
-    const communityMint = new PublicKey(
-      'AuzCK8jdZQ9Dvud9DnFbZ8KuUeuhqZJ2BDoAwzGEmEWd'
-    );
-    const councilMint = undefined;
-  
     const programId = new PublicKey(
       'GovER5Lthms3bLBqWub97yVrMmEogzX7xNjdXpPPCVZw'
     );
@@ -54,19 +50,24 @@ import {
     );
   
     const tx = new Transaction().add(...instructions);
-    const { blockhash } = await connection.getLatestBlockhash();
-    tx.recentBlockhash = blockhash;
     tx.feePayer = realmAuthority;
-     console.log("user",userId);
+
+    const rpcUrl = process.env.RPC_URL || 'https://api.devnet.solana.com';
+   
+    const caip2 = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+
     const privy = await privyauthorization(userId);
     if (!privy) {
       throw new Error('Not able to authorize Privy wallet');
     }
-  
+
+    const { blockhash } = await connection.getLatestBlockhash('finalized');
+    tx.recentBlockhash = blockhash;
+
     const rpc = await privy.walletApi.solana.signAndSendTransaction({
       walletId: privyWalletId,
       transaction: tx,
-      caip2: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
+      caip2:"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
     });
   
     const signature =

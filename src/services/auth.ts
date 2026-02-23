@@ -4,6 +4,7 @@ import bs58 from "bs58";
 import * as jose from 'jose';
 import { PrivyClient } from "@privy-io/server-auth";
 import { PrismaClient } from "@prisma/client";
+
 const algorithm = 'aes-256-cbc';
 
 const getSigningKeypair = (): Keypair => {
@@ -81,51 +82,49 @@ export const privytoken=async()=>{
   const privy=new PrivyClient(appId,appsecret)
   return privy;
 }
-export const privyauthorization=async(userid:bigint)=>{
-  const privy=await privytoken();
-  if(!privy){
+export const privyauthorization = async (userid: bigint) => {
+  const privy = await privytoken();
+  if (!privy) {
     console.log("no Privy found");
     return;
   }
-  
-  // Get user from database to find their telegram_id (custom auth ID)
+
   const prisma = new PrismaClient();
   const user = await prisma.user.findUnique({
-    where: { id: userid }
+    where: { id: userid },
   });
-  
   if (!user) {
-    console.log(`[privyauthorization] User not found with id: ${userid}`);
+    console.error(`[privyauthorization] User not found: ${userid}`);
     return;
   }
-  
+
+  const telegramId = user.telegram_id;
+
+  if (!user.Privy_id) {
+    console.error(`[privyauthorization] User ${telegramId} has no Privy wallet`);
+    return;
+  }
+
   try {
-    // Get the Privy user ID from the wallet
-    // The wallet ownerId is the Privy user ID
-    const wallet = await privy.walletApi.getWallet({ id: user.Privy_id });
-    const privyUserId = wallet.ownerId;
+    // Skip importUser - user was already imported in add_member when they joined
+    // Calling it again causes timeout; JWT + generateUserSigner is sufficient
+    const userJwt = await getjwt(telegramId);
+    console.log(`[privyauthorization] Generated JWT for subject: ${telegramId}`);
     
-    if (!privyUserId) {
-      console.error(`[privyauthorization] Wallet ${user.Privy_id} has no ownerId`);
-      return;
-    }
-    
-    console.log(`[privyauthorization] Privy User ID: ${privyUserId}, Wallet ID: ${user.Privy_id}`);
-    
-    // Generate JWT with Privy user ID as subject (not database user ID)
-    // Privy user ID is already a string, no need to convert to BigInt
-    const token = await getjwt(privyUserId);
-    console.log(`[privyauthorization] Token generated for Privy user ID: ${privyUserId}`);
-    
-    const {authorizationKey} = await privy.walletApi.generateUserSigner({
-      userJwt: token
+    // 3. Generate the user signer using the valid Custom JWT
+    const { authorizationKey } = await privy.walletApi.generateUserSigner({
+      userJwt: userJwt
     });
+    
+    // 4. Update the client
     privy.walletApi.updateAuthorizationKey(authorizationKey);
-    console.log(`[privyauthorization] Successfully authorized Privy wallet`);
+    console.log(`[privyauthorization] Successfully generated authorization keys`);
+    
     return privy;
+
   } catch (error: any) {
     console.error(`[privyauthorization] Error:`, error.message || error);
-    console.error(`[privyauthorization] Stack:`, error.stack);
+    if (error.stack) console.error(error.stack);
     return;
   }
 }

@@ -16,7 +16,7 @@ import { handleStart } from "./commands/start";
 import {  executedSwapProposal } from "./commands/swap";
 import { executedliquidity } from "./commands/liquidity";
 import { handleWallet, handleWithdrawWallet, handleExportKeyWallet } from "./commands/wallet";
-import { handleCreateDaoCommand } from "./commands/dao";
+import { handleCreateDaoCommand, createDaoWizard } from "./commands/dao";
 
 import { 
     handleViewPositions, 
@@ -31,8 +31,13 @@ dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
 const app=express();
 const proposeWizard = createProposeWizard(bot);
-const liquidtywizard=createliqudityWizards(bot);
-const stage = new Scenes.Stage<MyContext>([proposeWizard, liquidtywizard as any]);
+const liquidtywizard = createliqudityWizards(bot);
+const daoWizard = createDaoWizard();
+const stage = new Scenes.Stage<MyContext>([
+  proposeWizard,
+  liquidtywizard as any,
+  daoWizard as any,
+]);
 
 app.use(express.json());
 
