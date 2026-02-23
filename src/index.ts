@@ -26,6 +26,7 @@ import {
 import { executeClosePosition } from "./commands/closePosition";
 import { Keypair } from "@solana/web3.js";
 import { getjsks } from "./services/auth";
+import { handleGovernanceWebhook } from "./services/governanceIndexer";
 import { timeStamp } from "console";
 dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
@@ -44,8 +45,13 @@ app.use(express.json());
 
 app.get("/health", (req, res) => {
   console.log("Health check hit!");
-  res.json({status:"ok",timeStamp:new Date})
   res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Helius SPL Governance webhook endpoint (Phase 1: logging only)
+app.post("/webhooks/governance", async (req, res) => {
+  console.log("[webhooks/governance] Hit");
+  return handleGovernanceWebhook(req, res);
 });
 
 app.get("/jks", async (req: any, res: any) => {
