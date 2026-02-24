@@ -2,8 +2,16 @@ import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { PublicKey, Connection } from "@solana/web3.js";
 import { GovernanceProposalState, ProposalCategory, VoteSide } from "@prisma/client";
+import { Telegraf } from "telegraf";
 
 const prisma = new PrismaClient();
+
+// Telegram bot instance (will be set from index.ts)
+let telegramBot: Telegraf<any> | null = null;
+
+export const setTelegramBot = (bot: Telegraf<any>) => {
+  telegramBot = bot;
+};
 
 // Basic shape for Helius webhook payloads
 type HeliusWebhookPayload = {
@@ -91,6 +99,43 @@ const parseProposalCreated = async (event: any, cluster: string = "devnet") => {
     });
 
     console.log(`[governance-indexer] ✓ Indexed ProposalCreated: ${proposalPubkey} in realm ${realmPubkey}`);
+    
+    // Send Telegram notification
+    if (telegramBot) {
+      try {
+        const solscanUrl = `https://solscan.io/proposal/${proposalPubkey}?cluster=${cluster}`;
+        const message = `🗳️ **New Governance Proposal Created**\n\n` +
+          `**Realm:** ${realm.name}\n` +
+          `**Title:** ${title}\n` +
+          `**Proposal:** \`${proposalPubkey.slice(0, 8)}...${proposalPubkey.slice(-8)}\`\n` +
+          `**Category:** ${category}\n\n` +
+          `[View on Solscan](${solscanUrl})`;
+        
+        // Send to all users subscribed to this realm
+        const subscriptions = await prisma.subscription.findMany({
+          where: {
+            realmId: realm.id,
+            notify_on_new_proposal: true,
+          },
+          include: { user: true },
+        });
+        
+        for (const sub of subscriptions) {
+          try {
+            await telegramBot.telegram.sendMessage(
+              parseInt(sub.user.telegram_id),
+              message,
+              { parse_mode: 'Markdown', link_preview_options: { is_disabled: true } }
+            );
+          } catch (err: any) {
+            console.error(`[governance-indexer] Failed to notify user ${sub.user.telegram_id}:`, err.message);
+          }
+        }
+      } catch (notifError: any) {
+        console.error("[governance-indexer] Error sending Telegram notification:", notifError);
+      }
+    }
+    
     return proposal;
   } catch (error: any) {
     console.error("[governance-indexer] Error parsing ProposalCreated:", error);
@@ -165,9 +210,7 @@ const parseProposalVoted = async (event: any, cluster: string = "devnet") => {
       }
     }
 
-    // Create or update vote (upsert by proposal + voter to avoid duplicates)
-    // Note: Prisma doesn't have unique constraint on (proposalId, voter_pubkey),
-    // so we check if vote exists first
+  
     const existingVote = await prisma.governanceVote.findFirst({
       where: {
         proposalId: proposal.id,
@@ -201,11 +244,245 @@ const parseProposalVoted = async (event: any, cluster: string = "devnet") => {
     }
 
     console.log(`[governance-indexer] ✓ Indexed ProposalVoted: ${voterPubkey} voted ${voteSide} on ${proposalPubkey}`);
+    
+    // Send Telegram notification (optional - can be disabled for high-volume votes)
+    if (telegramBot) {
+      try {
+        const voteEmoji = voteSide === VoteSide.Yes ? "✅" : voteSide === VoteSide.No ? "❌" : "⚪";
+        const message = `${voteEmoji} **New Vote Cast**\n\n` +
+          `**Proposal:** ${proposal.title}\n` +
+          `**Voter:** \`${voterPubkey.slice(0, 8)}...${voterPubkey.slice(-8)}\`\n` +
+          `**Vote:** ${voteSide}\n` +
+          `**Proposal:** \`${proposalPubkey.slice(0, 8)}...${proposalPubkey.slice(-8)}\``;
+        
+        // Send to users subscribed to this realm (only if they want vote notifications)
+        const subscriptions = await prisma.subscription.findMany({
+          where: {
+            realmId: proposal.realmId,
+            notify_on_new_proposal: true, // Using same flag for now
+          },
+          include: { user: true },
+        });
+        
+        for (const sub of subscriptions) {
+          try {
+            await telegramBot.telegram.sendMessage(
+              parseInt(sub.user.telegram_id),
+              message,
+              { parse_mode: 'Markdown' }
+            );
+          } catch (err: any) {
+            console.error(`[governance-indexer] Failed to notify user ${sub.user.telegram_id}:`, err.message);
+          }
+        }
+      } catch (notifError: any) {
+        console.error("[governance-indexer] Error sending Telegram notification:", notifError);
+      }
+    }
+    
     return vote;
   } catch (error: any) {
     console.error("[governance-indexer] Error parsing ProposalVoted:", error);
     throw error;
   }
+};
+
+
+const parseProposalStateChange = async (event: any, newState: GovernanceProposalState, cluster: string = "devnet") => {
+  try {
+    const proposalPubkey = event.proposal || event.proposalPubkey;
+    
+    if (!proposalPubkey) {
+      console.warn("[governance-indexer] Missing proposal pubkey in state change event:", event);
+      return null;
+    }
+
+    // Validate pubkey
+    try {
+      new PublicKey(proposalPubkey);
+    } catch (e) {
+      console.error("[governance-indexer] Invalid pubkey format:", e);
+      return null;
+    }
+
+    // Find and update the proposal
+    const proposal = await prisma.governanceProposal.findUnique({
+      where: { proposal_pubkey: proposalPubkey },
+      include: { realm: true },
+    });
+
+    if (!proposal) {
+      console.warn(`[governance-indexer] Proposal ${proposalPubkey} not found in DB. Skipping state update.`);
+      return null;
+    }
+
+    // Update proposal state
+    const updated = await prisma.governanceProposal.update({
+      where: { id: proposal.id },
+      data: { state: newState },
+    });
+
+    console.log(`[governance-indexer] ✓ Updated proposal ${proposalPubkey} state to ${newState}`);
+    
+    // Send Telegram notification
+    if (telegramBot) {
+      try {
+        const stateEmoji = newState === GovernanceProposalState.Executed ? "✅" : 
+                          newState === GovernanceProposalState.Defeated ? "❌" : 
+                          newState === GovernanceProposalState.Cancelled ? "🚫" : "📊";
+        const stateText = newState === GovernanceProposalState.Executed ? "EXECUTED" :
+                         newState === GovernanceProposalState.Defeated ? "DEFEATED" :
+                         newState === GovernanceProposalState.Cancelled ? "CANCELLED" : newState;
+        
+        const solscanUrl = `https://solscan.io/proposal/${proposalPubkey}?cluster=${cluster}`;
+        const message = `${stateEmoji} **Proposal ${stateText}**\n\n` +
+          `**Realm:** ${proposal.realm.name}\n` +
+          `**Title:** ${proposal.title}\n` +
+          `**Proposal:** \`${proposalPubkey.slice(0, 8)}...${proposalPubkey.slice(-8)}\`\n\n` +
+          `[View on Solscan](${solscanUrl})`;
+        
+        // Send to subscribed users
+        const subscriptions = await prisma.subscription.findMany({
+          where: {
+            realmId: proposal.realmId,
+            notify_on_final_result: true,
+          },
+          include: { user: true },
+        });
+        
+        for (const sub of subscriptions) {
+          try {
+            await telegramBot.telegram.sendMessage(
+              parseInt(sub.user.telegram_id),
+              message,
+              { parse_mode: 'Markdown', link_preview_options: { is_disabled: true } }
+            );
+          } catch (err: any) {
+            console.error(`[governance-indexer] Failed to notify user ${sub.user.telegram_id}:`, err.message);
+          }
+        }
+      } catch (notifError: any) {
+        console.error("[governance-indexer] Error sending Telegram notification:", notifError);
+      }
+    }
+    
+    return updated;
+  } catch (error: any) {
+    console.error("[governance-indexer] Error parsing proposal state change:", error);
+    throw error;
+  }
+};
+
+/**
+ * Helper: simulate full governance notification flow for a Telegram user,
+ * without needing curl / external webhooks.
+ *
+ * - Ensures Realm + Proposal exist (using fixed test pubkeys)
+ * - Ensures Subscription exists for the user on that realm
+ * - Triggers:
+ *    - ProposalCreated
+ *    - ProposalVoted
+ *    - ProposalExecuted
+ */
+export const simulateGovernanceNotificationsForTelegramUser = async (telegramId: string) => {
+  if (!telegramId) {
+    throw new Error("Missing telegramId");
+  }
+
+  const cluster = process.env.RPC_URL?.includes("devnet") ? "devnet" : "mainnet-beta";
+
+  // 1) Ensure user exists
+  const user = await prisma.user.findUnique({
+    where: { telegram_id: telegramId },
+  });
+
+  if (!user) {
+    throw new Error(
+      `No user found with telegram_id=${telegramId}. Please /start the bot first so your user is created.`
+    );
+  }
+
+  // 2) Fixed test addresses (only for local testing)
+  const TEST_REALM_PUBKEY = "FMEWULPSGR1BKVJK4K7xTBaG7EQ5fawwrEwBmBTmyTuK";
+  const TEST_PROPOSAL_PUBKEY = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
+  const TEST_GOVERNANCE_PUBKEY = "GovER5Lthms3bLBqWub97yVrMmEogzX7xNjdXpPPCVZw";
+
+  // 3) Realm + Proposal (via parseProposalCreated so DB and notifications stay consistent)
+  await parseProposalCreated(
+    {
+      type: "PROPOSAL_CREATED",
+      proposal: TEST_PROPOSAL_PUBKEY,
+      realm: TEST_REALM_PUBKEY,
+      governance: TEST_GOVERNANCE_PUBKEY,
+      realmName: "Test DAO (Telegram)",
+      title: "Test Proposal from Telegram",
+      description: "This is a test proposal triggered from /test_alerts.",
+    },
+    cluster
+  );
+
+  // Fetch realm and proposal that were just ensured
+  const realm = await prisma.realm.findUnique({ where: { pubkey: TEST_REALM_PUBKEY } });
+  const proposal = await prisma.governanceProposal.findUnique({
+    where: { proposal_pubkey: TEST_PROPOSAL_PUBKEY },
+  });
+
+  if (!realm || !proposal) {
+    throw new Error("Failed to create or load test realm/proposal");
+  }
+
+  // 4) Ensure Subscription exists for this user + realm
+  let subscription = await prisma.subscription.findFirst({
+    where: {
+      userId: user.id,
+      realmId: realm.id,
+    },
+  });
+
+  if (!subscription) {
+    subscription = await prisma.subscription.create({
+      data: {
+        userId: user.id,
+        realmId: realm.id,
+        notify_on_new_proposal: true,
+        notify_on_final_result: true,
+      },
+    });
+  } else {
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        notify_on_new_proposal: true,
+        notify_on_final_result: true,
+      },
+    });
+  }
+
+  // 5) Simulate a vote
+  const fakeVoter = (user as any).wallet_pubkey || (user as any).public_key || "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
+
+  await parseProposalVoted(
+    {
+      type: "PROPOSAL_VOTED",
+      proposal: TEST_PROPOSAL_PUBKEY,
+      voter: fakeVoter,
+      vote: 1,
+      slot: 123456789,
+      signature: `test-${Date.now()}`,
+    },
+    cluster
+  );
+
+  // 6) Simulate execution (final result)
+  await parseProposalStateChange(
+    {
+      proposal: TEST_PROPOSAL_PUBKEY,
+    },
+    GovernanceProposalState.Executed,
+    cluster
+  );
+
+  return { realmPubkey: TEST_REALM_PUBKEY, proposalPubkey: TEST_PROPOSAL_PUBKEY };
 };
 
 /**
@@ -214,7 +491,8 @@ const parseProposalVoted = async (event: any, cluster: string = "devnet") => {
  * Handles:
  * - ProposalCreated → creates/updates Realm + GovernanceProposal
  * - ProposalVoted → creates GovernanceVote records
- * - (Future: ProposalExecuted, ProposalCancelled, etc.)
+ * - ProposalExecuted → updates proposal state to Executed
+ * - ProposalCancelled → updates proposal state to Cancelled
  */
 export const handleGovernanceWebhook = async (req: Request, res: Response) => {
   const body = req.body as HeliusWebhookPayload | HeliusWebhookPayload[];
@@ -234,6 +512,12 @@ export const handleGovernanceWebhook = async (req: Request, res: Response) => {
             await parseProposalCreated(event, cluster);
           } else if (event.type === "PROPOSAL_VOTED" || event.type === "ProposalVoted") {
             await parseProposalVoted(event, cluster);
+          } else if (event.type === "PROPOSAL_EXECUTED" || event.type === "ProposalExecuted") {
+            await parseProposalStateChange(event, GovernanceProposalState.Executed, cluster);
+          } else if (event.type === "PROPOSAL_CANCELLED" || event.type === "ProposalCancelled") {
+            await parseProposalStateChange(event, GovernanceProposalState.Cancelled, cluster);
+          } else if (event.type === "PROPOSAL_DEFEATED" || event.type === "ProposalDefeated") {
+            await parseProposalStateChange(event, GovernanceProposalState.Defeated, cluster);
           }
         }
       }
@@ -243,6 +527,12 @@ export const handleGovernanceWebhook = async (req: Request, res: Response) => {
           await parseProposalCreated(payload, cluster);
         } else if (payload.type === "PROPOSAL_VOTED" || payload.type === "ProposalVoted") {
           await parseProposalVoted(payload, cluster);
+        } else if (payload.type === "PROPOSAL_EXECUTED" || payload.type === "ProposalExecuted") {
+          await parseProposalStateChange(payload, GovernanceProposalState.Executed, cluster);
+        } else if (payload.type === "PROPOSAL_CANCELLED" || payload.type === "ProposalCancelled") {
+          await parseProposalStateChange(payload, GovernanceProposalState.Cancelled, cluster);
+        } else if (payload.type === "PROPOSAL_DEFEATED" || payload.type === "ProposalDefeated") {
+          await parseProposalStateChange(payload, GovernanceProposalState.Defeated, cluster);
         }
       }
     }

@@ -192,10 +192,65 @@ WHERE gp.proposal_pubkey = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU';
 
 ---
 
+---
+
+## Step 4: Testing ProposalExecuted/Cancelled Events
+
+### Test ProposalExecuted
+
+```bash
+curl -X POST http://localhost:8000/webhooks/governance \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "PROPOSAL_EXECUTED",
+    "proposal": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+  }'
+```
+
+**Expected result:**
+- HTTP response: `{ ok: true, indexed: true }`
+- Server logs: `✓ Updated proposal ... state to Executed`
+- Database: Proposal state updated to `Executed`
+- **Telegram notification sent** (if user is subscribed)
+
+### Test ProposalCancelled
+
+```bash
+curl -X POST http://localhost:8000/webhooks/governance \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "PROPOSAL_CANCELLED",
+    "proposal": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+  }'
+```
+
+### Test ProposalDefeated
+
+```bash
+curl -X POST http://localhost:8000/webhooks/governance \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "PROPOSAL_DEFEATED",
+    "proposal": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+  }'
+```
+
+---
+
+## Telegram Notifications Testing
+
+**See `TEST_TELEGRAM_NOTIFICATIONS.md` for complete guide on:**
+- How to create subscriptions
+- How to test notifications in Telegram
+- Troubleshooting notification issues
+
+---
+
 ## Next Steps (After You Approve)
 
 Once this works, we'll add:
-- **ProposalExecuted/Cancelled** → updates proposal state to Executed/Cancelled
 - **RealmCreated** event parsing
+- **Telegram commands** for subscription management (`/subscribe`, `/alerts`)
 - Enrichment: fetch full proposal details from on-chain (title, description, instructions)
+- Filter notifications by amount (only notify if `estimated_value_usd >= X`)
 

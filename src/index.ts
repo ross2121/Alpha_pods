@@ -26,18 +26,36 @@ import {
 import { executeClosePosition } from "./commands/closePosition";
 import { Keypair } from "@solana/web3.js";
 import { getjsks } from "./services/auth";
-import { handleGovernanceWebhook } from "./services/governanceIndexer";
+import { handleGovernanceWebhook, setTelegramBot } from "./services/governanceIndexer";
+import { handleTestGovernanceAlerts } from "./commands/governanceTest";
+import { handleAlertsCommand, handleAlertsToggleAction } from "./commands/subscriptions";
+import {
+  createDepositPowerWizard,
+  createGovProposeWizard,
+  createSetupGovernanceWizard,
+  handleDepositPowerCommand,
+  handleGovProposeCommand,
+  handleGovVoteCommand,
+  handleSetupGovernanceCommand,
+} from "./commands/governanceRealms";
 import { timeStamp } from "console";
 dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
+setTelegramBot(bot); // Pass bot to governance indexer for notifications
 const app=express();
 const proposeWizard = createProposeWizard(bot);
 const liquidtywizard = createliqudityWizards(bot);
 const daoWizard = createDaoWizard();
+const depositPowerWizard = createDepositPowerWizard();
+const setupGovernanceWizard = createSetupGovernanceWizard();
+const govProposeWizard = createGovProposeWizard();
 const stage = new Scenes.Stage<MyContext>([
   proposeWizard,
   liquidtywizard as any,
   daoWizard as any,
+  depositPowerWizard,
+  setupGovernanceWizard,
+  govProposeWizard,
 ]);
 
 app.use(express.json());
@@ -86,6 +104,12 @@ bot.telegram.setMyCommands([
   { command: 'view_positions', description: 'View liquidity positions' },
   { command: 'close_position', description: 'Close a position' },
   { command: 'createdao', description: 'Create a governance realm (admin only)' },
+  { command: 'deposit_power', description: 'Deposit governance tokens for voting power' },
+  { command: 'setup_governance', description: 'Create governance + DAO treasury (admin only)' },
+  { command: 'gov_propose', description: 'Create an on-chain governance proposal' },
+  { command: 'gov_vote', description: 'Cast a Yes/No vote on a proposal (advanced)' },
+  { command: 'alerts', description: 'Manage governance alerts per realm' },
+  { command: 'test_alerts', description: 'Run a test of governance notifications' },
   { command: 'cancel', description: 'Cancel current operation and reset' }
 ]).catch(err => console.error('Failed to set bot commands:', err));
 
@@ -96,6 +120,12 @@ bot.command("cancel", async (ctx) => {
 
 bot.command("start", handleStart);
 bot.command("createdao", admin_middleware, handleCreateDaoCommand);
+bot.command("deposit_power", user_middleware, handleDepositPowerCommand);
+bot.command("setup_governance", admin_middleware, handleSetupGovernanceCommand);
+bot.command("gov_propose", user_middleware, handleGovProposeCommand);
+bot.command("gov_vote", user_middleware, handleGovVoteCommand);
+bot.command("alerts", user_middleware, handleAlertsCommand);
+bot.command("test_alerts", user_middleware, handleTestGovernanceAlerts);
 bot.command("swap", admin_middleware, async (ctx) => {
   await ctx.scene.enter('propose_wizard');
 });
@@ -108,6 +138,7 @@ bot.on('new_chat_members', handleNewChatMembers);
 bot.action(/vote:(yes|no):(.+)/, user_middleware,handleVote);
                     
 bot.action(/vote_liquidity:(yes|no):(.+)/, user_middleware, handleLiquidityVote);
+bot.action(/alerts_toggle:(.+)/, user_middleware, handleAlertsToggleAction);
 
 bot.action("add_liquidity", admin_middleware, async (ctx) => {
   await ctx.answerCbQuery();

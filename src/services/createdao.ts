@@ -52,10 +52,6 @@ import {
     const tx = new Transaction().add(...instructions);
     tx.feePayer = realmAuthority;
 
-    const rpcUrl = process.env.RPC_URL || 'https://api.devnet.solana.com';
-   
-    const caip2 = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
-
     const privy = await privyauthorization(userId);
     if (!privy) {
       throw new Error('Not able to authorize Privy wallet');
@@ -67,7 +63,7 @@ import {
     const rpc = await privy.walletApi.solana.signAndSendTransaction({
       walletId: privyWalletId,
       transaction: tx,
-      caip2:"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+      caip2: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
     });
   
     const signature =
