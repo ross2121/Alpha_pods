@@ -2,3 +2,20 @@ node_modules
 dist
 .env
 /src/generated/prisma
+
+# Dependencies
+node_modules/
+docs/node_modules/
+
+# Build output
+docs/.next/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+*.swp
