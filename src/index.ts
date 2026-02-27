@@ -27,8 +27,17 @@ import { executeClosePosition } from "./commands/closePosition";
 import { Keypair } from "@solana/web3.js";
 import { getjsks } from "./services/auth";
 import { handleGovernanceWebhook, setTelegramBot } from "./services/governanceIndexer";
+import { startGovernancePolling } from "./services/governancePoller";
+import { handleDelegatesCommand, handleDelegateToCommand } from "./commands/delegates";
 import { handleTestGovernanceAlerts } from "./commands/governanceTest";
 import { handleAlertsCommand, handleAlertsToggleAction } from "./commands/subscriptions";
+import {
+  handleAuthorityAlertCommand,
+  handleRealmsCommand,
+  handleSetAlertMinCommand,
+  handleSubscribeCommand,
+  handleUnsubscribeCommand,
+} from "./commands/realms";
 import {
   createDepositPowerWizard,
   createGovProposeWizard,
@@ -92,6 +101,8 @@ app.listen(port, () => {
     console.log("Superadmin", superadmin.publicKey.toString());
   }
   console.log("Server running on port", port);
+  // Start fallback governance polling job (for missed events)
+  startGovernancePolling();
 });
 
 bot.use(session());
@@ -108,8 +119,15 @@ bot.telegram.setMyCommands([
   { command: 'setup_governance', description: 'Create governance + DAO treasury (admin only)' },
   { command: 'gov_propose', description: 'Create an on-chain governance proposal' },
   { command: 'gov_vote', description: 'Cast a Yes/No vote on a proposal (advanced)' },
+  { command: 'realms', description: 'List indexed governance realms' },
+  { command: 'subscribe', description: 'Subscribe to a realm with optional USD filter' },
+  { command: 'unsubscribe', description: 'Unsubscribe from a realm' },
+  { command: 'set_alert_min', description: 'Set min USD threshold for realm alerts' },
+  { command: 'authority_alert', description: 'Turn authority-change alerts on/off for a realm' },
   { command: 'alerts', description: 'Manage governance alerts per realm' },
   { command: 'test_alerts', description: 'Run a test of governance notifications' },
+  { command: 'delegates', description: 'Show top delegates for a realm' },
+  { command: 'delegate_to', description: 'Delegate your voting power to a wallet for a realm' },
   { command: 'cancel', description: 'Cancel current operation and reset' }
 ]).catch(err => console.error('Failed to set bot commands:', err));
 
@@ -124,8 +142,15 @@ bot.command("deposit_power", user_middleware, handleDepositPowerCommand);
 bot.command("setup_governance", admin_middleware, handleSetupGovernanceCommand);
 bot.command("gov_propose", user_middleware, handleGovProposeCommand);
 bot.command("gov_vote", user_middleware, handleGovVoteCommand);
+bot.command("realms", user_middleware, handleRealmsCommand);
+bot.command("subscribe", user_middleware, handleSubscribeCommand);
+bot.command("unsubscribe", user_middleware, handleUnsubscribeCommand);
+bot.command("set_alert_min", user_middleware, handleSetAlertMinCommand);
+bot.command("authority_alert", user_middleware, handleAuthorityAlertCommand);
 bot.command("alerts", user_middleware, handleAlertsCommand);
 bot.command("test_alerts", user_middleware, handleTestGovernanceAlerts);
+bot.command("delegates", user_middleware, handleDelegatesCommand);
+bot.command("delegate_to", user_middleware, handleDelegateToCommand);
 bot.command("swap", admin_middleware, async (ctx) => {
   await ctx.scene.enter('propose_wizard');
 });

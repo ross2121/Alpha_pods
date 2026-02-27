@@ -22,6 +22,103 @@ type HeliusWebhookPayload = {
   [key: string]: any;
 };
 
+const parseEstimatedValueUsd = (event: any): number | undefined => {
+  const raw =
+    event?.estimated_value_usd ??
+    event?.estimatedValueUsd ??
+    event?.estimatedUsd ??
+    event?.valueUsd;
+
+  if (raw === undefined || raw === null || raw === "") {
+    return undefined;
+  }
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const shouldNotifyBySubscription = (subscription: any, proposal: any): boolean => {
+  if (
+    proposal?.is_upgrade_authority_change &&
+    subscription?.notify_on_authority_change === false
+  ) {
+    return false;
+  }
+
+  if (subscription?.min_value_usd !== null && subscription?.min_value_usd !== undefined) {
+    if (proposal?.estimated_value_usd === null || proposal?.estimated_value_usd === undefined) {
+      return false;
+    }
+    if (proposal.estimated_value_usd < subscription.min_value_usd) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const parseRealmCreated = async (event: any, cluster: string = "devnet") => {
+  const realmPubkey = event.realm || event.realmPubkey || event.account;
+  if (!realmPubkey) {
+    console.warn("[governance-indexer] Missing realm pubkey in RealmCreated event:", event);
+    return null;
+  }
+
+  try {
+    new PublicKey(realmPubkey);
+  } catch (e) {
+    console.error("[governance-indexer] Invalid realm pubkey format:", e);
+    return null;
+  }
+
+  const realm = await prisma.realm.upsert({
+    where: { pubkey: realmPubkey },
+    update: {
+      name: event.realmName || event.name || `Realm ${realmPubkey.slice(0, 8)}...`,
+      cluster,
+    },
+    create: {
+      pubkey: realmPubkey,
+      name: event.realmName || event.name || `Realm ${realmPubkey.slice(0, 8)}...`,
+      cluster,
+    },
+  });
+
+  console.log(`[governance-indexer] ✓ Indexed RealmCreated: ${realm.pubkey}`);
+  return realm;
+};
+
+const parseRealmConfigUpdated = async (event: any, cluster: string = "devnet") => {
+  const realmPubkey = event.realm || event.realmPubkey || event.account;
+  if (!realmPubkey) {
+    console.warn("[governance-indexer] Missing realm pubkey in RealmConfigUpdated event:", event);
+    return null;
+  }
+
+  try {
+    new PublicKey(realmPubkey);
+  } catch (e) {
+    console.error("[governance-indexer] Invalid realm pubkey format:", e);
+    return null;
+  }
+
+  const realm = await prisma.realm.upsert({
+    where: { pubkey: realmPubkey },
+    update: {
+      name: event.realmName || event.name || undefined,
+      cluster,
+    },
+    create: {
+      pubkey: realmPubkey,
+      name: event.realmName || event.name || `Realm ${realmPubkey.slice(0, 8)}...`,
+      cluster,
+    },
+  });
+
+  console.log(`[governance-indexer] ✓ Indexed RealmConfigUpdated: ${realm.pubkey}`);
+  return realm;
+};
+
 /**
  * Parse ProposalCreated event from Helius and index into DB.
  * 
@@ -68,9 +165,18 @@ const parseProposalCreated = async (event: any, cluster: string = "devnet") => {
       },
     });
 
+    const estimatedValueUsd = parseEstimatedValueUsd(event);
+
     // Determine proposal category (heuristic for now)
     let category: ProposalCategory = ProposalCategory.Other;
-    if (event.isUpgradeAuthorityChange || title.toLowerCase().includes("upgrade")) {
+    const categoryRaw = String(event.category || "").toLowerCase();
+    if (categoryRaw === "treasury") {
+      category = ProposalCategory.Treasury;
+    } else if (categoryRaw === "upgradeauthority" || categoryRaw === "upgrade_authority") {
+      category = ProposalCategory.UpgradeAuthority;
+    } else if (categoryRaw === "parameter") {
+      category = ProposalCategory.Parameter;
+    } else if (event.isUpgradeAuthorityChange || title.toLowerCase().includes("upgrade")) {
       category = ProposalCategory.UpgradeAuthority;
     } else if (title.toLowerCase().includes("treasury") || title.toLowerCase().includes("transfer")) {
       category = ProposalCategory.Treasury;
@@ -85,6 +191,10 @@ const parseProposalCreated = async (event: any, cluster: string = "devnet") => {
         title,
         description,
         state: GovernanceProposalState.Draft,
+        category,
+        estimated_value_usd: estimatedValueUsd,
+        is_upgrade_authority_change:
+          Boolean(event.isUpgradeAuthorityChange) || category === ProposalCategory.UpgradeAuthority,
       },
       create: {
         realmId: realm.id,
@@ -94,7 +204,9 @@ const parseProposalCreated = async (event: any, cluster: string = "devnet") => {
         description,
         state: GovernanceProposalState.Draft,
         category,
-        is_upgrade_authority_change: category === ProposalCategory.UpgradeAuthority,
+        estimated_value_usd: estimatedValueUsd,
+        is_upgrade_authority_change:
+          Boolean(event.isUpgradeAuthorityChange) || category === ProposalCategory.UpgradeAuthority,
       },
     });
 
@@ -108,7 +220,9 @@ const parseProposalCreated = async (event: any, cluster: string = "devnet") => {
           `**Realm:** ${realm.name}\n` +
           `**Title:** ${title}\n` +
           `**Proposal:** \`${proposalPubkey.slice(0, 8)}...${proposalPubkey.slice(-8)}\`\n` +
-          `**Category:** ${category}\n\n` +
+          `**Category:** ${category}\n` +
+          (estimatedValueUsd !== undefined ? `**Estimated Value (USD):** $${estimatedValueUsd.toLocaleString()}\n` : "") +
+          `\n` +
           `[View on Solscan](${solscanUrl})`;
         
         // Send to all users subscribed to this realm
@@ -121,6 +235,9 @@ const parseProposalCreated = async (event: any, cluster: string = "devnet") => {
         });
         
         for (const sub of subscriptions) {
+          if (!shouldNotifyBySubscription(sub, proposal)) {
+            continue;
+          }
           try {
             await telegramBot.telegram.sendMessage(
               parseInt(sub.user.telegram_id),
@@ -265,6 +382,9 @@ const parseProposalVoted = async (event: any, cluster: string = "devnet") => {
         });
         
         for (const sub of subscriptions) {
+          if (!shouldNotifyBySubscription(sub, proposal)) {
+            continue;
+          }
           try {
             await telegramBot.telegram.sendMessage(
               parseInt(sub.user.telegram_id),
@@ -351,6 +471,9 @@ const parseProposalStateChange = async (event: any, newState: GovernanceProposal
         });
         
         for (const sub of subscriptions) {
+          if (!shouldNotifyBySubscription(sub, updated)) {
+            continue;
+          }
           try {
             await telegramBot.telegram.sendMessage(
               parseInt(sub.user.telegram_id),
@@ -510,6 +633,10 @@ export const handleGovernanceWebhook = async (req: Request, res: Response) => {
         for (const event of payload.events) {
           if (event.type === "PROPOSAL_CREATED" || event.type === "ProposalCreated") {
             await parseProposalCreated(event, cluster);
+          } else if (event.type === "REALM_CREATED" || event.type === "RealmCreated") {
+            await parseRealmCreated(event, cluster);
+          } else if (event.type === "REALM_CONFIG_UPDATED" || event.type === "RealmConfigUpdated") {
+            await parseRealmConfigUpdated(event, cluster);
           } else if (event.type === "PROPOSAL_VOTED" || event.type === "ProposalVoted") {
             await parseProposalVoted(event, cluster);
           } else if (event.type === "PROPOSAL_EXECUTED" || event.type === "ProposalExecuted") {
@@ -525,6 +652,10 @@ export const handleGovernanceWebhook = async (req: Request, res: Response) => {
       else {
         if (payload.type === "PROPOSAL_CREATED" || payload.type === "ProposalCreated") {
           await parseProposalCreated(payload, cluster);
+        } else if (payload.type === "REALM_CREATED" || payload.type === "RealmCreated") {
+          await parseRealmCreated(payload, cluster);
+        } else if (payload.type === "REALM_CONFIG_UPDATED" || payload.type === "RealmConfigUpdated") {
+          await parseRealmConfigUpdated(payload, cluster);
         } else if (payload.type === "PROPOSAL_VOTED" || payload.type === "ProposalVoted") {
           await parseProposalVoted(payload, cluster);
         } else if (payload.type === "PROPOSAL_EXECUTED" || payload.type === "ProposalExecuted") {
@@ -543,5 +674,3 @@ export const handleGovernanceWebhook = async (req: Request, res: Response) => {
     res.status(500).json({ ok: false, error: error?.message || String(error) });
   }
 };
-
-
