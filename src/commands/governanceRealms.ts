@@ -7,7 +7,7 @@ import {
   createOnchainProposal,
   castYesNoVote,
 } from "../services/governanceRealms";
-import { Role, PrismaClient } from "@prisma/client";
+import { Role, PrismaClient, GovernanceProposalState } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -339,65 +339,177 @@ export const createGovProposeWizard = () =>
     }
   );
 
-// /gov_vote command (simple yes/no by manual addresses)
-export const handleGovVoteCommand = async (ctx: MyContext) => {
-  if (!ctx.from) {
-    await ctx.reply("Could not detect your Telegram user.");
-    return;
-  }
+// /gov_vote wizard: pick proposal from DB, then choose yes/no and mint
+export const createGovVoteWizard = () =>
+  new Scenes.WizardScene<MyContext>(
+    "gov_vote_wizard",
+    async (ctx) => {
+      if (!ctx.from) {
+        await ctx.reply("Could not detect your Telegram user.");
+        return ctx.scene.leave();
+      }
 
-  const text = ctx.message && "text" in ctx.message ? ctx.message.text : "";
-  const parts = text ? text.trim().split(/\s+/) : [];
+      const proposals = await prisma.governanceProposal.findMany({
+        where: {
+          state: {
+            in: [
+              GovernanceProposalState.Draft,
+              GovernanceProposalState.Voting,
+              GovernanceProposalState.Succeeded,
+            ],
+          } as any,
+        },
+        include: {
+          realm: true,
+        },
+        orderBy: {
+          voting_start: "desc",
+        },
+        take: 10,
+      });
 
-  // Expected format:
-  // /gov_vote <yes|no> <realm> <governance> <proposal> <communityMint>
-  if (parts.length !== 6) {
-    await ctx.reply(
-      "Usage:\n/gov_vote <yes|no> <realm> <governance> <proposal> <communityMint>",
-      { parse_mode: "Markdown" }
-    );
-    return;
-  }
+      if (!proposals.length) {
+        await ctx.reply(
+          "I couldn't find any indexed governance proposals yet.\n\n" +
+            "Once proposals are created and indexed, you can vote on them here."
+        );
+        return ctx.scene.leave();
+      }
 
-  const vote = parts[1].toLowerCase() === "yes" ? "yes" : "no";
-  const realm = parts[2];
-  const governance = parts[3];
-  const proposal = parts[4];
-  const communityMint = parts[5];
+      (ctx.wizard.state as any).proposals = proposals;
 
-  await ctx.reply(
-    `⏳ Casting *${vote.toUpperCase()}* vote on proposal...\n\n` +
-      `Realm: \`${realm}\`\n` +
-      `Governance: \`${governance}\`\n` +
-      `Proposal: \`${proposal}\`\n` +
-      `Mint: \`${communityMint}\``,
-    { parse_mode: "Markdown" }
+      const lines = proposals.map((p, idx) => {
+        const num = idx + 1;
+        const title = p.title || "Untitled";
+        const realmName = p.realm.name;
+        const shortPk =
+          p.proposal_pubkey.slice(0, 4) +
+          "..." +
+          p.proposal_pubkey.slice(-4);
+        const state = p.state;
+        return `${num}) [${realmName}] ${title} (${state}) \`${shortPk}\``;
+      });
+
+      await ctx.reply(
+        "🗳️ *Choose a proposal to vote on*\n\n" +
+          lines.join("\n") +
+          "\n\nReply with the number of the proposal.",
+        { parse_mode: "Markdown" }
+      );
+
+      return ctx.wizard.next();
+    },
+    async (ctx) => {
+      if (!("message" in ctx) || !ctx.message || !("text" in ctx.message)) {
+        await ctx.reply("Please reply with the proposal number (e.g. 1).");
+        return;
+      }
+
+      const text = ctx.message.text.trim();
+      const idx = Number(text);
+      const proposals = (ctx.wizard.state as any).proposals as any[];
+
+      if (!Number.isInteger(idx) || idx < 1 || idx > proposals.length) {
+        await ctx.reply(
+          `Please send a valid number between 1 and ${proposals.length}.`
+        );
+        return;
+      }
+
+      const selected = proposals[idx - 1];
+      (ctx.wizard.state as any).selectedProposal = selected;
+
+      await ctx.reply(
+        "Great. Now reply with your vote:\n\n" +
+          "`yes` – vote in favour\n" +
+          "`no` – vote against",
+        { parse_mode: "Markdown" }
+      );
+
+      return ctx.wizard.next();
+    },
+    async (ctx) => {
+      if (!("message" in ctx) || !ctx.message || !("text" in ctx.message)) {
+        await ctx.reply("Please reply with `yes` or `no`.");
+        return;
+      }
+
+      const text = ctx.message.text.trim().toLowerCase();
+      if (text !== "yes" && text !== "no") {
+        await ctx.reply("Please reply with exactly `yes` or `no`.");
+        return;
+      }
+
+      (ctx.wizard.state as any).voteSide = text;
+
+      await ctx.reply(
+        "Finally, send the *community mint* address used for this governance token.",
+        { parse_mode: "Markdown" }
+      );
+
+      return ctx.wizard.next();
+    },
+    async (ctx) => {
+      if (!("message" in ctx) || !ctx.message || !("text" in ctx.message)) {
+        await ctx.reply("Please send the community mint address as text.");
+        return;
+      }
+
+      const communityMint = ctx.message.text.trim();
+      const state = ctx.wizard.state as any;
+      const selected = state.selectedProposal as any;
+      const voteSide = state.voteSide as "yes" | "no";
+
+      const from = ctx.from;
+      if (!from) {
+        await ctx.reply("Could not detect your Telegram user.");
+        return ctx.scene.leave();
+      }
+
+      const realmPubkey = selected.realm.pubkey as string;
+      const governancePubkey = selected.governance_pubkey as string;
+      const proposalPubkey = selected.proposal_pubkey as string;
+
+      await ctx.reply(
+        `⏳ Casting *${voteSide.toUpperCase()}* vote on proposal...\n\n` +
+          `Realm: \`${realmPubkey}\`\n` +
+          `Governance: \`${governancePubkey}\`\n` +
+          `Proposal: \`${proposalPubkey}\`\n` +
+          `Mint: \`${communityMint}\``,
+        { parse_mode: "Markdown" }
+      );
+
+      try {
+        const { voteRecordAddress, signature } = await castYesNoVote({
+          telegramId: String(from.id),
+          realmPubkey,
+          governancePubkey,
+          proposalPubkey,
+          communityMint,
+          vote: voteSide,
+        });
+
+        await ctx.reply(
+          "✅ *Vote cast on-chain!*\n\n" +
+            `*Vote record:*\n\`${voteRecordAddress.toBase58()}\`\n\n` +
+            `*Transaction:*\n\`${signature}\``,
+          { parse_mode: "Markdown" }
+        );
+      } catch (error: any) {
+        console.error("[telegram] /gov_vote wizard error:", error);
+        await ctx.reply(
+          "❌ Failed to cast vote:\n" +
+            `\`${error?.message || String(error)}\``,
+          { parse_mode: "Markdown" }
+        );
+      }
+
+      return ctx.scene.leave();
+    }
   );
 
-  try {
-    const { voteRecordAddress, signature } = await castYesNoVote({
-      telegramId: String(ctx.from.id),
-      realmPubkey: realm,
-      governancePubkey: governance,
-      proposalPubkey: proposal,
-      communityMint,
-      vote,
-    });
-
-    await ctx.reply(
-      "✅ *Vote cast on-chain!*\n\n" +
-        `*Vote record:*\n\`${voteRecordAddress.toBase58()}\`\n\n` +
-        `*Transaction:*\n\`${signature}\``,
-      { parse_mode: "Markdown" }
-    );
-  } catch (error: any) {
-    console.error("[telegram] /gov_vote error:", error);
-    await ctx.reply(
-      "❌ Failed to cast vote:\n" +
-        `\`${error?.message || String(error)}\``,
-      { parse_mode: "Markdown" }
-    );
-  }
+export const handleGovVoteCommand = async (ctx: MyContext) => {
+  await ctx.scene.enter("gov_vote_wizard");
 };
 
 export const handleDepositPowerCommand = async (ctx: MyContext) => {

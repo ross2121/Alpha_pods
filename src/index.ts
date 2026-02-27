@@ -1,4 +1,4 @@
-import express, { json } from "express";
+import express from "express";
 import { Telegraf, Scenes, session } from "telegraf";
 import dotenv from "dotenv";
 import { admin_middleware, user_middleware } from "./middleware/admin";
@@ -42,22 +42,25 @@ import {
   createDepositPowerWizard,
   createGovProposeWizard,
   createSetupGovernanceWizard,
+  createGovVoteWizard,
   handleDepositPowerCommand,
   handleGovProposeCommand,
   handleGovVoteCommand,
   handleSetupGovernanceCommand,
 } from "./commands/governanceRealms";
-import { timeStamp } from "console";
+import { PrismaClient } from "@prisma/client";
 dotenv.config();
 const bot = new Telegraf<MyContext>(process.env.TELEGRAM_API || "");
 setTelegramBot(bot); // Pass bot to governance indexer for notifications
-const app=express();
+const app = express();
+const prisma = new PrismaClient();
 const proposeWizard = createProposeWizard(bot);
 const liquidtywizard = createliqudityWizards(bot);
 const daoWizard = createDaoWizard();
 const depositPowerWizard = createDepositPowerWizard();
 const setupGovernanceWizard = createSetupGovernanceWizard();
 const govProposeWizard = createGovProposeWizard();
+const govVoteWizard = createGovVoteWizard();
 const stage = new Scenes.Stage<MyContext>([
   proposeWizard,
   liquidtywizard as any,
@@ -65,9 +68,11 @@ const stage = new Scenes.Stage<MyContext>([
   depositPowerWizard,
   setupGovernanceWizard,
   govProposeWizard,
+  govVoteWizard,
 ]);
 
 app.use(express.json());
+app.use(express.static("public"));
 
 
 app.get("/health", (req, res) => {
@@ -79,6 +84,61 @@ app.get("/health", (req, res) => {
 app.post("/webhooks/governance", async (req, res) => {
   console.log("[webhooks/governance] Hit");
   return handleGovernanceWebhook(req, res);
+});
+
+// Simple read-only REST APIs for frontend
+app.get("/api/realms", async (req, res) => {
+  try {
+    const realms = await prisma.realm.findMany({
+      orderBy: { name: "asc" },
+    });
+    res.json(realms);
+  } catch (e: any) {
+    console.error("[api/realms] Error:", e);
+    res.status(500).json({ error: e?.message || String(e) });
+  }
+});
+
+app.get("/api/realms/:pubkey/proposals", async (req, res) => {
+  const { pubkey } = req.params;
+  try {
+    const realm = await prisma.realm.findUnique({
+      where: { pubkey },
+    });
+    if (!realm) {
+      return res.status(404).json({ error: "Realm not found" });
+    }
+    const proposals = await prisma.governanceProposal.findMany({
+      where: { realmId: realm.id },
+      orderBy: { voting_start: "desc" },
+    });
+    res.json({ realm, proposals });
+  } catch (e: any) {
+    console.error("[api/realms/:pubkey/proposals] Error:", e);
+    res.status(500).json({ error: e?.message || String(e) });
+  }
+});
+
+app.get("/api/realms/:pubkey/delegates", async (req, res) => {
+  const { pubkey } = req.params;
+  try {
+    const realm = await prisma.realm.findUnique({
+      where: { pubkey },
+    });
+    if (!realm) {
+      return res.status(404).json({ error: "Realm not found" });
+    }
+    const stats = await prisma.delegateStats.findMany({
+      where: { realmId: realm.id },
+      include: { delegate: true },
+      orderBy: { total_votes: "desc" },
+      take: 20,
+    });
+    res.json({ realm, delegates: stats });
+  } catch (e: any) {
+    console.error("[api/realms/:pubkey/delegates] Error:", e);
+    res.status(500).json({ error: e?.message || String(e) });
+  }
 });
 
 app.get("/jks", async (req: any, res: any) => {

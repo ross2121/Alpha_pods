@@ -1,6 +1,6 @@
 # Alpha Pods
 
-**Alpha Pods** is a Telegram-based collaborative trading platform built on Solana that enables groups of traders to pool funds and make investment decisions together through secure, transparent, and democratic processes.
+**Alpha Pods** is a Telegram-based collaborative trading and governance platform built on Solana. Groups can pool funds for DeFi strategies *and* run full SPL Governance (Realms) workflows directly from Telegram, with a lightweight web dashboard for read‑only visibility.
 
 ## 🎬 Demo Video
 
@@ -19,9 +19,9 @@ https://github.com/user-attachments/assets/3e6e46e4-9343-4804-8b50-2794873a730f
 - **Deployed Bot:** [@Alpha_Pods_bot](https://t.me/Alpha_Pods_bot) (Currently on devnet)
 - **Pitch Deck:** [View on Figma](https://www.figma.com/slides/ux37DkTt4eWma0ogto1Fu3/Alpha_POds?node-id=12-1642&t=0e34gzlS1A1lltXD-1)
 
-## 🚀 Quick Start Guide
+## 🚀 Backend & Bot Quick Start
 
-### Step-by-Step Setup
+### Step-by-Step Bot Setup
 
 1. **Create a Telegram Group**
    - Open Telegram and create a new group for your trading pod.
@@ -45,9 +45,50 @@ https://github.com/user-attachments/assets/3e6e46e4-9343-4804-8b50-2794873a730f
 
 You can test the bot with any devnet token. Example token: `Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr`
 
-## ✨ Features
+## ✨ Telegram Features (Trading + Governance)
 
-Alpha Pods offers a comprehensive suite of features designed to make collaborative trading secure, transparent, and efficient. Each feature is built with on-chain security and community governance at its core.
+Alpha Pods offers a comprehensive suite of features designed to make collaborative trading secure, transparent, and efficient, and now includes Realms‑based DAO governance. Each feature is built with on-chain security and community governance at its core.
+
+### 🏛 Governance (Realms) – Telegram Bot
+
+- **/createdao** – Create a new SPL Governance Realm on-chain using the group admin’s Privy wallet as realm authority and fee payer. The created realm is also stored in Postgres (`Realm` table) for indexing and alerts.
+- **/deposit_power** – Deposit governing tokens for a Realm to obtain voting power (`withDepositGoverningTokens`).
+- **/setup_governance** – Configure governance rules and create the DAO’s native SOL treasury (`withCreateGovernance` + `withCreateNativeTreasury`). Idempotent and tolerant of known 0x44d errors.
+- **/gov_propose** – Create on-chain governance proposals (`withCreateProposal`) by entering Realm, Governance, community mint, and a title/description.
+- **/gov_vote** – Wizard that:
+  - Lists recent proposals from the database,
+  - Lets the user pick one by number,
+  - Asks for `yes`/`no`,
+  - Asks once for the community mint,
+  - Casts the vote on-chain with `withCastVote` via the user’s Privy wallet.
+
+### 🔔 Governance Alerts & Subscriptions
+
+Backed by a governance indexer (`src/services/governanceIndexer.ts`) and a poller (`src/services/governancePoller.ts`), the bot:
+
+- Ingests Helius webhooks (`/webhooks/governance`) for:
+  - RealmCreated / RealmConfigUpdated
+  - ProposalCreated / ProposalVoted / ProposalExecuted / ProposalCancelled / ProposalDefeated
+- Stores data in Postgres tables (`Realm`, `GovernanceProposal`, `GovernanceVote`, `Subscription`, `Delegation`, `Delegate`, `DelegateStats`, `GovernanceAccount`, `ProposalInstruction`).
+- Sends Telegram notifications to subscribed users, enforcing:
+  - `min_value_usd` per realm,
+  - `notify_on_authority_change`,
+  - `notify_on_new_proposal`,
+  - `notify_on_final_result`.
+
+User‑facing commands:
+
+- **/realms** – List indexed Realms and your follow status per realm.
+- **/subscribe & /unsubscribe** – Enable/disable alerts per realm (with optional min USD filter).
+- **/set_alert_min** – Set `min_value_usd` for a realm.
+- **/authority_alert** – Toggle authority‑change alerts per realm.
+- **/alerts** – Inline buttons to quickly toggle alerts for all realms.
+- **/test_alerts** – Simulate a full governance notification pipeline for the caller (handy for Telegram‑only testing).
+
+### 🧑‍⚖️ Delegates & Delegation
+
+- **/delegates \<realm_pubkey\>** – Show top delegates for a realm, based on `DelegateStats` (total votes and participation rate).
+- **/delegate_to \<realm_pubkey\> \<delegate_wallet\>** – Create/update a `Delegation` linking the caller’s wallet to a delegate’s wallet for that realm. A minimal `Delegate` profile is auto‑created if missing.
 
 ### 🔄 SWAP
 Execute token swaps through community consensus. The admin initiates a swap by entering the token mint address and specifying the amount of SOL to convert. A poll is automatically created for all traders to vote on the proposal. Once the swap is approved by the required threshold, the specified amount is transferred from each user's wallet to the secure escrow vault (PDA). The database is updated in real-time to track individual contributions.

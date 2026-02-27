@@ -4,6 +4,7 @@ import {
   withCreateNativeTreasury,
   withCreateProposal,
   withCastVote,
+  withCreateTokenOwnerRecord,
   GovernanceConfig,
   VoteThreshold,
   VoteThresholdType,
@@ -12,6 +13,7 @@ import {
   Vote,
   YesNoVote,
   getNativeTreasuryAddress,
+  getTokenOwnerRecordAddress,
 } from "@realms-today/spl-governance";
 import {
   Connection,
@@ -149,28 +151,6 @@ export const createGovernanceForRealm = async (params: {
   const communityMintPk = new PublicKey(communityMint);
   const governanceAuthority = new PublicKey(user.public_key);
 
-  // For simplicity, assume the user already deposited tokens and
-  // use the PDA returned by withDepositGoverningTokens when they ran /deposit_power.
-  // Here we recompute it by calling a zero-amount deposit (no-op if already initialized)
-  const tokenSourceAccount = await getAssociatedTokenAddress(
-    communityMintPk,
-    governanceAuthority
-  );
-
-  const tmpIxs: TransactionInstruction[] = [];
-  const tokenOwnerRecordAddress = await withDepositGoverningTokens(
-    tmpIxs,
-    GOVERNANCE_PROGRAM_ID,
-    GOVERNANCE_PROGRAM_VERSION,
-    realmAddress,
-    tokenSourceAccount,
-    communityMintPk,
-    governanceAuthority,
-    governanceAuthority,
-    governanceAuthority,
-    new BN(0) as any
-  );
-
   const config = new GovernanceConfig({
     communityVoteThreshold: new VoteThreshold({
       type: VoteThresholdType.YesVotePercentage,
@@ -199,12 +179,32 @@ export const createGovernanceForRealm = async (params: {
 
   const govIxs: TransactionInstruction[] = [];
 
+  // First, create TokenOwnerRecord using the deposit mechanism with 0 amount
+  // This is the proven way to create a TokenOwnerRecord without actual deposit
+  const tokenSourceAccount = await getAssociatedTokenAddress(
+    communityMintPk,
+    governanceAuthority
+  );
+
+  const tokenOwnerRecordAddress = await withDepositGoverningTokens(
+    govIxs,
+    GOVERNANCE_PROGRAM_ID,
+    GOVERNANCE_PROGRAM_VERSION,
+    realmAddress,
+    tokenSourceAccount,
+    communityMintPk,
+    governanceAuthority,
+    governanceAuthority,
+    governanceAuthority,
+    new BN(0) as any // Deposit 0 tokens to just create the record
+  );
+
   const governanceAddress = await withCreateGovernance(
     govIxs,
     GOVERNANCE_PROGRAM_ID,
     GOVERNANCE_PROGRAM_VERSION,
     realmAddress,
-    undefined, // governed account: can be created later
+    realmAddress,
     config,
     tokenOwnerRecordAddress,
     governanceAuthority,
@@ -569,5 +569,4 @@ export const castYesNoVote = async (params: {
     signature,
   };
 };
-
 
