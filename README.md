@@ -13,9 +13,11 @@ https://github.com/user-attachments/assets/3e6e46e4-9343-4804-8b50-2794873a730f
 
 ## 📚 Resources
 
+- **Documentation:** [AlphaPods Docs](https://alphadpods.io) – Full governance guides, bot commands, and architecture
+- **Complete Guide:** [Complete Documentation (Notion Format)](./ALPHAPODS_COMPLETE_DOCUMENTATION.md)
 - **Video Demo:** [Watch Demo](https://www.loom.com/share/7233009d2eab4080a7a991d2251f6759)
 - **Smart Contract:** [FeozaXSwZZexg48Fup4xLZFN2c9nUsSvtHbWz3V3GQuq](https://explorer.solana.com/address/FeozaXSwZZexg48Fup4xLZFN2c9nUsSvtHbWz3V3GQuq?cluster=devnet)
-- **GitHub Repository:** [ross2121/Alpha_pods](https://github.com/ross2121/Alpha_pods)
+- **GitHub Repository:** [youval-singh/alphadpods](https://github.com/youval-singh/alphadpods)
 - **Deployed Bot:** [@Alpha_Pods_bot](https://t.me/Alpha_Pods_bot) (Currently on devnet)
 - **Pitch Deck:** [View on Figma](https://www.figma.com/slides/ux37DkTt4eWma0ogto1Fu3/Alpha_POds?node-id=12-1642&t=0e34gzlS1A1lltXD-1)
 
@@ -51,16 +53,26 @@ Alpha Pods offers a comprehensive suite of features designed to make collaborati
 
 ### 🏛 Governance (Realms) – Telegram Bot
 
-- **/createdao** – Create a new SPL Governance Realm on-chain using the group admin’s Privy wallet as realm authority and fee payer. The created realm is also stored in Postgres (`Realm` table) for indexing and alerts.
+**Full DAO & Governance Features:**
+
+- **/createdao** – Create a new SPL Governance Realm on-chain using the group admin's Privy wallet as realm authority and fee payer. The created realm is also stored in Postgres (`Realm` table) for indexing and alerts.
+- **/setup_governance** – Configure governance rules and create the DAO's native SOL treasury (`withCreateGovernance` + `withCreateNativeTreasury`). Idempotent and tolerant of known 0x44d errors.
 - **/deposit_power** – Deposit governing tokens for a Realm to obtain voting power (`withDepositGoverningTokens`).
-- **/setup_governance** – Configure governance rules and create the DAO’s native SOL treasury (`withCreateGovernance` + `withCreateNativeTreasury`). Idempotent and tolerant of known 0x44d errors.
 - **/gov_propose** – Create on-chain governance proposals (`withCreateProposal`) by entering Realm, Governance, community mint, and a title/description.
 - **/gov_vote** – Wizard that:
   - Lists recent proposals from the database,
   - Lets the user pick one by number,
   - Asks for `yes`/`no`,
   - Asks once for the community mint,
-  - Casts the vote on-chain with `withCastVote` via the user’s Privy wallet.
+  - Casts the vote on-chain with `withCastVote` via the user's Privy wallet.
+- **/realms** – List indexed Realms and your follow status per realm.
+- **/subscribe & /unsubscribe** – Enable/disable alerts per realm (with optional min USD filter).
+- **/set_alert_min** – Set `min_value_usd` for a realm.
+- **/authority_alert** – Toggle authority‑change alerts per realm.
+- **/alerts** – Inline buttons to quickly toggle alerts for all realms.
+- **/test_alerts** – Simulate a full governance notification pipeline for the caller.
+
+**See full [Governance Documentation](https://alphadpods.io/guides/governance-setup) for technical details and architecture.**
 
 ### 🔔 Governance Alerts & Subscriptions
 
@@ -76,19 +88,21 @@ Backed by a governance indexer (`src/services/governanceIndexer.ts`) and a polle
   - `notify_on_new_proposal`,
   - `notify_on_final_result`.
 
-User‑facing commands:
-
-- **/realms** – List indexed Realms and your follow status per realm.
-- **/subscribe & /unsubscribe** – Enable/disable alerts per realm (with optional min USD filter).
-- **/set_alert_min** – Set `min_value_usd` for a realm.
-- **/authority_alert** – Toggle authority‑change alerts per realm.
-- **/alerts** – Inline buttons to quickly toggle alerts for all realms.
-- **/test_alerts** – Simulate a full governance notification pipeline for the caller (handy for Telegram‑only testing).
+**See full [Smart Alerts Guide](https://alphadpods.io/guides/alerts) for configuration and use cases.**
 
 ### 🧑‍⚖️ Delegates & Delegation
 
-- **/delegates \<realm_pubkey\>** – Show top delegates for a realm, based on `DelegateStats` (total votes and participation rate).
-- **/delegate_to \<realm_pubkey\> \<delegate_wallet\>** – Create/update a `Delegation` linking the caller’s wallet to a delegate’s wallet for that realm. A minimal `Delegate` profile is auto‑created if missing.
+Build trusted delegate networks for DAO voting:
+
+- **/delegates \<realm_pubkey\>** – Discover top delegates for a realm, ranked by voting participation and alignment score.
+- **/delegate_to \<realm_pubkey\> \<delegate_wallet\>** – Delegate your voting power to a community member.
+- **/revoke_delegation \<realm_pubkey\>** – Take back your voting power anytime.
+- **/my_profile** – Set up your delegate profile (name, bio, avatar, tags).
+- **/my_stats \<realm_pubkey\>** – View your voting stats and delegation followers.
+
+**Delegate stats tracked:** voting power, participation rate, alignment score, tags (Conservative, Builder-Aligned, etc.).
+
+**See full [Delegates Guide](https://alphadpods.io/guides/delegates) for reputation building and best practices.**
 
 ### 🔄 SWAP
 Execute token swaps through community consensus. The admin initiates a swap by entering the token mint address and specifying the amount of SOL to convert. A poll is automatically created for all traders to vote on the proposal. Once the swap is approved by the required threshold, the specified amount is transferred from each user's wallet to the secure escrow vault (PDA). The database is updated in real-time to track individual contributions.
@@ -176,6 +190,33 @@ After conversion, the member receives their full balance (original contributions
 ### Indexing for Auto-Copy LP
 Our advanced indexing system tracks and analyzes the liquidity provision strategies of top-performing traders in real-time. When you identify a trader whose strategy you want to replicate, our indexer automatically monitors their positions, entry/exit points, and rebalancing decisions. The pod can then vote to mirror these exact trades, allowing you to benefit from proven strategies without manual analysis. This feature enables pods to trade like the best performers by leveraging our comprehensive on-chain data indexing infrastructure.
 
+## 📖 Documentation
+
+**Full Documentation Site:** [alphadpods.io](https://alphadpods.io)
+
+The docs site includes:
+- **[Governance Setup & Architecture](https://alphadpods.io/guides/governance-setup)** – Technical deep-dive into SPL Governance structure
+- **[Telegram Governance Complete Walkthrough](https://alphadpods.io/guides/telegram-governance)** – Step-by-step bot command guide
+- **[Program Integration Guide](https://alphadpods.io/guides/program-integration)** – How to make your Rust program governed by DAOs
+- **[Delegates & Delegation](https://alphadpods.io/guides/delegates)** – Building delegate networks and reputation
+- **[Smart Alerts & Notifications](https://alphadpods.io/guides/alerts)** – Configure governance alerts per realm
+- **[Platform Overview](https://alphadpods.io/overview)** – System architecture and components
+
+**Or download:** [Complete Documentation (Markdown/Notion Compatible)](./ALPHAPODS_COMPLETE_DOCUMENTATION.md)
+
+### Deploying the Docs
+
+The docs are built with Next.js and deployed to Vercel:
+
+```bash
+cd docs
+npm install
+npm run build
+# Deploy to Vercel (auto-deploys on git push)
+```
+
+Configuration: [`docs/vercel.json`](./docs/vercel.json) defines the build and output settings.
+
 ## 🏗️ Architecture
 
 
@@ -261,7 +302,60 @@ Alpha Pods solves all four problems through:
 - **On-chain accounting** that automatically tracks contributions and distributes profits
 - **100% transparent blockchain records** that anyone can verify at any time
 
-## 🔗 Links
+## � Development Setup
+
+### Prerequisites
+- Node.js 18+
+- Rust & Anchor (for smart contracts)
+- Solana CLI
+- Docker (for local services)
+
+### Quick Start
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/youval-singh/alphadpods.git
+   cd alphadpods
+   ```
+
+2. **Install dependencies**
+   ```bash
+   pnpm install
+   ```
+
+3. **Set up environment variables**
+   ```bash
+   cp env.template .env.local
+   # Edit .env.local with your Privy API key, Helius API key, etc.
+   ```
+
+4. **Start the Telegram bot (devnet)**
+   ```bash
+   npm run dev
+   ```
+
+5. **Deploy smart contracts (optional)**
+   ```bash
+   cd alpha_pods
+   anchor build
+   anchor deploy --provider.cluster devnet
+   ```
+
+6. **Run documentation site locally**
+   ```bash
+   cd docs
+   npm install
+   npm run dev
+   # Open http://localhost:3000
+   ```
+
+### Testing on Devnet
+
+Use devnet tokens for testing:
+- Example: `Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr`
+- Bot: [@Alpha_Pods_bot](https://t.me/Alpha_Pods_bot) (devnet only)
+
+## �🔗 Links
 
 - **Contract Address:** `FeozaXSwZZexg48Fup4xLZFN2c9nUsSvtHbWz3V3GQuq`
 - **Explorer:** [View on Solana Explorer](https://explorer.solana.com/address/FeozaXSwZZexg48Fup4xLZFN2c9nUsSvtHbWz3V3GQuq?cluster=devnet)
