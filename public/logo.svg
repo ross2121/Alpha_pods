@@ -1,0 +1,35 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="96" y1="88" x2="420" y2="424" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A"/>
+      <stop offset="1" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="130" y1="128" x2="384" y2="388" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67E8F9"/>
+      <stop offset="0.52" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#22C55E"/>
+    </linearGradient>
+    <linearGradient id="fill" x1="178" y1="156" x2="334" y2="338" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7DD3FC"/>
+      <stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+    <filter id="glow" x="64" y="64" width="384" height="384" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feGaussianBlur stdDeviation="16" result="effect1_foregroundBlur"/>
+    </filter>
+  </defs>
+  <rect x="64" y="64" width="384" height="384" rx="120" fill="url(#bg)"/>
+  <rect x="64" y="64" width="384" height="384" rx="120" stroke="#94A3B8" stroke-opacity="0.18"/>
+  <g filter="url(#glow)" opacity="0.2">
+    <circle cx="256" cy="256" r="128" stroke="url(#stroke)" stroke-width="20"/>
+  </g>
+  <circle cx="256" cy="256" r="132" stroke="url(#stroke)" stroke-width="18" opacity="0.92"/>
+  <path d="M224 170C224 161.163 231.163 154 240 154H272C280.837 154 288 161.163 288 170V190H318C334.569 190 348 203.431 348 220V236C348 252.569 334.569 266 318 266H288V342H224V170Z" fill="url(#fill)"/>
+  <path d="M194 248C194 226.461 211.461 209 233 209H287C308.539 209 326 226.461 326 248C326 269.539 308.539 287 287 287H233C211.461 287 194 269.539 194 248Z" fill="#0A1020"/>
+  <path d="M221 248C221 241.373 226.373 236 233 236H279C285.627 236 291 241.373 291 248C291 254.627 285.627 260 279 260H233C226.373 260 221 254.627 221 248Z" fill="url(#fill)"/>
+  <circle cx="150" cy="216" r="14" fill="#67E8F9"/>
+  <circle cx="362" cy="310" r="12" fill="#22C55E"/>
+  <path d="M150 216C173.5 170.5 210.5 144 256 132" stroke="url(#stroke)" stroke-width="12" stroke-linecap="round" opacity="0.9"/>
+  <path d="M362 310C336.5 355.5 300 380 256 380" stroke="url(#stroke)" stroke-width="12" stroke-linecap="round" opacity="0.9"/>
+</svg>

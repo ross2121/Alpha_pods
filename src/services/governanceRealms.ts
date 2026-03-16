@@ -179,25 +179,28 @@ export const createGovernanceForRealm = async (params: {
 
   const govIxs: TransactionInstruction[] = [];
 
-  // First, create TokenOwnerRecord using the deposit mechanism with 0 amount
-  // This is the proven way to create a TokenOwnerRecord without actual deposit
-  const tokenSourceAccount = await getAssociatedTokenAddress(
+  // Ensure TokenOwnerRecord exists before CreateGovernance.
+  // Passing only the PDA without the account created can fail with custom error 0x44f.
+  const tokenOwnerRecordAddress = await getTokenOwnerRecordAddress(
+    GOVERNANCE_PROGRAM_ID,
+    realmAddress,
     communityMintPk,
     governanceAuthority
   );
-
-  const tokenOwnerRecordAddress = await withDepositGoverningTokens(
-    govIxs,
-    GOVERNANCE_PROGRAM_ID,
-    GOVERNANCE_PROGRAM_VERSION,
-    realmAddress,
-    tokenSourceAccount,
-    communityMintPk,
-    governanceAuthority,
-    governanceAuthority,
-    governanceAuthority,
-    new BN(0) as any // Deposit 0 tokens to just create the record
+  const existingTokenOwnerRecord = await connection.getAccountInfo(
+    tokenOwnerRecordAddress
   );
+  if (!existingTokenOwnerRecord) {
+    await withCreateTokenOwnerRecord(
+      govIxs,
+      GOVERNANCE_PROGRAM_ID,
+      GOVERNANCE_PROGRAM_VERSION,
+      realmAddress,
+      governanceAuthority,
+      communityMintPk,
+      governanceAuthority
+    );
+  }
 
   const governanceAddress = await withCreateGovernance(
     govIxs,
@@ -328,8 +331,7 @@ export const createNativeTreasuryForGovernance = async (params: {
     };
   } catch (e: any) {
     const msg = e?.message || String(e);
-    // If CreateNativeTreasury fails with the known 0x44d governance error,
-    // treat it as non-fatal so /setup_governance can still succeed.
+    
     if (
       msg.includes("GOVERNANCE-INSTRUCTION: CreateNativeTreasury") ||
       msg.includes("custom program error: 0x44d")

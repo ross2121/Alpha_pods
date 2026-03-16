@@ -20,8 +20,31 @@
         align-items: center;
       }
       .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .logo-mark {
+        width: 40px;
+        height: 40px;
+        border-radius: 14px;
+        flex: 0 0 auto;
+      }
+      .logo-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .logo-title {
         font-weight: 700;
         font-size: 18px;
+        line-height: 1.1;
+      }
+      .logo-subtitle {
+        font-size: 11px;
+        color: #94a3b8;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
       }
       .pill {
         font-size: 12px;
@@ -186,7 +209,13 @@
   </head>
   <body>
     <header>
-      <div class="logo">Alpha Pods · Governance</div>
+      <div class="logo">
+        <img class="logo-mark" src="/logo.svg" alt="AlphaPods logo" />
+        <div class="logo-copy">
+          <div class="logo-title">AlphaPods</div>
+          <div class="logo-subtitle">Governance Dashboard</div>
+        </div>
+      </div>
       <div class="pill">Read‑only dashboard · Data from Postgres</div>
     </header>
     <main>
@@ -374,4 +403,3 @@
     </script>
   </body>
   </html>
-

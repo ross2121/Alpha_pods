@@ -251,11 +251,11 @@ How does everyone *know* what's *really* happening?
 - **The Reality:** Screenshots can be faked. The fund manager can hide losses, lie about trades, or front-run the group's decisions. There is no single, verifiable source of truth, which leads to suspicion and conflict.
 
 ## ✅ How Alpha Pods Solves It
-
-The `alpha_pods` smart contract, combined with the Telegram bot, provides a powerful and elegant solution to every single one of these problems.
+egram bot, provides a powerful and elegant solution to every single one of these problems.
 
 ### Solution to Trust & Custody: The Smart Contract Vault (PDA)
-The bot doesn't hold any funds. The **Solana program** does. The funds live in a **Program Derived Address (PDA)**, which is a vault controlled *only* by code.
+The bot doesn't hold any funds. The **Solana program** does. The funds live in a **Program Derived Address (PDA)**, which is a vault controlled *o
+The `alpha_pods` smart contract, combined with the Telnly* by code.
 
 **How it saves people:** No single person can steal the money. To move *any* funds, a transaction *must* be signed by the `threshold` number of members. The bot just *proposes* the transaction; the members' wallets *authorize* it. This is **non-custodial** and removes all "key-man" risk.
 
